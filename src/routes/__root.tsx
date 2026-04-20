@@ -45,6 +45,13 @@ export const Route = createRootRoute({
         content: "Checklist digital para operação industrial.",
       },
       { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "Checklist Operacional — Linha 3 Enchedora 3" },
+      { name: "description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
+      { property: "og:description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
+      { name: "twitter:description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0dab3f47-b6b3-46ba-9763-bcc96b533de6/id-preview-efcc7704--6376b0f9-ac30-49e3-af42-537d32e8c5fa.lovable.app-1776694199936.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0dab3f47-b6b3-46ba-9763-bcc96b533de6/id-preview-efcc7704--6376b0f9-ac30-49e3-af42-537d32e8c5fa.lovable.app-1776694199936.png" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
