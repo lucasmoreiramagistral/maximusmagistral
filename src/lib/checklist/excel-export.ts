@@ -501,12 +501,19 @@ function arrayBufferParaBase64(buffer: ArrayBuffer): string {
 /** Salva o .xlsx no Android via @capacitor/filesystem e abre o Share Sheet
  *  (WhatsApp, Drive, Email, "Salvar no dispositivo", etc.). */
 async function salvarViaCapacitor(buffer: ArrayBuffer, nomeArquivo: string): Promise<void> {
-  // Imports dinâmicos: só carregam dentro do APK, não quebram o build web.
-  // Os pacotes @capacitor/* são instalados manualmente no PC antes de `npx cap add android`.
-  // @ts-expect-error pacote opcional resolvido só no build do APK
-  const { Filesystem, Directory } = await import("@capacitor/filesystem");
-  // @ts-expect-error pacote opcional resolvido só no build do APK
-  const { Share } = await import("@capacitor/share");
+  // Imports dinâmicos escondidos do bundler via Function() — Vite/Rollup não tentam
+  // resolver @capacitor/* no build web. Só carregam em runtime dentro do APK,
+  // depois de `npm install @capacitor/filesystem @capacitor/share` no seu PC.
+  const dynImport = new Function("m", "return import(m)") as (m: string) => Promise<unknown>;
+  const fsMod = (await dynImport("@capacitor/filesystem")) as {
+    Filesystem: { writeFile: (opts: Record<string, unknown>) => Promise<{ uri: string }> };
+    Directory: { Documents: string };
+  };
+  const shareMod = (await dynImport("@capacitor/share")) as {
+    Share: { share: (opts: Record<string, unknown>) => Promise<unknown> };
+  };
+  const { Filesystem, Directory } = fsMod;
+  const { Share } = shareMod;
 
   const base64 = arrayBufferParaBase64(buffer);
   const escrito = await Filesystem.writeFile({
