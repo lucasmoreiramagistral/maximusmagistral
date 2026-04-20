@@ -48,6 +48,16 @@ export interface ContextoChecklist {
   operadorResponsavel?: string;
 }
 
+/** Assinatura digital capturada no fechamento do dia (Pós-setup). */
+export interface AssinaturaDigital {
+  /** PNG em data URL (base64). */
+  dataUrl: string;
+  /** Nome de quem assinou (para registro/Excel). */
+  nome: string;
+  /** ISO timestamp do momento em que assinou. */
+  assinadoEm: string;
+}
+
 export interface Checklist {
   id: string;
   contexto: ContextoChecklist;
@@ -65,6 +75,10 @@ export interface Checklist {
   folhaKey?: string;
   /** Número da verificação daquele momento dentro da mesma folha do dia (1, 2 ou 3). */
   verificacaoNumero?: 1 | 2 | 3;
+  /** Assinatura digital do operador (capturada no Pós-setup). */
+  assinaturaOperador?: AssinaturaDigital;
+  /** Assinatura digital do líder (capturada no Pós-setup). */
+  assinaturaLider?: AssinaturaDigital;
 }
 
 export type StatusMomentoFolha = "pendente" | "em_andamento" | "concluido";
