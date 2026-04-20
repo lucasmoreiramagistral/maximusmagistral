@@ -502,7 +502,10 @@ function arrayBufferParaBase64(buffer: ArrayBuffer): string {
  *  (WhatsApp, Drive, Email, "Salvar no dispositivo", etc.). */
 async function salvarViaCapacitor(buffer: ArrayBuffer, nomeArquivo: string): Promise<void> {
   // Imports dinâmicos: só carregam dentro do APK, não quebram o build web.
+  // Os pacotes @capacitor/* são instalados manualmente no PC antes de `npx cap add android`.
+  // @ts-expect-error pacote opcional resolvido só no build do APK
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
+  // @ts-expect-error pacote opcional resolvido só no build do APK
   const { Share } = await import("@capacitor/share");
 
   const base64 = arrayBufferParaBase64(buffer);
