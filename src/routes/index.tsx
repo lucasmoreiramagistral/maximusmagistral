@@ -35,6 +35,24 @@ function loginParaEmail(login: string): string {
   return `${limpo}@magistral.internal`;
 }
 
+function mensagemErroLogin(error: { code?: string; message?: string } | null): string {
+  if (!error) return "Usuário ou senha inválidos";
+
+  if (error.code === "invalid_credentials") {
+    return "Usuário ou senha inválidos";
+  }
+
+  if (error.code === "email_not_confirmed") {
+    return "E-mail ainda não confirmado. Verifique sua caixa de entrada.";
+  }
+
+  if (error.message?.toLowerCase().includes("invalid login credentials")) {
+    return "Usuário ou senha inválidos";
+  }
+
+  return "Erro ao entrar. Tente novamente.";
+}
+
 function LoginPage() {
   const navigate = useNavigate();
   const usuarioAtual = useUsuario();
@@ -64,50 +82,64 @@ function LoginPage() {
   const entrar = async (e: React.FormEvent) => {
     e.preventDefault();
     setErro("");
-    if (!usuario.trim()) {
+
+    const usuarioLimpo = usuario.trim();
+    const senhaLimpa = senha.trim();
+
+    if (!usuarioLimpo) {
       setErro("Informe o usuário");
       return;
     }
-    if (!senha.trim()) {
+    if (!senhaLimpa) {
       setErro("Informe a senha");
       return;
     }
+
     setLoading(true);
+    let sucesso = false;
+
     try {
-      const email = loginParaEmail(usuario);
+      const email = loginParaEmail(usuarioLimpo);
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        password: senha,
+        password: senhaLimpa,
       });
-      if (error || !data.user) {
-        setErro("Usuário ou senha inválidos");
-        setLoading(false);
+
+      if (error) {
+        setErro(mensagemErroLogin(error));
         return;
       }
+
+      if (!data.user) {
+        setErro("Usuário ou senha inválidos");
+        return;
+      }
+
       const { data: profile, error: pErr } = await supabase
         .from("profiles")
         .select("perfil, active")
         .eq("id", data.user.id)
         .maybeSingle();
+
       if (pErr || !profile) {
         await supabase.auth.signOut();
         setErro("Perfil não encontrado. Procure o supervisor.");
-        setLoading(false);
         return;
       }
+
       if (!profile.active) {
         await supabase.auth.signOut();
         setErro("Usuário inativo. Procure o supervisor.");
-        setLoading(false);
         return;
       }
+
       if (profile.perfil !== perfilSel) {
         await supabase.auth.signOut();
         setErro(`Esta conta é do perfil "${profile.perfil}". Selecione o perfil correto.`);
-        setLoading(false);
         return;
       }
-      // Sucesso: mantém overlay ativo até a navegação completar.
+
+      sucesso = true;
       setRedirecting(true);
       const destino =
         perfilSel === "operador"
@@ -119,7 +151,10 @@ function LoginPage() {
     } catch (err) {
       console.error(err);
       setErro("Erro ao entrar. Tente novamente.");
-      setLoading(false);
+    } finally {
+      if (!sucesso) {
+        setLoading(false);
+      }
     }
   };
 
