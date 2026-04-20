@@ -1,8 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
@@ -46,7 +45,6 @@ function ContextoPage() {
   const { usuario, loading } = useGuard("operador");
   const navigate = useNavigate();
 
-  const [operadorResponsavel, setOperadorResponsavel] = useState("");
   const [erro, setErro] = useState("");
 
   // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
@@ -55,11 +53,6 @@ function ContextoPage() {
 
   // Data calculada automaticamente a partir do turno/equipe — operador não pode editar.
   const data = calcularDataFolha(equipe, turno);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !usuario) return;
-    // Operador responsável é digitado manualmente — não pré-preenche.
-  }, [usuario]);
 
   if (loading || !usuario) return <TelaCarregando />;
 
@@ -70,19 +63,6 @@ function ContextoPage() {
       );
       return;
     }
-    const nomeNormalizado = operadorResponsavel.trim().replace(/\s+/g, " ");
-    if (!nomeNormalizado) {
-      setErro("Informe o operador responsável");
-      return;
-    }
-    if (nomeNormalizado.length < 3) {
-      setErro("Informe o operador responsável (mínimo 3 caracteres)");
-      return;
-    }
-    if (/^\d+$/.test(nomeNormalizado)) {
-      setErro("Operador responsável não pode conter apenas números");
-      return;
-    }
     const ctx: ContextoChecklist = {
       data: calcularDataFolha(equipe, turno),
       turno,
@@ -91,7 +71,7 @@ function ContextoPage() {
       maquina: "Enchedora 3",
       area: "Envase",
       equipamento: "Enchedora Zegla 50V",
-      operadorResponsavel: nomeNormalizado,
+      operadorResponsavel: usuario.nome,
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
@@ -104,7 +84,7 @@ function ContextoPage() {
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="Contexto do checklist"
-        subtitulo="Informe os dados antes de iniciar"
+        subtitulo="Confirme os dados antes de iniciar"
         voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
@@ -132,21 +112,9 @@ function ContextoPage() {
             </div>
 
             <div className="md:col-span-2">
-              <Label htmlFor="operador-responsavel" className="text-base">
-                Operador responsável
-              </Label>
-              <Input
-                id="operador-responsavel"
-                value={operadorResponsavel}
-                onChange={(e) => {
-                  setOperadorResponsavel(e.target.value);
-                  setErro("");
-                }}
-                className="mt-1.5 h-12 text-base"
-                placeholder="Digite o nome do operador responsável"
-              />
+              <CampoFixo titulo="Operador responsável" valor={usuario.nome} />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Digite o nome de quem está executando este checklist.
+                Identificado automaticamente pela sua conta. Você assinará digitalmente ao final do checklist do dia.
               </p>
             </div>
           </div>
