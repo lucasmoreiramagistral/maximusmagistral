@@ -494,6 +494,12 @@ export async function exportarTurnoExcel(
   const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
   preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
 
+  // Se houver checklist de Pós-setup com assinaturas digitais, embute imagens.
+  const checklistAss = checklistComAssinaturas(concluidos);
+  if (checklistAss) {
+    preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
+  }
+
   const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
   const segmentos = montarSegmentosObservacoes(grupos);
   preencherObservacoesSegmentadas(ws, segmentos);
@@ -537,6 +543,10 @@ export async function exportarFolhaDiaExcel(
     }
     const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
     preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    const checklistAss = checklistComAssinaturas(concluidos);
+    if (checklistAss) {
+      preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
+    }
     todosChecklistsConcluidos.push(...concluidos);
   }
 
