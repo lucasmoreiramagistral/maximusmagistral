@@ -474,10 +474,62 @@ function removerProtecoes(wb: ExcelJS.Workbook): void {
   });
 }
 
-function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
-  const blob = new Blob([buffer], {
-    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+const MIME_XLSX =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+/** Detecta se a aplicação está rodando dentro de um app nativo Capacitor (Android/iOS).
+ *  No navegador retorna false; no APK retorna true. */
+function rodandoNoCapacitor(): boolean {
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  };
+  return !!w.Capacitor?.isNativePlatform?.();
+}
+
+/** Converte ArrayBuffer em string base64 (sem usar Buffer, p/ funcionar no browser e WebView). */
+function arrayBufferParaBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
+/** Salva o .xlsx no Android via @capacitor/filesystem e abre o Share Sheet
+ *  (WhatsApp, Drive, Email, "Salvar no dispositivo", etc.). */
+async function salvarViaCapacitor(buffer: ArrayBuffer, nomeArquivo: string): Promise<void> {
+  // Imports dinâmicos: só carregam dentro do APK, não quebram o build web.
+  // Os pacotes @capacitor/* são instalados manualmente no PC antes de `npx cap add android`.
+  // @ts-expect-error pacote opcional resolvido só no build do APK
+  const { Filesystem, Directory } = await import("@capacitor/filesystem");
+  // @ts-expect-error pacote opcional resolvido só no build do APK
+  const { Share } = await import("@capacitor/share");
+
+  const base64 = arrayBufferParaBase64(buffer);
+  const escrito = await Filesystem.writeFile({
+    path: nomeArquivo,
+    data: base64,
+    directory: Directory.Documents,
+    recursive: true,
   });
+
+  try {
+    await Share.share({
+      title: "Checklist FM09",
+      text: nomeArquivo,
+      url: escrito.uri,
+      dialogTitle: "Compartilhar checklist",
+    });
+  } catch {
+    // Usuário cancelou o share — tudo bem, o arquivo já está salvo em Documents.
+  }
+}
+
+function baixarBlobNoNavegador(buffer: ArrayBuffer, nomeArquivo: string): void {
+  const blob = new Blob([buffer], { type: MIME_XLSX });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -486,6 +538,14 @@ function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
+  if (rodandoNoCapacitor()) {
+    void salvarViaCapacitor(buffer, nomeArquivo);
+    return;
+  }
+  baixarBlobNoNavegador(buffer, nomeArquivo);
 }
 
 function nomeArquivo(folha: FolhaChecklistDia, modo: "turno" | "dia"): string {
