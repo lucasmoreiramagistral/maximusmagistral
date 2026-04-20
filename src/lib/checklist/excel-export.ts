@@ -169,7 +169,7 @@ function inserirAssinaturaImagem(
     tl: { col: colNum - 1 + 0.05, row: rowNum - 1 + 0.05 },
     br: { col: colNum - 1 + 0.95, row: rowNum - 1 + 0.95 },
     editAs: "oneCell",
-  });
+  } as unknown as Parameters<typeof ws.addImage>[1]);
 }
 
 /** Preenche assinaturas digitais (operador + líder) numa célula de assinatura.
