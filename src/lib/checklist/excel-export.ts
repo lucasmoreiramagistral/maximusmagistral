@@ -7,11 +7,11 @@ import type {
   RespostaItem,
   Turno,
 } from "./types";
-// Importa o template como asset bundlado pelo Vite — garante que funcione
-// tanto em dev quanto em produção (Cloudflare Worker), com hash no nome do arquivo.
-import templateUrl from "@/assets/templates/09 FM CHECKLIST OPERACIONAL.xlsx?url";
+// Template Excel FM09 embutido como base64 no bundle JS.
+// Garante que funcione em QUALQUER ambiente (preview, .lovable.app, custom domain)
+// sem depender de fetch HTTP nem do asset ser servido estaticamente pelo host.
+import { TEMPLATE_BASE64 } from "@/assets/templates/checklist-template";
 
-const TEMPLATE_URL = templateUrl;
 const SHEET_NAME = "ENCHEDORA 3";
 
 /** Mapa item.numero → linha na planilha */
@@ -83,14 +83,17 @@ function sanitizarArquivo(s: string): string {
     .replace(/^_|_$/g, "");
 }
 
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
 async function carregarTemplate(): Promise<ExcelJS.Workbook> {
-  const resp = await fetch(TEMPLATE_URL);
-  if (!resp.ok) {
-    throw new Error("Template oficial do Excel não encontrado.");
-  }
-  const buf = await resp.arrayBuffer();
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf);
+  await wb.xlsx.load(base64ToArrayBuffer(TEMPLATE_BASE64));
   return wb;
 }
 
