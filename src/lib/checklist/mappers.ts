@@ -97,9 +97,21 @@ export function anomaliaAtualizacaoFromRow(row: AnomaliaAtualizacaoRow): Anomali
 }
 
 export function checklistFromRow(row: ChecklistRow): Checklist {
+  // Assinaturas digitais são armazenadas dentro do jsonb `contexto`
+  // (em `__assinaturas`) para evitar migration de schema.
+  const ctxAny = (row.contexto ?? {}) as ContextoChecklist & {
+    __assinaturas?: {
+      operador?: Checklist["assinaturaOperador"];
+      lider?: Checklist["assinaturaLider"];
+    };
+  };
+  const ass = ctxAny.__assinaturas;
+  const contextoLimpo: ContextoChecklist = { ...ctxAny };
+  delete (contextoLimpo as { __assinaturas?: unknown }).__assinaturas;
+
   return {
     id: row.id,
-    contexto: row.contexto,
+    contexto: contextoLimpo,
     momento: row.momento as MomentoChecklist,
     respostas: row.respostas ?? [],
     status: row.status,
@@ -110,6 +122,8 @@ export function checklistFromRow(row: ChecklistRow): Checklist {
     operadorResponsavel: row.operador_responsavel,
     folhaKey: row.folha_key,
     verificacaoNumero: row.verificacao_numero,
+    assinaturaOperador: ass?.operador,
+    assinaturaLider: ass?.lider,
   };
 }
 
@@ -122,12 +136,21 @@ export function checklistToRow(
   const naoAplicaveis = c.respostas.filter((r) => r?.resposta === "Não aplicável").length;
   const anomalias = c.respostas.filter((r) => !!r?.anomaliaId).length;
 
+  // Embute assinaturas no jsonb `contexto` apenas se houver alguma.
+  const contextoSerializado: ContextoChecklist & { __assinaturas?: unknown } = { ...c.contexto };
+  if (c.assinaturaOperador || c.assinaturaLider) {
+    contextoSerializado.__assinaturas = {
+      operador: c.assinaturaOperador,
+      lider: c.assinaturaLider,
+    };
+  }
+
   return {
     id: c.id,
     user_id: userId,
     operador_login: c.operadorLogin ?? c.operador,
     operador_responsavel: c.operadorResponsavel ?? c.contexto.operadorResponsavel ?? c.operador,
-    contexto: c.contexto,
+    contexto: contextoSerializado,
     respostas: c.respostas,
     momento: c.momento,
     status: c.status,
