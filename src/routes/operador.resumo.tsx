@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, Loader2, PenLine } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { RespostaBadge } from "@/components/badges";
+import { SignaturePad } from "@/components/signature-pad";
 import { useRascunho } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus, useOfflineQueue } from "@/hooks/use-connection-status";
@@ -12,6 +15,9 @@ import { storage } from "@/lib/checklist/storage";
 import { upsertChecklist, linkAnomaliasToChecklist } from "@/lib/checklist/supabase-storage";
 import { limparModoEdicao } from "@/lib/checklist/edicao";
 import { formatarData, formatarHora } from "@/lib/checklist/format";
+import type { AssinaturaDigital } from "@/lib/checklist/types";
+
+const MOMENTO_FECHAMENTO = "Pós-setup" as const;
 
 export const Route = createFileRoute("/operador/resumo")({
   head: () => ({ meta: [{ title: "Resumo do checklist" }] }),
@@ -26,6 +32,9 @@ function ResumoPage() {
   const { enfileirar } = useOfflineQueue();
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [assinaturaOperador, setAssinaturaOperador] = useState<string | null>(null);
+  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
+  const [nomeLider, setNomeLider] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
@@ -34,6 +43,8 @@ function ResumoPage() {
 
   if (loading || !usuario) return <TelaCarregando />;
   if (!rascunho) return null;
+
+  const exigeAssinaturas = rascunho.momento === MOMENTO_FECHAMENTO;
 
   const respostas = rascunho.respostas ?? [];
   const conformes = respostas.filter((r) => r?.resposta === "Conforme").length;
@@ -53,6 +64,41 @@ function ResumoPage() {
   const concluir = async () => {
     if (!usuario) return;
     setErro(null);
+
+    // Validações de assinatura no fechamento do dia (Pós-setup)
+    let dadosAssinaturas: {
+      assinaturaOperador?: AssinaturaDigital;
+      assinaturaLider?: AssinaturaDigital;
+    } = {};
+    if (exigeAssinaturas) {
+      if (!assinaturaOperador) {
+        setErro("O operador precisa assinar antes de concluir o checklist do dia.");
+        return;
+      }
+      const nomeLiderLimpo = nomeLider.trim().replace(/\s+/g, " ");
+      if (!nomeLiderLimpo || nomeLiderLimpo.length < 3) {
+        setErro("Informe o nome do líder (mínimo 3 caracteres).");
+        return;
+      }
+      if (!assinaturaLider) {
+        setErro("O líder precisa assinar antes de concluir o checklist do dia.");
+        return;
+      }
+      const agora = new Date().toISOString();
+      dadosAssinaturas = {
+        assinaturaOperador: {
+          dataUrl: assinaturaOperador,
+          nome: usuario.nome,
+          assinadoEm: agora,
+        },
+        assinaturaLider: {
+          dataUrl: assinaturaLider,
+          nome: nomeLiderLimpo,
+          assinadoEm: agora,
+        },
+      };
+    }
+
     setSalvando(true);
     const concluido = {
       ...rascunho,
@@ -61,6 +107,7 @@ function ResumoPage() {
       operador: usuario.nome,
       operadorLogin: usuario.usuario,
       operadorResponsavel: rascunho.contexto.operadorResponsavel ?? usuario.nome,
+      ...dadosAssinaturas,
     };
 
     // preflight: mesmo que indicador esteja verde, confirmar antes de enviar
@@ -189,6 +236,59 @@ function ResumoPage() {
             </div>
           </div>
         </div>
+
+        {exigeAssinaturas && (
+          <div className="mt-6 rounded-2xl border-2 border-primary/40 bg-primary-soft/30 p-5 shadow-sm md:p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <PenLine className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground md:text-xl">
+                Assinaturas de fechamento do dia
+              </h2>
+            </div>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Como este é o <strong>último momento</strong> do checklist do dia,
+              o operador e o líder precisam assinar para concluir.
+            </p>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Operador
+                  </p>
+                  <p className="text-base font-bold text-foreground">{usuario.nome}</p>
+                </div>
+                <SignaturePad
+                  label="Assinatura do operador"
+                  ajuda="Assine no quadro abaixo com o dedo"
+                  value={assinaturaOperador}
+                  onChange={setAssinaturaOperador}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <Label htmlFor="lider-nome" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Líder
+                  </Label>
+                  <Input
+                    id="lider-nome"
+                    value={nomeLider}
+                    onChange={(e) => setNomeLider(e.target.value)}
+                    placeholder="Nome completo do líder"
+                    className="mt-1 h-11 text-base font-semibold"
+                  />
+                </div>
+                <SignaturePad
+                  label="Assinatura do líder"
+                  ajuda="Líder assina aqui com o dedo"
+                  value={assinaturaLider}
+                  onChange={setAssinaturaLider}
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <h2 className="mb-4 text-lg font-bold text-foreground">Itens respondidos</h2>
