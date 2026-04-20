@@ -127,12 +127,104 @@ function preencherAssinaturaOperador(
   cellAss.alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
 }
 
+/** Converte data URL "data:image/png;base64,..." em ArrayBuffer (compatível com ExcelJS).  */
+function dataUrlParaArrayBuffer(dataUrl: string): ArrayBuffer | null {
+  try {
+    const base64 = dataUrl.split(",")[1];
+    if (!base64) return null;
+    const bin = atob(base64);
+    const len = bin.length;
+    const buf = new ArrayBuffer(len);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < len; i++) view[i] = bin.charCodeAt(i);
+    return buf;
+  } catch {
+    return null;
+  }
+}
+
+/** Insere uma imagem de assinatura sobre uma célula (formato cellAddress).
+ *  Usa range tl/br para a imagem ocupar a célula inteira. */
+function inserirAssinaturaImagem(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  cellAddress: string,
+  dataUrl: string,
+): void {
+  const buf = dataUrlParaArrayBuffer(dataUrl);
+  if (!buf) return;
+  const imageId = wb.addImage({ buffer: buf, extension: "png" });
+  // Converte ex.: "D28" -> col=4, row=28
+  const match = /^([A-Z]+)(\d+)$/.exec(cellAddress);
+  if (!match) return;
+  const colLetters = match[1];
+  const rowNum = parseInt(match[2], 10);
+  // letras → índice 1-based
+  let colNum = 0;
+  for (let i = 0; i < colLetters.length; i++) {
+    colNum = colNum * 26 + (colLetters.charCodeAt(i) - 64);
+  }
+  // ExcelJS addImage usa coordenadas 0-based para range
+  ws.addImage(imageId, {
+    tl: { col: colNum - 1 + 0.05, row: rowNum - 1 + 0.05 },
+    br: { col: colNum - 1 + 0.95, row: rowNum - 1 + 0.95 },
+    editAs: "oneCell",
+  });
+}
+
+/** Preenche assinaturas digitais (operador + líder) numa célula de assinatura.
+ *  Substitui o rótulo por uma imagem da assinatura e adiciona o nome ao lado. */
+function preencherAssinaturasDigitais(
+  wb: ExcelJS.Workbook,
+  ws: ExcelJS.Worksheet,
+  mapa: MapaTurno,
+  checklist: Checklist,
+): void {
+  const ass = checklist.assinaturaOperador;
+  const lider = checklist.assinaturaLider;
+  if (!ass && !lider) return;
+
+  // Aumenta a altura da linha 28 para a imagem caber confortavelmente.
+  if (ass) {
+    const row = ws.getRow(28);
+    if (!row.height || row.height < 60) row.height = 60;
+    // Limpa label original e coloca: nome + "(assinado em HH:mm)"
+    const cell = ws.getCell(mapa.cellAssinatura);
+    cell.value = `Operador: ${ass.nome}  ·  ${formatarHoraBR(ass.assinadoEm)}`;
+    cell.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
+    cell.font = { ...(cell.font ?? {}), size: 8, bold: true };
+    inserirAssinaturaImagem(wb, ws, mapa.cellAssinatura, ass.dataUrl);
+  }
+
+  if (lider) {
+    // Líder vai logo abaixo (linha 29) na mesma coluna do turno
+    const colLetra = mapa.cellAssinatura.replace(/\d+/g, "");
+    const cellLider = `${colLetra}29`;
+    const row = ws.getRow(29);
+    if (!row.height || row.height < 60) row.height = 60;
+    const cell = ws.getCell(cellLider);
+    cell.value = `Líder: ${lider.nome}  ·  ${formatarHoraBR(lider.assinadoEm)}`;
+    cell.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
+    cell.font = { ...(cell.font ?? {}), size: 8, bold: true };
+    inserirAssinaturaImagem(wb, ws, cellLider, lider.dataUrl);
+  }
+}
+
 function nomeDoOperador(c: Checklist): string {
   return (
     c.operadorResponsavel?.trim() ||
     c.operador?.trim() ||
     c.operadorLogin?.trim() ||
     ""
+  );
+}
+
+/** Encontra o checklist concluído de "Pós-setup" (que carrega as assinaturas). */
+function checklistComAssinaturas(checklists: Checklist[]): Checklist | null {
+  return (
+    checklists.find(
+      (c) => c.momento === "Pós-setup" && (c.assinaturaOperador || c.assinaturaLider),
+    ) ?? null
   );
 }
 
