@@ -1,0 +1,292 @@
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { Factory, HardHat, ClipboardCheck, Loader2, Wrench } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
+import type { Perfil } from "@/lib/checklist/types";
+import { cn } from "@/lib/utils";
+import { TelaCarregando } from "@/components/tela-carregando";
+import logoMagistral from "@/assets/logo-magistral.png";
+
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Entrar — Checklist Operacional" },
+      {
+        name: "description",
+        content: "Entre no checklist operacional digital da Linha 3 — Enchedora 3.",
+      },
+    ],
+  }),
+  component: LoginPage,
+});
+
+/**
+ * Converte o "usuário interno" (ex.: "joao.silva") em e-mail válido para o
+ * Supabase Auth. Mantemos esse domínio fixo para não expor e-mails reais.
+ * O profile.email_interno deve seguir o mesmo padrão.
+ */
+function loginParaEmail(login: string): string {
+  const limpo = login.trim().toLowerCase();
+  if (limpo.includes("@")) return limpo;
+  return `${limpo}@magistral.internal`;
+}
+
+function LoginPage() {
+  const navigate = useNavigate();
+  const usuarioAtual = useUsuario();
+  const authLoading = useAuthLoading();
+  const [perfilSel, setPerfilSel] = useState<Perfil>("operador");
+  const [usuario, setUsuarioInput] = useState("");
+  const [senha, setSenha] = useState("");
+  const [erro, setErro] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
+
+  // Se já estiver logado E o profile já carregado, redireciona direto.
+  // Importante: só age depois que authLoading=false para evitar loop.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!usuarioAtual) return;
+    setRedirecting(true);
+    const destino =
+      usuarioAtual.perfil === "operador"
+        ? "/operador"
+        : usuarioAtual.perfil === "manutencao"
+          ? "/manutencao"
+          : "/gestao";
+    navigate({ to: destino });
+  }, [authLoading, usuarioAtual, navigate]);
+
+  const entrar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro("");
+    if (!usuario.trim()) {
+      setErro("Informe o usuário");
+      return;
+    }
+    if (!senha.trim()) {
+      setErro("Informe a senha");
+      return;
+    }
+    setLoading(true);
+    try {
+      const email = loginParaEmail(usuario);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password: senha,
+      });
+      if (error || !data.user) {
+        setErro("Usuário ou senha inválidos");
+        setLoading(false);
+        return;
+      }
+      const { data: profile, error: pErr } = await supabase
+        .from("profiles")
+        .select("perfil, active")
+        .eq("id", data.user.id)
+        .maybeSingle();
+      if (pErr || !profile) {
+        await supabase.auth.signOut();
+        setErro("Perfil não encontrado. Procure o supervisor.");
+        setLoading(false);
+        return;
+      }
+      if (!profile.active) {
+        await supabase.auth.signOut();
+        setErro("Usuário inativo. Procure o supervisor.");
+        setLoading(false);
+        return;
+      }
+      if (profile.perfil !== perfilSel) {
+        await supabase.auth.signOut();
+        setErro(`Esta conta é do perfil "${profile.perfil}". Selecione o perfil correto.`);
+        setLoading(false);
+        return;
+      }
+      // Sucesso: mantém overlay ativo até a navegação completar.
+      setRedirecting(true);
+      const destino =
+        perfilSel === "operador"
+          ? "/operador"
+          : perfilSel === "manutencao"
+            ? "/manutencao"
+            : "/gestao";
+      navigate({ to: destino });
+    } catch (err) {
+      console.error(err);
+      setErro("Erro ao entrar. Tente novamente.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative min-h-screen bg-background">
+      {(redirecting || loading) && (
+        <div className="fixed inset-0 z-50">
+          <TelaCarregando texto="Carregando acesso..." />
+        </div>
+      )}
+      <img
+        src={logoMagistral}
+        alt="Logo Magistral"
+        className="absolute left-4 top-4 h-16 w-auto md:left-6 md:top-6 md:h-20"
+      />
+      <div className="mx-auto flex min-h-screen w-full max-w-[1100px] flex-col items-center justify-center px-4 py-8 md:px-8">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+            <ClipboardCheck className="h-9 w-9" />
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+            Checklist Operacional
+          </h1>
+          <p className="mt-2 text-base text-muted-foreground md:text-lg">Linha 3 — Enchedora 3</p>
+        </div>
+
+        <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
+          <form onSubmit={entrar} className="space-y-6">
+            <div>
+              <Label className="mb-3 block text-base font-semibold">Selecione o perfil</Label>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <PerfilCard
+                  icon={<HardHat className="h-7 w-7" />}
+                  titulo="Operador"
+                  descricao="Realizar checklists e registrar anomalias"
+                  ativo={perfilSel === "operador"}
+                  onClick={() => setPerfilSel("operador")}
+                  disabled={loading || redirecting}
+                />
+                <PerfilCard
+                  icon={<Factory className="h-7 w-7" />}
+                  titulo="Gestão Industrial"
+                  descricao="Consultar checklists e anomalias"
+                  ativo={perfilSel === "gestao"}
+                  onClick={() => setPerfilSel("gestao")}
+                  disabled={loading || redirecting}
+                />
+                <PerfilCard
+                  icon={<Wrench className="h-7 w-7" />}
+                  titulo="Manutenção"
+                  descricao="Registrar e tratar anomalias"
+                  ativo={perfilSel === "manutencao"}
+                  onClick={() => setPerfilSel("manutencao")}
+                  disabled={loading || redirecting}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="usuario" className="text-base">
+                  Usuário
+                </Label>
+                <Input
+                  id="usuario"
+                  value={usuario}
+                  onChange={(e) => {
+                    setUsuarioInput(e.target.value);
+                    setErro("");
+                  }}
+                  className="mt-1.5 h-12 text-base"
+                  placeholder="Digite seu usuário"
+                  autoComplete="username"
+                  disabled={loading}
+                />
+              </div>
+              <div>
+                <Label htmlFor="senha" className="text-base">
+                  Senha
+                </Label>
+                <Input
+                  id="senha"
+                  type="password"
+                  value={senha}
+                  onChange={(e) => {
+                    setSenha(e.target.value);
+                    setErro("");
+                  }}
+                  className="mt-1.5 h-12 text-base"
+                  placeholder="Digite sua senha"
+                  autoComplete="current-password"
+                  disabled={loading}
+                />
+              </div>
+            </div>
+
+            {erro && (
+              <p className="rounded-md bg-destructive-soft px-3 py-2 text-sm font-medium text-destructive">
+                {erro}
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              size="lg"
+              className="h-14 w-full text-base font-semibold"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Entrando…
+                </>
+              ) : (
+                "Entrar"
+              )}
+            </Button>
+
+            <p className="text-center text-sm text-muted-foreground">
+              Use o usuário e senha fornecidos pelo supervisor
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PerfilCard({
+  icon,
+  titulo,
+  descricao,
+  ativo,
+  onClick,
+  disabled,
+}: {
+  icon: React.ReactNode;
+  titulo: string;
+  descricao: string;
+  ativo: boolean;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(
+        "flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all",
+        ativo
+          ? "border-primary bg-primary-soft shadow-sm"
+          : "border-border bg-card hover:border-primary/40 hover:bg-accent",
+        disabled && "cursor-not-allowed opacity-60",
+      )}
+    >
+      <div
+        className={cn(
+          "flex h-12 w-12 items-center justify-center rounded-lg",
+          ativo ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+        )}
+      >
+        {icon}
+      </div>
+      <div>
+        <p className="text-base font-bold text-foreground">{titulo}</p>
+        <p className="text-sm text-muted-foreground">{descricao}</p>
+      </div>
+    </button>
+  );
+}
