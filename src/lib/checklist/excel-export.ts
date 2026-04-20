@@ -31,12 +31,14 @@ interface MapaTurno {
   colHora: string;
   /** Coordenada (linha 28) do bloco "ASSINATURA OPERADOR" do turno. */
   cellAssinatura: string;
+  /** Coordenada (linha 29) do bloco "ASSINATURA LÍDER" do turno. */
+  cellAssinaturaLider: string;
 }
 
 const MAPA_TURNOS: Record<Turno, MapaTurno> = {
-  "12x36 Dia":   { colValor: "D", colHora: "E", cellAssinatura: "D28" },
-  "12x36 Noite": { colValor: "F", colHora: "G", cellAssinatura: "F28" },
-  "3º Turno":    { colValor: "H", colHora: "I", cellAssinatura: "H28" },
+  "12x36 Dia":   { colValor: "D", colHora: "E", cellAssinatura: "D28", cellAssinaturaLider: "D29" },
+  "12x36 Noite": { colValor: "F", colHora: "G", cellAssinatura: "F28", cellAssinaturaLider: "F29" },
+  "3º Turno":    { colValor: "H", colHora: "I", cellAssinatura: "H28", cellAssinaturaLider: "H29" },
 };
 
 const ABREV_RESPOSTA: Record<string, string> = {
@@ -148,28 +150,53 @@ function dataUrlParaArrayBuffer(dataUrl: string): ArrayBuffer | null {
 function inserirAssinaturaImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
-  cellAddress: string,
+  rangeAddress: string,
   dataUrl: string,
 ): void {
   const buf = dataUrlParaArrayBuffer(dataUrl);
   if (!buf) return;
   const imageId = wb.addImage({ buffer: buf, extension: "png" });
-  // Converte ex.: "D28" -> col=4, row=28
-  const match = /^([A-Z]+)(\d+)$/.exec(cellAddress);
-  if (!match) return;
-  const colLetters = match[1];
-  const rowNum = parseInt(match[2], 10);
-  // letras → índice 1-based
-  let colNum = 0;
-  for (let i = 0; i < colLetters.length; i++) {
-    colNum = colNum * 26 + (colLetters.charCodeAt(i) - 64);
-  }
-  // ExcelJS addImage usa coordenadas 0-based para range
+  const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
+  const start = /^([A-Z]+)(\d+)$/.exec(startAddress);
+  const end = /^([A-Z]+)(\d+)$/.exec(endAddress);
+  if (!start || !end) return;
+
+  const toColNum = (letters: string) => {
+    let colNum = 0;
+    for (let i = 0; i < letters.length; i++) {
+      colNum = colNum * 26 + (letters.charCodeAt(i) - 64);
+    }
+    return colNum;
+  };
+
+  const colStart = toColNum(start[1]);
+  const rowStart = parseInt(start[2], 10);
+  const colEnd = toColNum(end[1]);
+  const rowEnd = parseInt(end[2], 10);
+  const paddingX = 0.08;
+  const paddingTop = 0.38;
+  const paddingBottom = 0.08;
+  const largura = colEnd - colStart + 1;
+  const altura = rowEnd - rowStart + 1;
+
+  const tlCol = colStart - 1 + paddingX;
+  const tlRow = rowStart - 1 + paddingTop;
+  const brCol = colStart - 1 + largura - paddingX;
+  const brRow = rowStart - 1 + altura - paddingBottom;
+
   ws.addImage(imageId, {
-    tl: { col: colNum - 1 + 0.05, row: rowNum - 1 + 0.05 },
-    br: { col: colNum - 1 + 0.95, row: rowNum - 1 + 0.95 },
+    tl: { col: tlCol, row: tlRow },
+    br: { col: brCol, row: brRow },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
+}
+
+function limparTextoAssinatura(ws: ExcelJS.Worksheet, rangeAddress: string, legenda: string): void {
+  const [startAddress] = rangeAddress.split(":");
+  const cell = ws.getCell(startAddress);
+  cell.value = legenda;
+  cell.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
+  cell.font = { ...(cell.font ?? {}), size: 8, bold: true };
 }
 
 /** Preenche assinaturas digitais (operador + líder) numa célula de assinatura.
@@ -187,26 +214,16 @@ function preencherAssinaturasDigitais(
   // Aumenta a altura da linha 28 para a imagem caber confortavelmente.
   if (ass) {
     const row = ws.getRow(28);
-    if (!row.height || row.height < 60) row.height = 60;
-    // Limpa label original e coloca: nome + "(assinado em HH:mm)"
-    const cell = ws.getCell(mapa.cellAssinatura);
-    cell.value = `Operador: ${ass.nome}  ·  ${formatarHoraBR(ass.assinadoEm)}`;
-    cell.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
-    cell.font = { ...(cell.font ?? {}), size: 8, bold: true };
-    inserirAssinaturaImagem(wb, ws, mapa.cellAssinatura, ass.dataUrl);
+    if (!row.height || row.height < 72) row.height = 72;
+    limparTextoAssinatura(ws, `${mapa.cellAssinatura}:${mapa.colHora}28`, `Operador · ${formatarHoraBR(ass.assinadoEm)}`);
+    inserirAssinaturaImagem(wb, ws, `${mapa.cellAssinatura}:${mapa.colHora}28`, ass.dataUrl);
   }
 
   if (lider) {
-    // Líder vai logo abaixo (linha 29) na mesma coluna do turno
-    const colLetra = mapa.cellAssinatura.replace(/\d+/g, "");
-    const cellLider = `${colLetra}29`;
     const row = ws.getRow(29);
-    if (!row.height || row.height < 60) row.height = 60;
-    const cell = ws.getCell(cellLider);
-    cell.value = `Líder: ${lider.nome}  ·  ${formatarHoraBR(lider.assinadoEm)}`;
-    cell.alignment = { wrapText: true, vertical: "top", horizontal: "left" };
-    cell.font = { ...(cell.font ?? {}), size: 8, bold: true };
-    inserirAssinaturaImagem(wb, ws, cellLider, lider.dataUrl);
+    if (!row.height || row.height < 72) row.height = 72;
+    limparTextoAssinatura(ws, `${mapa.cellAssinaturaLider}:${mapa.colHora}29`, `Líder · ${formatarHoraBR(lider.assinadoEm)}`);
+    inserirAssinaturaImagem(wb, ws, `${mapa.cellAssinaturaLider}:${mapa.colHora}29`, lider.dataUrl);
   }
 }
 

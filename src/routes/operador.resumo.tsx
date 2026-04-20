@@ -3,8 +3,6 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, Loader2, PenLine } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { RespostaBadge } from "@/components/badges";
 import { SignaturePad } from "@/components/signature-pad";
 import { useRascunho } from "@/hooks/use-storage";
@@ -34,7 +32,6 @@ function ResumoPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [assinaturaOperador, setAssinaturaOperador] = useState<string | null>(null);
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
-  const [nomeLider, setNomeLider] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
@@ -75,11 +72,6 @@ function ResumoPage() {
         setErro("O operador precisa assinar antes de concluir o checklist do dia.");
         return;
       }
-      const nomeLiderLimpo = nomeLider.trim().replace(/\s+/g, " ");
-      if (!nomeLiderLimpo || nomeLiderLimpo.length < 3) {
-        setErro("Informe o nome do líder (mínimo 3 caracteres).");
-        return;
-      }
       if (!assinaturaLider) {
         setErro("O líder precisa assinar antes de concluir o checklist do dia.");
         return;
@@ -93,7 +85,7 @@ function ResumoPage() {
         },
         assinaturaLider: {
           dataUrl: assinaturaLider,
-          nome: nomeLiderLimpo,
+          nome: "Líder",
           assinadoEm: agora,
         },
       };
@@ -267,18 +259,6 @@ function ResumoPage() {
               </div>
 
               <div className="space-y-2">
-                <div>
-                  <Label htmlFor="lider-nome" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    Líder
-                  </Label>
-                  <Input
-                    id="lider-nome"
-                    value={nomeLider}
-                    onChange={(e) => setNomeLider(e.target.value)}
-                    placeholder="Nome completo do líder"
-                    className="mt-1 h-11 text-base font-semibold"
-                  />
-                </div>
                 <SignaturePad
                   label="Assinatura do líder"
                   ajuda="Líder assina aqui com o dedo"
