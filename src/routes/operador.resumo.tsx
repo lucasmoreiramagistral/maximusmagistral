@@ -32,6 +32,9 @@ function ResumoPage() {
   const { enfileirar } = useOfflineQueue();
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [assinaturaOperador, setAssinaturaOperador] = useState<string | null>(null);
+  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
+  const [nomeLider, setNomeLider] = useState("");
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
@@ -40,6 +43,8 @@ function ResumoPage() {
 
   if (loading || !usuario) return <TelaCarregando />;
   if (!rascunho) return null;
+
+  const exigeAssinaturas = rascunho.momento === MOMENTO_FECHAMENTO;
 
   const respostas = rascunho.respostas ?? [];
   const conformes = respostas.filter((r) => r?.resposta === "Conforme").length;
