@@ -1,9 +1,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, MinusCircle, AlertTriangle, Loader2, PenLine } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { RespostaBadge } from "@/components/badges";
+import { SignaturePad } from "@/components/signature-pad";
 import { useRascunho } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus, useOfflineQueue } from "@/hooks/use-connection-status";
@@ -12,6 +15,9 @@ import { storage } from "@/lib/checklist/storage";
 import { upsertChecklist, linkAnomaliasToChecklist } from "@/lib/checklist/supabase-storage";
 import { limparModoEdicao } from "@/lib/checklist/edicao";
 import { formatarData, formatarHora } from "@/lib/checklist/format";
+import type { AssinaturaDigital } from "@/lib/checklist/types";
+
+const MOMENTO_FECHAMENTO = "Pós-setup" as const;
 
 export const Route = createFileRoute("/operador/resumo")({
   head: () => ({ meta: [{ title: "Resumo do checklist" }] }),
