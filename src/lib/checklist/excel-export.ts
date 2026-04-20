@@ -9,7 +9,7 @@ import type {
 } from "./types";
 // Importa o template como asset bundlado pelo Vite — garante que funcione
 // tanto em dev quanto em produção (Cloudflare Worker), com hash no nome do arquivo.
-import templateUrl from "/public/templates/09 FM CHECKLIST OPERACIONAL.xlsx?url";
+import templateUrl from "@/assets/templates/09 FM CHECKLIST OPERACIONAL.xlsx?url";
 
 const TEMPLATE_URL = templateUrl;
 const SHEET_NAME = "ENCHEDORA 3";
