@@ -237,6 +237,59 @@ function ResumoPage() {
           </div>
         </div>
 
+        {exigeAssinaturas && (
+          <div className="mt-6 rounded-2xl border-2 border-primary/40 bg-primary-soft/30 p-5 shadow-sm md:p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <PenLine className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground md:text-xl">
+                Assinaturas de fechamento do dia
+              </h2>
+            </div>
+            <p className="mb-5 text-sm text-muted-foreground">
+              Como este é o <strong>último momento</strong> do checklist do dia,
+              o operador e o líder precisam assinar para concluir.
+            </p>
+
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Operador
+                  </p>
+                  <p className="text-base font-bold text-foreground">{usuario.nome}</p>
+                </div>
+                <SignaturePad
+                  label="Assinatura do operador"
+                  ajuda="Assine no quadro abaixo com o dedo"
+                  value={assinaturaOperador}
+                  onChange={setAssinaturaOperador}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <div>
+                  <Label htmlFor="lider-nome" className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                    Líder
+                  </Label>
+                  <Input
+                    id="lider-nome"
+                    value={nomeLider}
+                    onChange={(e) => setNomeLider(e.target.value)}
+                    placeholder="Nome completo do líder"
+                    className="mt-1 h-11 text-base font-semibold"
+                  />
+                </div>
+                <SignaturePad
+                  label="Assinatura do líder"
+                  ajuda="Líder assina aqui com o dedo"
+                  value={assinaturaLider}
+                  onChange={setAssinaturaLider}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <h2 className="mb-4 text-lg font-bold text-foreground">Itens respondidos</h2>
           <ul className="divide-y divide-border">
