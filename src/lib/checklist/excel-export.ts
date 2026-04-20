@@ -7,11 +7,11 @@ import type {
   RespostaItem,
   Turno,
 } from "./types";
-// Importa o template como asset bundlado pelo Vite — garante que funcione
-// tanto em dev quanto em produção (Cloudflare Worker), com hash no nome do arquivo.
-import templateUrl from "@/assets/templates/09 FM CHECKLIST OPERACIONAL.xlsx?url";
+// Importa o template como ArrayBuffer inlineado pelo Vite — garante que funcione
+// em QUALQUER domínio (preview, .lovable.app, custom domain) sem depender de fetch HTTP.
+// O arquivo é embutido direto no bundle JS, então não precisa ser servido pelo host.
+import templateBuffer from "@/assets/templates/09 FM CHECKLIST OPERACIONAL.xlsx?arraybuffer";
 
-const TEMPLATE_URL = templateUrl;
 const SHEET_NAME = "ENCHEDORA 3";
 
 /** Mapa item.numero → linha na planilha */
@@ -84,13 +84,10 @@ function sanitizarArquivo(s: string): string {
 }
 
 async function carregarTemplate(): Promise<ExcelJS.Workbook> {
-  const resp = await fetch(TEMPLATE_URL);
-  if (!resp.ok) {
-    throw new Error("Template oficial do Excel não encontrado.");
-  }
-  const buf = await resp.arrayBuffer();
   const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buf);
+  // templateBuffer é um ArrayBuffer inlineado no bundle pelo Vite (?arraybuffer).
+  // Não há fetch HTTP envolvido — funciona offline e em qualquer domínio.
+  await wb.xlsx.load(templateBuffer as ArrayBuffer);
   return wb;
 }
 
