@@ -64,6 +64,41 @@ function ResumoPage() {
   const concluir = async () => {
     if (!usuario) return;
     setErro(null);
+
+    // Validações de assinatura no fechamento do dia (Pós-setup)
+    let dadosAssinaturas: {
+      assinaturaOperador?: AssinaturaDigital;
+      assinaturaLider?: AssinaturaDigital;
+    } = {};
+    if (exigeAssinaturas) {
+      if (!assinaturaOperador) {
+        setErro("O operador precisa assinar antes de concluir o checklist do dia.");
+        return;
+      }
+      const nomeLiderLimpo = nomeLider.trim().replace(/\s+/g, " ");
+      if (!nomeLiderLimpo || nomeLiderLimpo.length < 3) {
+        setErro("Informe o nome do líder (mínimo 3 caracteres).");
+        return;
+      }
+      if (!assinaturaLider) {
+        setErro("O líder precisa assinar antes de concluir o checklist do dia.");
+        return;
+      }
+      const agora = new Date().toISOString();
+      dadosAssinaturas = {
+        assinaturaOperador: {
+          dataUrl: assinaturaOperador,
+          nome: usuario.nome,
+          assinadoEm: agora,
+        },
+        assinaturaLider: {
+          dataUrl: assinaturaLider,
+          nome: nomeLiderLimpo,
+          assinadoEm: agora,
+        },
+      };
+    }
+
     setSalvando(true);
     const concluido = {
       ...rascunho,
@@ -72,6 +107,7 @@ function ResumoPage() {
       operador: usuario.nome,
       operadorLogin: usuario.usuario,
       operadorResponsavel: rascunho.contexto.operadorResponsavel ?? usuario.nome,
+      ...dadosAssinaturas,
     };
 
     // preflight: mesmo que indicador esteja verde, confirmar antes de enviar
