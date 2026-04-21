@@ -239,12 +239,14 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
         itens,
         // Se já estava validado e o operador editou, limpar validação do líder.
         status: "aguardando_validacao",
+        // operadorNome = "Operador" (genérico). O líder logado fica em
+        // ultimaEdicaoPorLogin/Nome e nas tabelas de auditoria.
         operadorLogin: usuario.usuario,
-        operadorNome: usuario.nome,
+        operadorNome: "Operador",
         operadorUserId: usuario.userId ?? turno.operadorUserId ?? null,
         assinaturaOperador: {
           dataUrl: assinaturaOp,
-          nome: usuario.nome,
+          nome: "Operador",
           assinadoEm: agora,
         },
         operadorAssinouEm: agora,
@@ -405,7 +407,8 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
               <SignaturePad
                 value={assinaturaOp}
                 onChange={setAssinaturaOp}
-                label={`Assinatura — ${usuario.nome}`}
+                label="Assinatura — Operador"
+                ajuda="Qualquer operador da equipe pode assinar."
               />
             </div>
 
