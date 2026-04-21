@@ -240,6 +240,7 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
       const payload: LimpezaTurno = {
         ...turno,
         itens,
+        observacao: observacao.trim() || null,
         // Se já estava validado e o operador editou, limpar validação do líder.
         status: "aguardando_validacao",
         // operadorNome = "Operador" (genérico). O líder logado fica em
