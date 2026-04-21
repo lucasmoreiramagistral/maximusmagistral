@@ -56,7 +56,22 @@ function LimpezaPage() {
 
   if (turnoSelecionado) {
     const t = turnos.find((x) => x.turno === turnoSelecionado);
-    if (!t) return <TelaCarregando />;
+    if (!t) {
+      return (
+        <div className="min-h-screen bg-background">
+          <AppHeader
+            titulo="Limpeza Sala de Envase"
+            subtitulo={`Folha do dia ${formatarDataBR(data)}`}
+            voltarPara="/operador/verso"
+          />
+          <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
+            <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+              Turno não encontrado para esta folha operacional.
+            </div>
+          </main>
+        </div>
+      );
+    }
     return (
       <TurnoEditor
         turno={t}
