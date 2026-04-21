@@ -14,6 +14,8 @@ import { upsertChecklist, linkAnomaliasToChecklist } from "@/lib/checklist/supab
 import { limparModoEdicao } from "@/lib/checklist/edicao";
 import { formatarData, formatarHora } from "@/lib/checklist/format";
 import type { AssinaturaDigital } from "@/lib/checklist/types";
+import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 const MOMENTO_FECHAMENTO = "Pós-setup" as const;
 
@@ -269,6 +271,17 @@ function ResumoPage() {
             </div>
           </div>
         )}
+
+        <div className="mt-6">
+          <ObservacoesVersoConsolidado
+            folhaDiaKey={buildFolhaDiaKey(
+              rascunho.contexto.data,
+              rascunho.contexto.linha,
+              rascunho.contexto.maquina,
+            )}
+            titulo="Observações da folha (espelho do verso)"
+          />
+        </div>
 
         <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <h2 className="mb-4 text-lg font-bold text-foreground">Itens respondidos</h2>
