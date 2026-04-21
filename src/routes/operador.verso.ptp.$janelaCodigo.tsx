@@ -61,7 +61,23 @@ function PtpJanelaDetalhe() {
     setAssinatura(null); // sempre exigir nova assinatura ao concluir
   }, [janelaBase?.id, janelaBase?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading || !usuario || !janelaBase) return <TelaCarregando />;
+  if (loading || !usuario) return <TelaCarregando />;
+  if (!janelaBase) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader
+          titulo={`Janela ${janelaCodigo}`}
+          subtitulo={`Folha do dia ${formatarDataBR(data)}`}
+          voltarPara="/operador/verso/ptp"
+        />
+        <main className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-8 md:py-10">
+          <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+            Janela não encontrada para esta folha operacional.
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   const jaConcluida =
     janelaBase.statusJanela !== "pendente" && janelaBase.statusJanela !== "rascunho";
