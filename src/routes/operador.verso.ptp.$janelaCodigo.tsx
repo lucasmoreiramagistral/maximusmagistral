@@ -110,12 +110,16 @@ function PtpJanelaDetalhe() {
       itens,
       observacao: observacao.trim() || null,
       statusJanela: status,
+      // operadorLogin = login da CONTA logada (representa a equipe).
+      // operadorNome = "Operador" (genérico) — qualquer um da equipe pode estar
+      // operando; o líder logado fica registrado em ultimaEdicaoPorLogin/Nome
+      // e nas tabelas de auditoria.
       operadorLogin: concluir ? usuario.usuario : janelaBase.operadorLogin ?? usuario.usuario,
-      operadorNome: concluir ? usuario.nome : janelaBase.operadorNome ?? usuario.nome,
+      operadorNome: concluir ? "Operador" : janelaBase.operadorNome ?? "Operador",
       operadorUserId: usuario.userId ?? janelaBase.operadorUserId ?? null,
       assinaturaOperador:
         concluir && assinatura
-          ? { dataUrl: assinatura, nome: usuario.nome, assinadoEm: agora }
+          ? { dataUrl: assinatura, nome: "Operador", assinadoEm: agora }
           : janelaBase.assinaturaOperador ?? null,
       assinadoEm: concluir ? agora : janelaBase.assinadoEm ?? null,
       ultimaEdicaoPorLogin: usuario.usuario,
@@ -280,12 +284,13 @@ function PtpJanelaDetalhe() {
           </div>
         )}
 
-        {/* Assinatura */}
+        {/* Assinatura — sempre "Operador" (genérico). Qualquer um da equipe
+            pode estar operando, não necessariamente o líder logado. */}
         <div className="mt-5">
           <SignaturePad
             value={assinatura}
             onChange={setAssinatura}
-            label={`Assinatura — ${usuario.nome}`}
+            label="Assinatura — Operador"
             ajuda="Obrigatória para concluir a janela."
           />
         </div>

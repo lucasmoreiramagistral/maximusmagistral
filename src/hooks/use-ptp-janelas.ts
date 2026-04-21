@@ -8,7 +8,12 @@ import {
   insertPtpEdicao,
   ConflitoVersaoError,
 } from "@/lib/verso/supabase-storage";
+import {
+  upsertObservacaoVerso,
+  labelPtpJanela,
+} from "@/lib/verso/observacoes";
 import type { PtpEdicaoPayload, PtpJanela } from "@/lib/verso/types";
+import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 
 interface UsePtpResult {
   janelas: PtpJanela[];
@@ -132,6 +137,31 @@ export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtp
             await insertPtpEdicao(edicao);
           } catch (e) {
             console.error("[usePtpJanelas] insertPtpEdicao falhou:", e);
+          }
+        }
+        // Propagação para o campo "Observações" da frente da folha:
+        // só quando a janela é CONCLUÍDA (tem assinatura ou status final).
+        // Se a observação está vazia, o helper remove a linha existente.
+        const ehConclusao =
+          saved.statusJanela === "sem_ocorrencia" ||
+          saved.statusJanela === "houve_ocorrencia" ||
+          saved.statusJanela === "nao_rodou";
+        if (ehConclusao && opts) {
+          try {
+            await upsertObservacaoVerso({
+              folhaDiaKey: saved.folhaDiaKey,
+              dataOperacao: saved.dataOperacao,
+              linha: saved.linha || VERSO_CONTEXTO_FIXO.linha,
+              maquina: saved.maquina || VERSO_CONTEXTO_FIXO.maquina,
+              origemTipo: "ptp",
+              origemCodigo: saved.janelaCodigo,
+              origemLabel: labelPtpJanela(saved.janelaCodigo),
+              texto: saved.observacao ?? "",
+              registradoPorLogin: opts.editadoPorLogin,
+              registradoPorNome: opts.editadoPorNome,
+            });
+          } catch (e) {
+            console.error("[usePtpJanelas] upsertObservacaoVerso falhou:", e);
           }
         }
       } catch (e) {

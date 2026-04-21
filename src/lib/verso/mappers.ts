@@ -98,6 +98,7 @@ export interface LimpezaTurnoRow {
   turno: Turno;
   status: LimpezaTurnoStatus;
   itens_json: LimpezaItem[];
+  observacao: string | null;
   operador_login: string | null;
   operador_nome: string | null;
   operador_user_id: string | null;
@@ -124,6 +125,7 @@ export function limpezaTurnoFromRow(r: LimpezaTurnoRow): LimpezaTurno {
     turno: r.turno,
     status: r.status,
     itens: Array.isArray(r.itens_json) ? r.itens_json : [],
+    observacao: r.observacao,
     operadorLogin: r.operador_login,
     operadorNome: r.operador_nome,
     operadorUserId: r.operador_user_id,
@@ -151,6 +153,7 @@ export function limpezaTurnoToRow(t: LimpezaTurno, userId: string | null): Limpe
     turno: t.turno,
     status: t.status,
     itens_json: t.itens,
+    observacao: t.observacao ?? null,
     operador_login: t.operadorLogin ?? null,
     operador_nome: t.operadorNome ?? null,
     operador_user_id: t.operadorUserId ?? userId,

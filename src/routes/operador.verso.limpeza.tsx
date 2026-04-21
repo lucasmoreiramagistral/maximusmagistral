@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { SignaturePad } from "@/components/signature-pad";
 import { useGuard } from "@/hooks/use-guard";
@@ -182,6 +183,7 @@ interface TurnoEditorProps {
 
 function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
   const [itens, setItens] = useState<LimpezaItem[]>(turno.itens);
+  const [observacao, setObservacao] = useState<string>(turno.observacao ?? "");
   const [assinaturaOp, setAssinaturaOp] = useState<string | null>(null);
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -193,6 +195,7 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
 
   useEffect(() => {
     setItens(turno.itens);
+    setObservacao(turno.observacao ?? "");
     setLiderNome(turno.liderNome ?? usuario.nome);
   }, [turno.id, turno.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -237,14 +240,17 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
       const payload: LimpezaTurno = {
         ...turno,
         itens,
+        observacao: observacao.trim() || null,
         // Se já estava validado e o operador editou, limpar validação do líder.
         status: "aguardando_validacao",
+        // operadorNome = "Operador" (genérico). O líder logado fica em
+        // ultimaEdicaoPorLogin/Nome e nas tabelas de auditoria.
         operadorLogin: usuario.usuario,
-        operadorNome: usuario.nome,
+        operadorNome: "Operador",
         operadorUserId: usuario.userId ?? turno.operadorUserId ?? null,
         assinaturaOperador: {
           dataUrl: assinaturaOp,
-          nome: usuario.nome,
+          nome: "Operador",
           assinadoEm: agora,
         },
         operadorAssinouEm: agora,
@@ -402,10 +408,29 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
             )}
 
             <div className="mt-4">
+              <Label htmlFor="obs-limpeza" className="text-base">
+                Observações do turno (opcional)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Será espelhada no campo "Observações" da frente da folha.
+              </p>
+              <Textarea
+                id="obs-limpeza"
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Ex.: faltou papel-toalha às 10h, reposto."
+                className="mt-1.5"
+                rows={3}
+                disabled={itensReadOnly}
+              />
+            </div>
+
+            <div className="mt-4">
               <SignaturePad
                 value={assinaturaOp}
                 onChange={setAssinaturaOp}
-                label={`Assinatura — ${usuario.nome}`}
+                label="Assinatura — Operador"
+                ajuda="Qualquer operador da equipe pode assinar."
               />
             </div>
 

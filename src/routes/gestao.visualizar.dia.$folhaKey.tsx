@@ -18,6 +18,8 @@ import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import { exportarFolhaDiaExcel, exportarTurnoExcel } from "@/lib/checklist/excel-export";
+import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 export const Route = createFileRoute("/gestao/visualizar/dia/$folhaKey")({
   head: () => ({ meta: [{ title: "Checklist Completo do Dia — Gestão" }] }),
@@ -88,11 +90,23 @@ function VisualizarDiaPage() {
             </Button>
           </div>
         ) : (
-          <ChecklistDiaDetalhe
-            folha={folha}
-            anomalias={anomalias}
-            onExportar={() => setExportOpen(true)}
-          />
+          <>
+            <ChecklistDiaDetalhe
+              folha={folha}
+              anomalias={anomalias}
+              onExportar={() => setExportOpen(true)}
+            />
+            <div className="mt-6">
+              <ObservacoesVersoConsolidado
+                folhaDiaKey={buildFolhaDiaKey(
+                  folha.contexto.data,
+                  folha.contexto.linha,
+                  folha.contexto.maquina,
+                )}
+                titulo="Observações da folha (espelho do verso — PTP + Limpeza)"
+              />
+            </div>
+          </>
         )}
       </main>
 
