@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ClipboardList, Droplets } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -22,8 +22,18 @@ export const Route = createFileRoute("/operador/verso")({
       },
     ],
   }),
-  component: VersoHome,
+  component: VersoLayout,
 });
+
+function VersoLayout() {
+  const location = useLocation();
+
+  if (location.pathname !== "/operador/verso") {
+    return <Outlet />;
+  }
+
+  return <VersoHome />;
+}
 
 function VersoHome() {
   const { usuario, loading } = useGuard("operador");
@@ -58,7 +68,6 @@ function VersoHome() {
         voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
-        {/* Contexto fixo do dia */}
         <section className="mb-6 rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Contexto operacional do dia
@@ -76,7 +85,6 @@ function VersoHome() {
           </div>
         </section>
 
-        {/* 2 cards principais */}
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Link
             to="/operador/verso/ptp"
@@ -116,9 +124,7 @@ function VersoHome() {
               <p className="mt-3 text-sm font-semibold text-foreground">
                 {limpezaValidados}/{TURNOS_ATIVOS_LIMPEZA.length} turnos validados
                 {limpezaAguardando > 0 && (
-                  <span className="ml-2 text-warning">
-                    · {limpezaAguardando} aguardando líder
-                  </span>
+                  <span className="ml-2 text-warning">· {limpezaAguardando} aguardando líder</span>
                 )}
               </p>
               {limpeza.conflito && (

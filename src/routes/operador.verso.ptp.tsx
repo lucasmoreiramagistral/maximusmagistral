@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Clock, AlertCircle, CheckCircle2, MinusCircle } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -15,8 +15,18 @@ import { formatarDataHora } from "@/lib/checklist/format";
 
 export const Route = createFileRoute("/operador/verso/ptp")({
   head: () => ({ meta: [{ title: "PTP Garrafas — Verso da folha" }] }),
-  component: PtpListaPage,
+  component: PtpLayout,
 });
+
+function PtpLayout() {
+  const location = useLocation();
+
+  if (location.pathname !== "/operador/verso/ptp") {
+    return <Outlet />;
+  }
+
+  return <PtpListaPage />;
+}
 
 function PtpListaPage() {
   const { usuario, loading } = useGuard("operador");
@@ -94,10 +104,7 @@ function PtpListaPage() {
 }
 
 function StatusBadge({ status }: { status: PtpJanelaStatus }) {
-  const map: Record<
-    PtpJanelaStatus,
-    { cls: string; icon: React.ReactNode }
-  > = {
+  const map: Record<PtpJanelaStatus, { cls: string; icon: React.ReactNode }> = {
     pendente: { cls: "bg-muted text-muted-foreground", icon: null },
     rascunho: {
       cls: "bg-warning/15 text-warning",
@@ -127,5 +134,4 @@ function StatusBadge({ status }: { status: PtpJanelaStatus }) {
   );
 }
 
-// Re-export para evitar suspeita de import não usado em build estrito
 export type { PtpJanela };
