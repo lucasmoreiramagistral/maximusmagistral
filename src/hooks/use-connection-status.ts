@@ -248,6 +248,7 @@ const store = {
       for (let i = 0; i < fila.length; i++) {
         const item = fila[i];
         if (item.status === "enviando") continue;
+        if (item.status === "conflito") continue; // conflito não retenta
         if (item.tentativas >= MAX_TENTATIVAS) continue;
 
         // marca como enviando
@@ -268,6 +269,8 @@ const store = {
           i--;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          const isConflito =
+            err instanceof ConflitoVersaoError || /conflito de vers/i.test(msg);
           // detecta se é erro de rede (Failed to fetch, NetworkError, timeout, etc)
           const isNetworkError =
             /failed to fetch|networkerror|fetch failed|load failed|timeout|aborted|err_network|err_internet/i.test(
@@ -275,13 +278,21 @@ const store = {
             );
           fila[i] = {
             ...fila[i],
-            status: "erro",
+            status: isConflito ? "conflito" : "erro",
             tentativas: fila[i].tentativas + 1,
             ultimoErro: msg,
           };
           writeFila(fila);
           this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
           this.emit();
+          if (isConflito) {
+            // não retenta automaticamente, alerta o usuário
+            toast.error(
+              "Conflito de versão: outro operador alterou esse registro. Recarregue a tela antes de salvar.",
+              { duration: 10000 },
+            );
+            continue;
+          }
           if (isNetworkError) {
             // provavelmente offline novamente — para a sincronização
             // e marca como offline para revalidar conexão
