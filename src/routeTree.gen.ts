@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OperadorIndexRouteImport } from './routes/operador.index'
 import { Route as ManutencaoIndexRouteImport } from './routes/manutencao.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
+import { Route as OperadorVersoRouteImport } from './routes/operador.verso'
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
 import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
 import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
@@ -25,10 +26,13 @@ import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
 import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
+import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
+import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
 import { Route as OperadorAnomaliaNovaRouteImport } from './routes/operador.anomalia.nova'
 import { Route as ManutencaoAnomaliaNovaRouteImport } from './routes/manutencao.anomalia.nova'
 import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
 import { Route as OperadorVisualizarAnomaliaIdRouteImport } from './routes/operador.visualizar.anomalia.$id'
+import { Route as OperadorVersoPtpJanelaCodigoRouteImport } from './routes/operador.verso.ptp.$janelaCodigo'
 import { Route as ManutencaoVisualizarAnomaliaIdRouteImport } from './routes/manutencao.visualizar.anomalia.$id'
 import { Route as GestaoVisualizarDiaFolhaKeyRouteImport } from './routes/gestao.visualizar.dia.$folhaKey'
 import { Route as GestaoVisualizarChecklistIdRouteImport } from './routes/gestao.visualizar.checklist.$id'
@@ -52,6 +56,11 @@ const ManutencaoIndexRoute = ManutencaoIndexRouteImport.update({
 const GestaoIndexRoute = GestaoIndexRouteImport.update({
   id: '/gestao/',
   path: '/gestao/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorVersoRoute = OperadorVersoRouteImport.update({
+  id: '/operador/verso',
+  path: '/operador/verso',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorResumoRoute = OperadorResumoRouteImport.update({
@@ -114,6 +123,16 @@ const GestaoAnomaliasRoute = GestaoAnomaliasRouteImport.update({
   path: '/gestao/anomalias',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OperadorVersoPtpRoute = OperadorVersoPtpRouteImport.update({
+  id: '/ptp',
+  path: '/ptp',
+  getParentRoute: () => OperadorVersoRoute,
+} as any)
+const OperadorVersoLimpezaRoute = OperadorVersoLimpezaRouteImport.update({
+  id: '/limpeza',
+  path: '/limpeza',
+  getParentRoute: () => OperadorVersoRoute,
+} as any)
 const OperadorAnomaliaNovaRoute = OperadorAnomaliaNovaRouteImport.update({
   id: '/operador/anomalia/nova',
   path: '/operador/anomalia/nova',
@@ -135,6 +154,12 @@ const OperadorVisualizarAnomaliaIdRoute =
     id: '/operador/visualizar/anomalia/$id',
     path: '/operador/visualizar/anomalia/$id',
     getParentRoute: () => rootRouteImport,
+  } as any)
+const OperadorVersoPtpJanelaCodigoRoute =
+  OperadorVersoPtpJanelaCodigoRouteImport.update({
+    id: '/$janelaCodigo',
+    path: '/$janelaCodigo',
+    getParentRoute: () => OperadorVersoPtpRoute,
   } as any)
 const ManutencaoVisualizarAnomaliaIdRoute =
   ManutencaoVisualizarAnomaliaIdRouteImport.update({
@@ -175,15 +200,19 @@ export interface FileRoutesByFullPath {
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao/': typeof GestaoIndexRoute
   '/manutencao/': typeof ManutencaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
+  '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
   '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
+  '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
 }
@@ -201,15 +230,19 @@ export interface FileRoutesByTo {
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao': typeof GestaoIndexRoute
   '/manutencao': typeof ManutencaoIndexRoute
   '/operador': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
+  '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
   '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
+  '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
 }
@@ -228,15 +261,19 @@ export interface FileRoutesById {
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao/': typeof GestaoIndexRoute
   '/manutencao/': typeof ManutencaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
+  '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
   '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
+  '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
 }
@@ -256,15 +293,19 @@ export interface FileRouteTypes {
     | '/operador/historico'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/verso'
     | '/gestao/'
     | '/manutencao/'
     | '/operador/'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/verso/limpeza'
+    | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
     | '/manutencao/visualizar/anomalia/$id'
+    | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
   fileRoutesByTo: FileRoutesByTo
@@ -282,15 +323,19 @@ export interface FileRouteTypes {
     | '/operador/historico'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/verso'
     | '/gestao'
     | '/manutencao'
     | '/operador'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/verso/limpeza'
+    | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
     | '/manutencao/visualizar/anomalia/$id'
+    | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
   id:
@@ -308,15 +353,19 @@ export interface FileRouteTypes {
     | '/operador/historico'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/verso'
     | '/gestao/'
     | '/manutencao/'
     | '/operador/'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/verso/limpeza'
+    | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
     | '/manutencao/visualizar/anomalia/$id'
+    | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
   fileRoutesById: FileRoutesById
@@ -335,6 +384,7 @@ export interface RootRouteChildren {
   OperadorHistoricoRoute: typeof OperadorHistoricoRoute
   OperadorMomentoRoute: typeof OperadorMomentoRoute
   OperadorResumoRoute: typeof OperadorResumoRoute
+  OperadorVersoRoute: typeof OperadorVersoRouteWithChildren
   GestaoIndexRoute: typeof GestaoIndexRoute
   ManutencaoIndexRoute: typeof ManutencaoIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
@@ -376,6 +426,13 @@ declare module '@tanstack/react-router' {
       path: '/gestao'
       fullPath: '/gestao/'
       preLoaderRoute: typeof GestaoIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/verso': {
+      id: '/operador/verso'
+      path: '/operador/verso'
+      fullPath: '/operador/verso'
+      preLoaderRoute: typeof OperadorVersoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/resumo': {
@@ -462,6 +519,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GestaoAnomaliasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/operador/verso/ptp': {
+      id: '/operador/verso/ptp'
+      path: '/ptp'
+      fullPath: '/operador/verso/ptp'
+      preLoaderRoute: typeof OperadorVersoPtpRouteImport
+      parentRoute: typeof OperadorVersoRoute
+    }
+    '/operador/verso/limpeza': {
+      id: '/operador/verso/limpeza'
+      path: '/limpeza'
+      fullPath: '/operador/verso/limpeza'
+      preLoaderRoute: typeof OperadorVersoLimpezaRouteImport
+      parentRoute: typeof OperadorVersoRoute
+    }
     '/operador/anomalia/nova': {
       id: '/operador/anomalia/nova'
       path: '/operador/anomalia/nova'
@@ -489,6 +560,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/operador/visualizar/anomalia/$id'
       preLoaderRoute: typeof OperadorVisualizarAnomaliaIdRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/operador/verso/ptp/$janelaCodigo': {
+      id: '/operador/verso/ptp/$janelaCodigo'
+      path: '/$janelaCodigo'
+      fullPath: '/operador/verso/ptp/$janelaCodigo'
+      preLoaderRoute: typeof OperadorVersoPtpJanelaCodigoRouteImport
+      parentRoute: typeof OperadorVersoPtpRoute
     }
     '/manutencao/visualizar/anomalia/$id': {
       id: '/manutencao/visualizar/anomalia/$id'
@@ -521,6 +599,31 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface OperadorVersoPtpRouteChildren {
+  OperadorVersoPtpJanelaCodigoRoute: typeof OperadorVersoPtpJanelaCodigoRoute
+}
+
+const OperadorVersoPtpRouteChildren: OperadorVersoPtpRouteChildren = {
+  OperadorVersoPtpJanelaCodigoRoute: OperadorVersoPtpJanelaCodigoRoute,
+}
+
+const OperadorVersoPtpRouteWithChildren =
+  OperadorVersoPtpRoute._addFileChildren(OperadorVersoPtpRouteChildren)
+
+interface OperadorVersoRouteChildren {
+  OperadorVersoLimpezaRoute: typeof OperadorVersoLimpezaRoute
+  OperadorVersoPtpRoute: typeof OperadorVersoPtpRouteWithChildren
+}
+
+const OperadorVersoRouteChildren: OperadorVersoRouteChildren = {
+  OperadorVersoLimpezaRoute: OperadorVersoLimpezaRoute,
+  OperadorVersoPtpRoute: OperadorVersoPtpRouteWithChildren,
+}
+
+const OperadorVersoRouteWithChildren = OperadorVersoRoute._addFileChildren(
+  OperadorVersoRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GestaoAnomaliasRoute: GestaoAnomaliasRoute,
@@ -535,6 +638,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorHistoricoRoute: OperadorHistoricoRoute,
   OperadorMomentoRoute: OperadorMomentoRoute,
   OperadorResumoRoute: OperadorResumoRoute,
+  OperadorVersoRoute: OperadorVersoRouteWithChildren,
   GestaoIndexRoute: GestaoIndexRoute,
   ManutencaoIndexRoute: ManutencaoIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,

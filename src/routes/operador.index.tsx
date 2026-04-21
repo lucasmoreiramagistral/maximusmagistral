@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ClipboardCheck, AlertTriangle, History, Play } from "lucide-react";
+import { ClipboardCheck, AlertTriangle, History, Play, Layers } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -85,6 +85,12 @@ function OperadorHome() {
             icon={<AlertTriangle className="h-8 w-8" />}
             titulo="Registrar anomalia"
             descricao="Registrar manualmente uma anomalia"
+          />
+          <BotaoAcao
+            to="/operador/verso"
+            icon={<Layers className="h-8 w-8" />}
+            titulo="Verso da folha"
+            descricao="PTP e limpeza da sala de envase"
           />
           <BotaoAcao
             to="/operador/historico"

@@ -1,0 +1,154 @@
+import { useCallback, useEffect, useState } from "react";
+import { useConnectionStatus, useOfflineQueue } from "./use-connection-status";
+import { versoStorage } from "@/lib/verso/storage";
+import {
+  createPtpJanelasPadrao,
+  fetchPtpJanelas,
+  upsertPtpJanela,
+  insertPtpEdicao,
+  ConflitoVersaoError,
+} from "@/lib/verso/supabase-storage";
+import type { PtpEdicaoPayload, PtpJanela } from "@/lib/verso/types";
+
+interface UsePtpResult {
+  janelas: PtpJanela[];
+  loading: boolean;
+  error: string | null;
+  conflito: boolean;
+  refetch: () => Promise<void>;
+  salvarJanela: (
+    janela: PtpJanela,
+    opts?: {
+      anterior?: PtpJanela;
+      motivoEdicao?: string;
+      editadoPorLogin: string;
+      editadoPorNome: string;
+    },
+  ) => Promise<void>;
+}
+
+/**
+ * Carrega/sincroniza janelas do PTP do dia.
+ * - se online: busca do banco e mescla com as 12 janelas default
+ * - se offline: usa estado local
+ * - salvar: tenta upsert online; se falhar, enfileira via fila offline
+ */
+export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtpResult {
+  const { isOnline } = useConnectionStatus();
+  const { enfileirar } = useOfflineQueue();
+  const [janelas, setJanelas] = useState<PtpJanela[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [conflito, setConflito] = useState(false);
+
+  const mergeWithDefaults = useCallback(
+    (remotos: PtpJanela[]): PtpJanela[] => {
+      const defaults = createPtpJanelasPadrao(folhaDiaKey, dataOperacao);
+      return defaults.map((d) => {
+        const found = remotos.find((r) => r.janelaCodigo === d.janelaCodigo);
+        return found ?? d;
+      });
+    },
+    [folhaDiaKey, dataOperacao],
+  );
+
+  const refetch = useCallback(async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      // sempre começa com o que estiver local
+      const local = versoStorage.getPtpJanelas(folhaDiaKey);
+      if (local.length > 0) {
+        setJanelas(mergeWithDefaults(local));
+      } else {
+        setJanelas(mergeWithDefaults([]));
+      }
+      if (isOnline) {
+        const remotos = await fetchPtpJanelas(folhaDiaKey);
+        const merged = mergeWithDefaults(remotos);
+        setJanelas(merged);
+        versoStorage.bulkSetPtpJanelas(folhaDiaKey, remotos);
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Erro ao carregar PTP. Mostrando dados locais.");
+    } finally {
+      setLoading(false);
+    }
+  }, [folhaDiaKey, isOnline, mergeWithDefaults]);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  const salvarJanela: UsePtpResult["salvarJanela"] = useCallback(
+    async (janela, opts) => {
+      // 1) atualiza UI + storage local imediatamente
+      versoStorage.savePtpJanela(janela);
+      setJanelas((prev) => {
+        const i = prev.findIndex((p) => p.janelaCodigo === janela.janelaCodigo);
+        if (i < 0) return [...prev, janela];
+        const next = [...prev];
+        next[i] = janela;
+        return next;
+      });
+
+      const edicao: PtpEdicaoPayload | null = opts?.anterior
+        ? {
+            ptpJanelaId: janela.id,
+            folhaDiaKey: janela.folhaDiaKey,
+            janelaCodigo: janela.janelaCodigo,
+            editadoPorLogin: opts.editadoPorLogin,
+            editadoPorNome: opts.editadoPorNome,
+            motivoEdicao: opts.motivoEdicao ?? null,
+            antesJson: opts.anterior,
+            depoisJson: janela,
+          }
+        : null;
+
+      // 2) tenta enviar agora; se falhar, vai pra fila
+      if (!isOnline) {
+        enfileirar("ptp_janela", {
+          janela,
+          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          edicao,
+        });
+        return;
+      }
+      try {
+        const saved = await upsertPtpJanela(janela, {
+          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+        });
+        versoStorage.savePtpJanela(saved);
+        setJanelas((prev) => {
+          const i = prev.findIndex((p) => p.janelaCodigo === saved.janelaCodigo);
+          if (i < 0) return [...prev, saved];
+          const next = [...prev];
+          next[i] = saved;
+          return next;
+        });
+        if (edicao) {
+          try {
+            await insertPtpEdicao(edicao);
+          } catch (e) {
+            console.error("[usePtpJanelas] insertPtpEdicao falhou:", e);
+          }
+        }
+      } catch (e) {
+        if (e instanceof ConflitoVersaoError) {
+          setConflito(true);
+          throw e;
+        }
+        // erro provável de rede → enfileira
+        enfileirar("ptp_janela", {
+          janela,
+          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          edicao,
+        });
+      }
+    },
+    [enfileirar, isOnline],
+  );
+
+  return { janelas, loading, error, conflito, refetch, salvarJanela };
+}

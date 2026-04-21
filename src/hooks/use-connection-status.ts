@@ -6,6 +6,19 @@ import {
   insertAnomalia,
 } from "@/lib/checklist/supabase-storage";
 import type { Anomalia, Checklist } from "@/lib/checklist/types";
+import {
+  ConflitoVersaoError,
+  insertLimpezaEdicao,
+  insertPtpEdicao,
+  upsertLimpezaTurno,
+  upsertPtpJanela,
+} from "@/lib/verso/supabase-storage";
+import type {
+  LimpezaEdicaoPayload,
+  LimpezaTurno,
+  PtpEdicaoPayload,
+  PtpJanela,
+} from "@/lib/verso/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FONTE ÚNICA DE VERDADE (singleton) para status de conexão + fila offline.
@@ -17,14 +30,20 @@ const AVISO_OFFLINE_KEY = "fm-checklist:aviso-offline-exibido";
 const HEALTH_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
 const MAX_TENTATIVAS = 5;
 
-export type FilaItemTipo = "checklist" | "anomalia";
+export type FilaItemTipo =
+  | "checklist"
+  | "anomalia"
+  | "ptp_janela"
+  | "limpeza_turno";
+
 export interface FilaItem {
   id: string;
   tipo: FilaItemTipo;
   payload: unknown;
   criadoEm: string;
   tentativas: number;
-  status: "pendente" | "enviando" | "erro";
+  /** "conflito" = conflito de versão detectado; NÃO retentar. */
+  status: "pendente" | "enviando" | "erro" | "conflito";
   ultimoErro?: string;
 }
 
@@ -184,6 +203,34 @@ const store = {
         dataOperacao?: string;
       };
       await insertAnomalia(anomalia, dataOperacao);
+    } else if (item.tipo === "ptp_janela") {
+      const { janela, expectedUpdatedAt, edicao } = item.payload as {
+        janela: PtpJanela;
+        expectedUpdatedAt?: string | null;
+        edicao?: PtpEdicaoPayload | null;
+      };
+      await upsertPtpJanela(janela, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      if (edicao) {
+        try {
+          await insertPtpEdicao(edicao);
+        } catch (e) {
+          console.error("[fila] insertPtpEdicao falhou:", e);
+        }
+      }
+    } else if (item.tipo === "limpeza_turno") {
+      const { turno, expectedUpdatedAt, edicao } = item.payload as {
+        turno: LimpezaTurno;
+        expectedUpdatedAt?: string | null;
+        edicao?: LimpezaEdicaoPayload | null;
+      };
+      await upsertLimpezaTurno(turno, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      if (edicao) {
+        try {
+          await insertLimpezaEdicao(edicao);
+        } catch (e) {
+          console.error("[fila] insertLimpezaEdicao falhou:", e);
+        }
+      }
     }
   },
 
@@ -201,6 +248,7 @@ const store = {
       for (let i = 0; i < fila.length; i++) {
         const item = fila[i];
         if (item.status === "enviando") continue;
+        if (item.status === "conflito") continue; // conflito não retenta
         if (item.tentativas >= MAX_TENTATIVAS) continue;
 
         // marca como enviando
@@ -221,6 +269,8 @@ const store = {
           i--;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          const isConflito =
+            err instanceof ConflitoVersaoError || /conflito de vers/i.test(msg);
           // detecta se é erro de rede (Failed to fetch, NetworkError, timeout, etc)
           const isNetworkError =
             /failed to fetch|networkerror|fetch failed|load failed|timeout|aborted|err_network|err_internet/i.test(
@@ -228,13 +278,21 @@ const store = {
             );
           fila[i] = {
             ...fila[i],
-            status: "erro",
+            status: isConflito ? "conflito" : "erro",
             tentativas: fila[i].tentativas + 1,
             ultimoErro: msg,
           };
           writeFila(fila);
           this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
           this.emit();
+          if (isConflito) {
+            // não retenta automaticamente, alerta o usuário
+            toast.error(
+              "Conflito de versão: outro operador alterou esse registro. Recarregue a tela antes de salvar.",
+              { duration: 10000 },
+            );
+            continue;
+          }
           if (isNetworkError) {
             // provavelmente offline novamente — para a sincronização
             // e marca como offline para revalidar conexão
