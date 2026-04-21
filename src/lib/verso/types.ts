@@ -77,6 +77,9 @@ export interface LimpezaTurno {
   turno: Turno;
   status: LimpezaTurnoStatus;
   itens: LimpezaItem[];
+  /** Observação livre do turno — é propagada para o campo "Observações"
+   *  oficial da frente da folha do dia. */
+  observacao?: string | null;
   operadorLogin?: string | null;
   operadorNome?: string | null;
   operadorUserId?: string | null;
