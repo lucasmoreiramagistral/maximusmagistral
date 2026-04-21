@@ -408,6 +408,24 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
             )}
 
             <div className="mt-4">
+              <Label htmlFor="obs-limpeza" className="text-base">
+                Observações do turno (opcional)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Será espelhada no campo "Observações" da frente da folha.
+              </p>
+              <Textarea
+                id="obs-limpeza"
+                value={observacao}
+                onChange={(e) => setObservacao(e.target.value)}
+                placeholder="Ex.: faltou papel-toalha às 10h, reposto."
+                className="mt-1.5"
+                rows={3}
+                disabled={itensReadOnly}
+              />
+            </div>
+
+            <div className="mt-4">
               <SignaturePad
                 value={assinaturaOp}
                 onChange={setAssinaturaOp}
