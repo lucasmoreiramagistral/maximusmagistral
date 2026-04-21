@@ -5,6 +5,7 @@ import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { SignaturePad } from "@/components/signature-pad";
 import { useGuard } from "@/hooks/use-guard";
@@ -182,6 +183,7 @@ interface TurnoEditorProps {
 
 function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
   const [itens, setItens] = useState<LimpezaItem[]>(turno.itens);
+  const [observacao, setObservacao] = useState<string>(turno.observacao ?? "");
   const [assinaturaOp, setAssinaturaOp] = useState<string | null>(null);
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -193,6 +195,7 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
 
   useEffect(() => {
     setItens(turno.itens);
+    setObservacao(turno.observacao ?? "");
     setLiderNome(turno.liderNome ?? usuario.nome);
   }, [turno.id, turno.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
