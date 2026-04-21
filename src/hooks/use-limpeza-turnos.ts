@@ -8,6 +8,11 @@ import {
   insertLimpezaEdicao,
   upsertLimpezaTurno,
 } from "@/lib/verso/supabase-storage";
+import {
+  upsertObservacaoVerso,
+  labelLimpezaTurno,
+} from "@/lib/verso/observacoes";
+import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import type { LimpezaEdicaoPayload, LimpezaTurno } from "@/lib/verso/types";
 
 interface UseLimpezaResult {
@@ -123,6 +128,28 @@ export function useLimpezaTurnos(
             await insertLimpezaEdicao(edicao);
           } catch (e) {
             console.error("[useLimpezaTurnos] insertLimpezaEdicao falhou:", e);
+          }
+        }
+        // Propaga observação livre do turno para "Observações" da frente
+        // somente após o operador concluir (status >= aguardando_validacao).
+        const ehConclusao =
+          saved.status === "aguardando_validacao" || saved.status === "validado";
+        if (ehConclusao && opts) {
+          try {
+            await upsertObservacaoVerso({
+              folhaDiaKey: saved.folhaDiaKey,
+              dataOperacao: saved.dataOperacao,
+              linha: saved.linha || VERSO_CONTEXTO_FIXO.linha,
+              maquina: saved.maquina || VERSO_CONTEXTO_FIXO.maquina,
+              origemTipo: "limpeza",
+              origemCodigo: saved.turno,
+              origemLabel: labelLimpezaTurno(saved.turno),
+              texto: saved.observacao ?? "",
+              registradoPorLogin: opts.editadoPorLogin,
+              registradoPorNome: opts.editadoPorNome,
+            });
+          } catch (e) {
+            console.error("[useLimpezaTurnos] upsertObservacaoVerso falhou:", e);
           }
         }
       } catch (e) {
