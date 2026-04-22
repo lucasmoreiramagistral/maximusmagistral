@@ -280,18 +280,43 @@ function ItAnalytics() {
     void carregarDados(true);
   });
 
+  // Filtragem por rastreabilidade (lixo pré-blindagem = device_id NULL)
+  // Sessões e eventos antigos (antes da Fase 2) não tinham device_id, então
+  // por padrão escondemos eles dos KPIs pra não inflar os números.
+  const sessoesIds = useMemo(() => {
+    if (!filtros.apenasRastreaveis) return null;
+    const set = new Set<string>();
+    for (const s of sessoes) if (s.device_id) set.add(s.id);
+    return set;
+  }, [sessoes, filtros.apenasRastreaveis]);
+
+  const sessoesFiltradas = useMemo(() => {
+    if (!filtros.apenasRastreaveis) return sessoes;
+    return sessoes.filter((s) => s.device_id != null);
+  }, [sessoes, filtros.apenasRastreaveis]);
+
+  const eventosFiltrados = useMemo(() => {
+    if (!filtros.apenasRastreaveis || !sessoesIds) return eventos;
+    return eventos.filter((e) => sessoesIds.has(e.sessao_id));
+  }, [eventos, sessoesIds, filtros.apenasRastreaveis]);
+
+  const sessoesLegadas = useMemo(
+    () => sessoes.filter((s) => s.device_id == null).length,
+    [sessoes],
+  );
+
   // Agregações memoizadas
   const kpis = useMemo(() => {
-    const sessoesCount = sessoes.length;
-    const consultas = eventos.filter((e) => e.tipo_evento === "page_view").length;
-    const buscas = eventos.filter((e) => e.tipo_evento === "index_search").length;
-    const zooms = eventos.filter((e) =>
+    const sessoesCount = sessoesFiltradas.length;
+    const consultas = eventosFiltrados.filter((e) => e.tipo_evento === "page_view").length;
+    const buscas = eventosFiltrados.filter((e) => e.tipo_evento === "index_search").length;
+    const zooms = eventosFiltrados.filter((e) =>
       ["zoom_in", "zoom_out", "zoom_reset"].includes(e.tipo_evento),
     ).length;
-    const retries = eventos.filter((e) => e.tipo_evento === "image_retry").length;
-    const emConsultaAgora = sessoes.filter((s) => s.ativa_agora === true).length;
+    const retries = eventosFiltrados.filter((e) => e.tipo_evento === "image_retry").length;
+    const emConsultaAgora = sessoesFiltradas.filter((s) => s.ativa_agora === true).length;
     return { sessoesCount, consultas, buscas, zooms, retries, emConsultaAgora };
-  }, [sessoes, eventos]);
+  }, [sessoesFiltradas, eventosFiltrados]);
 
   const aberturasPorDoc = useMemo(() => {
     const map = new Map<string, number>();
