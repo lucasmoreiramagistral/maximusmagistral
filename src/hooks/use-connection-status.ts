@@ -83,6 +83,13 @@ function genFilaId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Conta apenas itens "ao vivo" — exclui conflito e itens que estouraram tentativas. */
+function countAtivos(fila: FilaItem[]): number {
+  return fila.filter(
+    (f) => f.status !== "conflito" && f.tentativas < MAX_TENTATIVAS,
+  ).length;
+}
+
 const store = {
   state: {
     isOnline: isBrowser() ? navigator.onLine : true,
@@ -163,7 +170,7 @@ const store = {
 
   refreshPending() {
     const fila = readFila();
-    this.state = { ...this.state, fila, pendingCount: fila.length };
+    this.state = { ...this.state, fila, pendingCount: countAtivos(fila) };
     this.emit();
   },
 
@@ -254,7 +261,7 @@ const store = {
         // marca como enviando
         fila[i] = { ...item, status: "enviando" };
         writeFila(fila);
-        this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
+        this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
         this.emit();
 
         try {
@@ -263,7 +270,7 @@ const store = {
           fila = fila.filter((x) => x.id !== item.id);
           writeFila(fila);
           sucessos++;
-          this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
+          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
           this.emit();
           // ajusta índice porque removemos
           i--;
@@ -283,7 +290,7 @@ const store = {
             ultimoErro: msg,
           };
           writeFila(fila);
-          this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
+          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
           this.emit();
           if (isConflito) {
             // não retenta automaticamente, alerta o usuário

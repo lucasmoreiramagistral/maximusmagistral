@@ -79,6 +79,14 @@ function VersoHome() {
       j.statusJanela !== "rascunho",
   ).length;
 
+  // Limpeza: conta itens respondidos do turno do operador (21 itens).
+  const limpezaTurnoOperador = turnoLogado
+    ? limpeza.turnos.find((t) => t.turno === turnoLogado)
+    : undefined;
+  const totalItensLimpeza = limpezaTurnoOperador?.itens.length ?? 21;
+  const itensLimpezaRespondidos =
+    limpezaTurnoOperador?.itens.filter((i) => i.status !== null).length ?? 0;
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -139,6 +147,9 @@ function VersoHome() {
               <p className="text-xl font-bold text-foreground">Limpeza Sala de Envase</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 Checklist operacional de limpeza da sala de envase L3.
+              </p>
+              <p className="mt-3 text-sm font-semibold text-foreground">
+                {itensLimpezaRespondidos}/{totalItensLimpeza} registradas
               </p>
               {limpeza.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
