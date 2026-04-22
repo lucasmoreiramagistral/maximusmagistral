@@ -63,9 +63,18 @@ function ListaChecklists() {
     () => filtrarChecklists(checklists, filtros, anomalias),
     [checklists, filtros, anomalias],
   );
+  const todasFolhas = useMemo(
+    () => buildFolhasAgrupadas(checklists, anomalias),
+    [checklists, anomalias],
+  );
+  const folhaDiaKeys = useMemo(
+    () => extrairFolhasDiaKeysComVerso(todasFolhas),
+    [todasFolhas],
+  );
+  const { resumos: resumosVerso } = useVersosDosDiasRemote(folhaDiaKeys);
   const folhas = useMemo(
-    () => filtrarFolhas(buildFolhasAgrupadas(checklists, anomalias), filtros, anomalias),
-    [checklists, anomalias, filtros],
+    () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
+    [todasFolhas, anomalias, filtros, resumosVerso],
   );
 
   if (loadingAuth || !usuario) return <TelaCarregando />;
@@ -135,13 +144,21 @@ function ListaChecklists() {
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {folhas.map((f) => (
-                <ChecklistDiaResumoCard
-                  key={f.folhaKey}
-                  folha={f}
-                  href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                />
-              ))}
+              {folhas.map((f) => {
+                const versoKey = buildFolhaDiaKey(
+                  f.contexto.data,
+                  f.contexto.linha,
+                  f.contexto.maquina,
+                );
+                return (
+                  <ChecklistDiaResumoCard
+                    key={f.folhaKey}
+                    folha={f}
+                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                    versoResumo={resumosVerso.get(versoKey)}
+                  />
+                );
+              })}
             </div>
           )
         ) : lista.length === 0 ? (
