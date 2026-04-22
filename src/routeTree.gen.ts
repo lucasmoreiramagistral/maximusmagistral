@@ -16,6 +16,7 @@ import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as OperadorVersoRouteImport } from './routes/operador.verso'
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
 import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
+import { Route as OperadorItRouteImport } from './routes/operador.it'
 import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
 import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
 import { Route as OperadorConfirmacaoRouteImport } from './routes/operador.confirmacao'
@@ -28,6 +29,7 @@ import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists
 import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
 import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
 import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
+import { Route as OperadorItDocRouteImport } from './routes/operador.it.$doc'
 import { Route as OperadorAnomaliaNovaRouteImport } from './routes/operador.anomalia.nova'
 import { Route as ManutencaoAnomaliaNovaRouteImport } from './routes/manutencao.anomalia.nova'
 import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
@@ -71,6 +73,11 @@ const OperadorResumoRoute = OperadorResumoRouteImport.update({
 const OperadorMomentoRoute = OperadorMomentoRouteImport.update({
   id: '/operador/momento',
   path: '/operador/momento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorItRoute = OperadorItRouteImport.update({
+  id: '/operador/it',
+  path: '/operador/it',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorHistoricoRoute = OperadorHistoricoRouteImport.update({
@@ -132,6 +139,11 @@ const OperadorVersoLimpezaRoute = OperadorVersoLimpezaRouteImport.update({
   id: '/limpeza',
   path: '/limpeza',
   getParentRoute: () => OperadorVersoRoute,
+} as any)
+const OperadorItDocRoute = OperadorItDocRouteImport.update({
+  id: '/$doc',
+  path: '/$doc',
+  getParentRoute: () => OperadorItRoute,
 } as any)
 const OperadorAnomaliaNovaRoute = OperadorAnomaliaNovaRouteImport.update({
   id: '/operador/anomalia/nova',
@@ -198,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
@@ -206,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/operador/': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -228,6 +242,7 @@ export interface FileRoutesByTo {
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
@@ -236,6 +251,7 @@ export interface FileRoutesByTo {
   '/operador': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -259,6 +275,7 @@ export interface FileRoutesById {
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
@@ -267,6 +284,7 @@ export interface FileRoutesById {
   '/operador/': typeof OperadorIndexRoute
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
+  '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -291,6 +309,7 @@ export interface FileRouteTypes {
     | '/operador/confirmacao'
     | '/operador/contexto'
     | '/operador/historico'
+    | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
     | '/operador/verso'
@@ -299,6 +318,7 @@ export interface FileRouteTypes {
     | '/operador/'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/it/$doc'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -321,6 +341,7 @@ export interface FileRouteTypes {
     | '/operador/confirmacao'
     | '/operador/contexto'
     | '/operador/historico'
+    | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
     | '/operador/verso'
@@ -329,6 +350,7 @@ export interface FileRouteTypes {
     | '/operador'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/it/$doc'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -351,6 +373,7 @@ export interface FileRouteTypes {
     | '/operador/confirmacao'
     | '/operador/contexto'
     | '/operador/historico'
+    | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
     | '/operador/verso'
@@ -359,6 +382,7 @@ export interface FileRouteTypes {
     | '/operador/'
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
+    | '/operador/it/$doc'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -382,6 +406,7 @@ export interface RootRouteChildren {
   OperadorConfirmacaoRoute: typeof OperadorConfirmacaoRoute
   OperadorContextoRoute: typeof OperadorContextoRoute
   OperadorHistoricoRoute: typeof OperadorHistoricoRoute
+  OperadorItRoute: typeof OperadorItRouteWithChildren
   OperadorMomentoRoute: typeof OperadorMomentoRoute
   OperadorResumoRoute: typeof OperadorResumoRoute
   OperadorVersoRoute: typeof OperadorVersoRouteWithChildren
@@ -447,6 +472,13 @@ declare module '@tanstack/react-router' {
       path: '/operador/momento'
       fullPath: '/operador/momento'
       preLoaderRoute: typeof OperadorMomentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/it': {
+      id: '/operador/it'
+      path: '/operador/it'
+      fullPath: '/operador/it'
+      preLoaderRoute: typeof OperadorItRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/historico': {
@@ -533,6 +565,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorVersoLimpezaRouteImport
       parentRoute: typeof OperadorVersoRoute
     }
+    '/operador/it/$doc': {
+      id: '/operador/it/$doc'
+      path: '/$doc'
+      fullPath: '/operador/it/$doc'
+      preLoaderRoute: typeof OperadorItDocRouteImport
+      parentRoute: typeof OperadorItRoute
+    }
     '/operador/anomalia/nova': {
       id: '/operador/anomalia/nova'
       path: '/operador/anomalia/nova'
@@ -599,6 +638,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface OperadorItRouteChildren {
+  OperadorItDocRoute: typeof OperadorItDocRoute
+}
+
+const OperadorItRouteChildren: OperadorItRouteChildren = {
+  OperadorItDocRoute: OperadorItDocRoute,
+}
+
+const OperadorItRouteWithChildren = OperadorItRoute._addFileChildren(
+  OperadorItRouteChildren,
+)
+
 interface OperadorVersoPtpRouteChildren {
   OperadorVersoPtpJanelaCodigoRoute: typeof OperadorVersoPtpJanelaCodigoRoute
 }
@@ -636,6 +687,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorConfirmacaoRoute: OperadorConfirmacaoRoute,
   OperadorContextoRoute: OperadorContextoRoute,
   OperadorHistoricoRoute: OperadorHistoricoRoute,
+  OperadorItRoute: OperadorItRouteWithChildren,
   OperadorMomentoRoute: OperadorMomentoRoute,
   OperadorResumoRoute: OperadorResumoRoute,
   OperadorVersoRoute: OperadorVersoRouteWithChildren,
@@ -654,12 +706,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
