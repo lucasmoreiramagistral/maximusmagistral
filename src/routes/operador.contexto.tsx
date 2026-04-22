@@ -189,4 +189,4 @@ function CampoFixo({ titulo, valor }: { titulo: string; valor: string }) {
   );
 }
 
-export { STORAGE_CTX };
+export { STORAGE_CTX, STORAGE_NOME_PREFIX, nomeStorageKey };
