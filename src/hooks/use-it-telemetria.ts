@@ -384,6 +384,7 @@ export function useItTelemetria(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: não dispara close/beacon
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
