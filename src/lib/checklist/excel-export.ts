@@ -561,10 +561,20 @@ function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
   baixarBlobNoNavegador(buffer, nomeArquivo);
 }
 
-function nomeArquivo(folha: FolhaChecklistDia, modo: "turno" | "dia"): string {
+function nomeArquivo(
+  folha: FolhaChecklistDia,
+  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+): string {
   const data = folha.contexto.data;
-  const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   const equipe = sanitizarArquivo(folha.contexto.equipe);
+  if (modo === "turno-verso") {
+    const turno = sanitizarArquivo(folha.contexto.turno);
+    return `FM09_TURNO_FRENTE_VERSO_L3_${data}_${turno}_${equipe}.xlsx`;
+  }
+  if (modo === "frente-verso-completo") {
+    return `FM09_FRENTE_VERSO_COMPLETO_L3_${data}_${equipe}.xlsx`;
+  }
+  const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   return `FM09_CHECKLIST_OPERACIONAL_L3_${data}_${turno}_${equipe}_EDITAVEL.xlsx`;
 }
 
