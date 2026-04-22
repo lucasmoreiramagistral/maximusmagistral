@@ -215,11 +215,19 @@ function ItAnalytics() {
           .select("*")
           .limit(100);
 
-        const [sesRes, evRes, difRes, alertRes] = await Promise.allSettled([
+        // Conta sessões legadas (sem device_id) no período — para o badge informativo.
+        // HEAD + count exact = não trafega linhas, só o número.
+        const qLegadas = (supabase.from as any)("it_consulta_sessoes")
+          .select("id", { count: "exact", head: true })
+          .gte("iniciado_em", dataInicio)
+          .is("device_id", null);
+
+        const [sesRes, evRes, difRes, alertRes, legRes] = await Promise.allSettled([
           qSes,
           qEv,
           qDif,
           qAlertas,
+          qLegadas,
         ]);
 
         if (guard.cancelled) return;
@@ -259,6 +267,12 @@ function ItAnalytics() {
           setAlertas((alertRes.value.data as AlertaRow[]) ?? []);
         } else {
           setAlertas([]);
+        }
+
+        if (legRes.status === "fulfilled" && !legRes.value.error) {
+          setLegadasCount(legRes.value.count ?? 0);
+        } else {
+          setLegadasCount(0);
         }
 
         setUltimaAtualizacao(new Date());
