@@ -123,6 +123,17 @@ function ListaChecklists() {
               >
                 <ListIcon className="h-3.5 w-3.5" /> Por momento
               </button>
+              <button
+                type="button"
+                onClick={() => setVisao("verso")}
+                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  visao === "verso"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" /> Verso
+              </button>
             </div>
             <Button asChild variant={ativos ? "default" : "outline"}>
               <Link to="/gestao/filtros" search={{ origem: "checklists" }}>
