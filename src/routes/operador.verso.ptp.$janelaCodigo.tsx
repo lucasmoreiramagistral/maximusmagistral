@@ -52,12 +52,25 @@ function PtpJanelaDetalhe() {
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
+  // Snapshot do status no momento em que a tela carrega.
+  // O bloco "Motivo da edição" só deve aparecer se a janela JÁ ESTAVA
+  // concluída quando o operador abriu a tela — não logo após concluir.
+  const [jaConcluidaSnapshot, setJaConcluidaSnapshot] = useState<boolean | null>(
+    null,
+  );
+
   useEffect(() => {
     if (!janelaBase) return;
     setItens(janelaBase.itens);
     setNaoRodou(janelaBase.statusJanela === "nao_rodou");
     setObservacao(janelaBase.observacao ?? "");
     setAssinatura(null); // sempre exigir nova assinatura ao concluir
+    if (jaConcluidaSnapshot === null) {
+      setJaConcluidaSnapshot(
+        janelaBase.statusJanela !== "pendente" &&
+          janelaBase.statusJanela !== "rascunho",
+      );
+    }
   }, [janelaBase?.id, janelaBase?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !usuario) return <TelaCarregando />;
