@@ -11,6 +11,12 @@ import type {
 // Garante que funcione em QUALQUER ambiente (preview, .lovable.app, custom domain)
 // sem depender de fetch HTTP nem do asset ser servido estaticamente pelo host.
 import { TEMPLATE_BASE64 } from "@/assets/templates/checklist-template";
+import { gerarVersoWorksheet } from "@/lib/verso/excel-export";
+import {
+  fetchLimpezaTurnos,
+  fetchPtpJanelas,
+} from "@/lib/verso/supabase-storage";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 const SHEET_NAME = "ENCHEDORA 3";
 
