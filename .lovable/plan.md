@@ -1,138 +1,69 @@
 
 
-# Diagnóstico
+# Plano aprovado — execução
 
-A view **`public.it_dificuldade_paginas`** não foi criada no banco. As tabelas `it_consulta_sessoes` e `it_consulta_eventos` estão lá e populando normalmente (vimos 573+ eventos), mas a terceira query do `Promise.all` no painel da gestão explode com 404 (`PGRST205`), cai no catch genérico e mostra "Não foi possível carregar os dados" + tudo zerado.
+Vou executar o plano blindado em 3 fases. A SQL eu te mando aqui no chat pra você colar no SQL Editor do Supabase, e o código eu implemento direto nos arquivos.
 
-Além disso, tem 2 reforços técnicos que o Serjão levantou que vou aplicar junto:
+## Fase 1 — SQL pra você colar (eu mando no chat)
 
-1. **Fechamento idempotente de sessão**: hoje o `closeItSessao` faz UPDATE por `id` puro. Com `visibilitychange` + `pagehide` + cleanup + sendBeacon, dá pra disparar 3-4 vezes. Filtrar por `encerrado_em IS NULL` resolve.
-2. **`user_id` sempre presente**: como o `useUsuario()` pode retornar `null` em casos raros, garantir fallback para `auth.uid()` no client antes de inserir.
+Migration única: `<ts>_it_blindagem_rastreabilidade.sql`
 
----
+Inclui:
+- Função `canonizar_nome_operador(text)` immutable
+- Colunas em `it_consulta_sessoes`: `ultimo_evento_em`, `device_id`, `operador_nome_canonico` (GENERATED), `ip_address`, `user_agent`
+- Colunas em `it_consulta_eventos`: `device_id`, `operador_nome_canonico` (GENERATED)
+- Trigger `tg_it_evento_atualiza_sessao` — atualiza `ultimo_evento_em` e fecha sessão em `it_close`
+- Trigger `tg_it_sessao_detecta_troca` — detecta troca de operador no mesmo device e grava `identidade_trocada_servidor`
+- View `it_consulta_sessoes_efetivas` com `duracao_efetiva_ms` e `ativa_agora`
+- View `it_alertas_identidade` (multi-device + trocas rápidas)
+- Índices em `(operador_nome_canonico, iniciado_em)` e `(device_id, iniciado_em)`
+- `GRANT SELECT` das views pra `authenticated` (RLS herdada via security_invoker)
 
-# Plano
+## Fase 2 — Código (eu implemento)
 
-## 1. Migration nova — criar a view faltante
+**Novos:**
+- `src/lib/it/identidade.ts` — `obterOuCriarDeviceId`, `canonizarNomeOperador`, `lerIdentidadeDevice`, `salvarIdentidadeDevice`, `decidirModoIdentidade`, `registrarUltimoHeartbeat`, `lerUltimoHeartbeat`
+- `src/hooks/use-exigir-identidade-it.ts` — gate reutilizável retornando `{ identidade, modal, pronto }`
+- `src/components/it-identificacao-dialog.tsx` — modos completo + leve com guardas anti-tap (800ms / 1.5s)
 
-`supabase/migrations/<ts>_it_dificuldade_paginas_view.sql`
+**Editados:**
+- `src/lib/it/telemetria.ts` — adiciona ao union `TipoEventoIt`: `identidade_declarada`, `identidade_confirmada`, `identidade_trocada`, `identidade_trocada_servidor`, `identidade_expirada`, `heartbeat`
+- `src/hooks/use-it-telemetria.ts` — recebe `{ nomeCompleto, nomeCanonico, deviceId }`, grava `device_id` em sessão e eventos, heartbeat 60s com flag de interação, reuso de sessão por slug+canonico+device com guarda de 4h + 30min inatividade, captura `user_agent` no insert da sessão
+- `src/routes/operador.it.$doc.tsx` — usa `useExigirIdentidadeIt(slug)` antes do `<Visualizador />`, passa identidade confirmada
+- `src/routes/gestao.it-analytics.tsx` — lê `it_consulta_sessoes_efetivas`, KPI "Em consulta agora", card vermelho "⚠ Alertas de identidade" no topo (consome `it_alertas_identidade`), agrupa "Por operador" pelo `operador_nome_canonico` com sub-linha de variantes e badge multi-device, novo card "Trocas de operador (24h)"
 
-```sql
-CREATE OR REPLACE VIEW public.it_dificuldade_paginas
-WITH (security_invoker = on) AS
-WITH metricas_pagina AS (
-  SELECT
-    documento,
-    pagina,
-    -- Tempo médio na página (page_leave traz duracao_ms)
-    AVG(CASE WHEN tipo_evento = 'page_leave' THEN duracao_ms END) AS tempo_medio_ms,
-    -- Contagem de visualizações (denominador dos por_view)
-    COUNT(*) FILTER (WHERE tipo_evento = 'page_view') AS views,
-    -- Zooms na página
-    COUNT(*) FILTER (WHERE tipo_evento IN ('zoom_in','zoom_out','zoom_reset')) AS zooms,
-    -- Retornos: views além da primeira por sessão
-    GREATEST(
-      COUNT(*) FILTER (WHERE tipo_evento = 'page_view')
-      - COUNT(DISTINCT sessao_id) FILTER (WHERE tipo_evento = 'page_view'),
-      0
-    ) AS retornos,
-    -- Buscas que levaram aqui (clique em resultado de busca com pagina_destino = pagina)
-    0::bigint AS buscas_que_levaram_aqui_placeholder,
-    -- Retries de imagem
-    COUNT(*) FILTER (WHERE tipo_evento = 'image_retry') AS retries
-  FROM public.it_consulta_eventos
-  WHERE pagina IS NOT NULL
-  GROUP BY documento, pagina
-),
-buscas_destino AS (
-  SELECT documento, pagina_destino AS pagina, COUNT(*) AS buscas
-  FROM public.it_consulta_eventos
-  WHERE tipo_evento = 'index_search_result_click'
-    AND pagina_destino IS NOT NULL
-  GROUP BY documento, pagina_destino
-),
-combinado AS (
-  SELECT
-    m.documento,
-    m.pagina,
-    COALESCE(m.tempo_medio_ms, 0) AS tempo_medio_ms,
-    m.views,
-    m.zooms,
-    m.retornos,
-    COALESCE(b.buscas, 0) AS buscas_que_levaram_aqui,
-    m.retries,
-    -- Por view (guarda contra divisão por zero)
-    CASE WHEN m.views > 0 THEN m.zooms::float / m.views ELSE 0 END AS zoom_por_view,
-    CASE WHEN m.views > 0 THEN m.retornos::float / m.views ELSE 0 END AS retorno_por_view,
-    CASE WHEN m.views > 0 THEN m.retries::float / m.views ELSE 0 END AS retry_por_view
-  FROM metricas_pagina m
-  LEFT JOIN buscas_destino b
-    ON b.documento = m.documento AND b.pagina = m.pagina
-)
-SELECT
-  documento,
-  pagina,
-  ROUND(tempo_medio_ms)::bigint AS tempo_medio_ms,
-  views,
-  zooms,
-  retornos,
-  buscas_que_levaram_aqui,
-  retries,
-  ROUND(100 * (
-      0.30 * COALESCE(tempo_medio_ms / NULLIF(MAX(tempo_medio_ms) OVER (PARTITION BY documento), 0), 0)
-    + 0.25 * COALESCE(zoom_por_view / NULLIF(MAX(zoom_por_view) OVER (PARTITION BY documento), 0), 0)
-    + 0.20 * COALESCE(retorno_por_view / NULLIF(MAX(retorno_por_view) OVER (PARTITION BY documento), 0), 0)
-    + 0.15 * COALESCE(buscas_que_levaram_aqui::float / NULLIF(MAX(buscas_que_levaram_aqui) OVER (PARTITION BY documento), 0), 0)
-    + 0.10 * COALESCE(retry_por_view / NULLIF(MAX(retry_por_view) OVER (PARTITION BY documento), 0), 0)
-  ))::int AS score
-FROM combinado;
+## Fase 3 — Verificação (você roda 24h depois)
 
--- Permissão de leitura: só gestão
-REVOKE ALL ON public.it_dificuldade_paginas FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON public.it_dificuldade_paginas TO authenticated;
-```
+3 queries de validação:
+1. `pct_sem_fechamento` — esperado < 5%
+2. Eventos `identidade_trocada%` — trilha de auditoria
+3. `SELECT * FROM it_alertas_identidade` — alertas ativos
 
-> O `security_invoker=on` faz a view rodar com a permissão do chamador, então a RLS de `it_consulta_eventos` (SELECT só pra `is_gestao`) já protege o conteúdo. Operador autenticado consegue chamar a view, mas não retorna nada porque não passa na RLS da tabela base.
+## Detalhes técnicos importantes
 
-## 2. Robustez do fechamento de sessão
+- **Canonização espelhada**: a função SQL e o helper TS usam exatamente o mesmo algoritmo (trim → colapsa espaços → remove acentos → uppercase). A coluna no banco é `GENERATED ALWAYS AS STORED` — impossível burlar via DevTools.
+- **Auditoria redundante**: troca de operador gera dois registros — `identidade_trocada` (client, otimista) + `identidade_trocada_servidor` (trigger, garantido). Mesmo offline a auditoria fica.
+- **Realtime já cobre**: `useItAnalyticsRealtime` existente (já lê `it_consulta_eventos` e `it_consulta_sessoes`) propaga alertas e trocas pro painel automaticamente.
+- **Gate centralizado**: hook `useExigirIdentidadeIt` evita esquecer o modal em rotas IT futuras.
 
-**Editado: `src/lib/it/supabase-analytics.ts`**
-- Em `updateItSessaoFechamento`, adicionar `.is("encerrado_em", null)` no `.eq("id", sessaoId)`. Se já fechou, vira no-op silencioso, sem race condition.
+## Ordem de execução
 
-## 3. Fallback de user_id no client
+1. Eu te mando a SQL completa no próximo turno
+2. Você cola no SQL Editor e confirma
+3. Eu implemento todos os arquivos de código no turno seguinte
+4. Você testa: abre IT no operador → modal aparece → digita "Lucas Moreira" → confirma → vai pro painel e vê o nome real
 
-**Editado: `src/hooks/use-it-telemetria.ts`**
-- Antes de montar o payload da sessão/evento, se `usuario.id` vier `null`, buscar `(await supabase.auth.getUser()).data.user?.id` como fallback.
-- Se ainda assim vier `null` (sem auth), aborta o registro silenciosamente — não tenta gravar evento órfão que vai bater na RLS.
+## Critérios de aceitação
 
-## 4. Tratamento de erro mais explícito no painel
-
-**Editado: `src/routes/gestao.it-analytics.tsx`**
-- Trocar o `Promise.all` por `Promise.allSettled` para que a falha de uma query (ex: view ainda não criada num ambiente em transição) não derrube o painel inteiro. KPIs e rankings continuam aparecendo; só o card de "Score de dificuldade" mostra um aviso curto se a view falhar.
-
----
-
-# Arquivos tocados
-
-**Novo (1):** `supabase/migrations/<ts>_it_dificuldade_paginas_view.sql`
-
-**Editados (3):**
-- `src/lib/it/supabase-analytics.ts` (filtro `encerrado_em IS NULL`)
-- `src/hooks/use-it-telemetria.ts` (fallback `auth.getUser()` para `user_id`)
-- `src/routes/gestao.it-analytics.tsx` (`Promise.allSettled` + degradação por bloco)
-
-**Não tocados:** tabelas existentes, RLS já aplicada, viewer do operador, fila offline, demais módulos.
-
----
-
-# Critérios de aceitação
-
-1. `/gestao/it-analytics` para de mostrar "Não foi possível carregar os dados"
-2. KPIs (sessões, eventos, buscas, zooms, retries) aparecem com valores reais
-3. Ranking de páginas/ITs mais consultadas aparece
-4. Card "Score de dificuldade" mostra top 10 páginas com score 0–100
-5. Se a view falhar isoladamente, o resto do painel continua renderizando
-6. Fechamento de sessão é idempotente (sem race condition entre handlers)
-7. Eventos sem `user_id` válido não são enviados (não geram lixo nem erro de RLS)
-8. Operador continua sem conseguir ler analytics (RLS preservada)
+1. `pct_sem_fechamento` < 5% em 24h
+2. Toda sessão tem `device_id`, `operador_nome_canonico` (do banco), `user_agent`
+3. Modal completo: "Continuar" só ativa após 800ms de input válido
+4. Modal leve: "Sim, sou eu" só ativa após 1.5s
+5. Troca de operador gera 2 registros (client + servidor)
+6. `Lucas`, `LUCAS`, `lucas ` agrupam sob `LUCAS`
+7. Operador da equipe Karolainny aparece com nome real
+8. Heartbeat 60s + corte 5min reflete atividade real
+9. Card "⚠ Alertas de identidade" aparece quando há multi-device ou ≥3 trocas/h
+10. Card "Trocas de operador (24h)" mostra trilha auditável
+11. RLS preservada — operador não lê analytics
 
