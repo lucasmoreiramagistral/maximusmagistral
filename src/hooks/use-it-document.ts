@@ -66,7 +66,6 @@ export interface UseItDocumentResult {
   getDoc: (doc: ItDocSlug) => ManifestDoc | null;
   getImageUrl: (filename: string) => string;
   getIndice: (doc: ItDocSlug) => IndiceEntry[];
-  getEntradaAtual: (doc: ItDocSlug, paginaAtual: number) => IndiceEntry | null;
   recarregar: () => Promise<void>;
 }
 
