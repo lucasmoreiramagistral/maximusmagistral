@@ -119,9 +119,23 @@ function ContextoPage() {
             </div>
 
             <div className="md:col-span-2">
-              <CampoFixo titulo="Operador responsável" valor={usuario.nome} />
+              <Label htmlFor="operador-nome" className="text-base">
+                Operador responsável
+              </Label>
+              <Input
+                id="operador-nome"
+                value={nomeOperador}
+                onChange={(e) => {
+                  setNomeOperador(e.target.value);
+                  if (erro) setErro("");
+                }}
+                placeholder="Digite seu nome completo"
+                maxLength={100}
+                autoComplete="name"
+                className="mt-1.5 h-12 text-base font-semibold"
+              />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Identificado automaticamente pela sua conta. Você assinará digitalmente ao final do checklist do dia.
+                Obrigatório. Usado pela gestão industrial para controle de dados — sua assinatura digital ao final do dia confirma a autoria do checklist.
               </p>
             </div>
           </div>
