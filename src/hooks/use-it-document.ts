@@ -9,10 +9,9 @@ import {
 
 const CACHE_KEY = "it-manifest-cache";
 const CACHE_TS_KEY = "it-manifest-cache-ts";
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
 type Status = "idle" | "loading" | "ready" | "error";
-
-const BUCKET = "instrucoes-trabalho";
 
 function resolveBaseUrl(): string {
   const explicit = (import.meta.env.VITE_IT_STORAGE_BASE_URL as string | undefined)?.replace(
@@ -33,6 +32,19 @@ function readCache(): ManifestRoot | null {
     return JSON.parse(raw) as ManifestRoot;
   } catch {
     return null;
+  }
+}
+
+function isCacheFresh(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const ts = window.localStorage.getItem(CACHE_TS_KEY);
+    if (!ts) return false;
+    const saved = new Date(ts).getTime();
+    if (Number.isNaN(saved)) return false;
+    return Date.now() - saved < CACHE_TTL_MS;
+  } catch {
+    return false;
   }
 }
 
@@ -65,13 +77,17 @@ export function useItDocument(): UseItDocumentResult {
   const [fromCache, setFromCache] = useState(false);
   const mounted = useRef(true);
 
-  const carregar = useCallback(async () => {
-    setStatus("loading");
-    setError(null);
+  const fetchManifest = useCallback(async (silent: boolean) => {
+    if (!silent) {
+      setStatus("loading");
+      setError(null);
+    }
 
     if (!baseUrl) {
-      setError("VITE_IT_STORAGE_BASE_URL não configurada.");
-      setStatus("error");
+      if (!silent) {
+        setError("VITE_IT_STORAGE_BASE_URL não configurada.");
+        setStatus("error");
+      }
       return;
     }
 
@@ -90,6 +106,10 @@ export function useItDocument(): UseItDocumentResult {
       writeCache(data);
     } catch (e) {
       if (!mounted.current) return;
+      if (silent) {
+        // Atualização em background falhou; manter estado atual
+        return;
+      }
       if (cache) {
         setManifest(cache);
         setFromCache(true);
@@ -100,6 +120,20 @@ export function useItDocument(): UseItDocumentResult {
       }
     }
   }, []);
+
+  const carregar = useCallback(async () => {
+    const cache = readCache();
+    if (cache && isCacheFresh()) {
+      // Servir do cache imediatamente
+      setManifest(cache);
+      setFromCache(true);
+      setStatus("ready");
+      // Atualização silenciosa em background
+      void fetchManifest(true);
+      return;
+    }
+    await fetchManifest(false);
+  }, [fetchManifest]);
 
   useEffect(() => {
     mounted.current = true;

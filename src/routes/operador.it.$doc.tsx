@@ -1,11 +1,14 @@
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
   List,
   Loader2,
+  Minus,
+  Plus,
   RefreshCw,
+  RotateCcw,
   WifiOff,
 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -65,9 +68,54 @@ function OperadorItVisualizador() {
   return <Visualizador slug={slug} />;
 }
 
+function extrairNumero(entry: IndiceEntry): number | null {
+  if (typeof entry.numero === "number") return entry.numero;
+  if (typeof entry.numero === "string") {
+    const n = parseInt(entry.numero, 10);
+    if (!Number.isNaN(n)) return n;
+  }
+  const m = entry.label.match(/^Passo\s+(\d+)/i);
+  if (m) return parseInt(m[1], 10);
+  return null;
+}
+
+function montarLabelTopo(
+  paginaAtual: number,
+  entradasDaPagina: IndiceEntry[],
+): string {
+  const relevantes = entradasDaPagina.filter((e) => e.tipo !== "secao");
+  if (relevantes.length === 0) return `Página ${paginaAtual}`;
+
+  // Tipos especiais únicos
+  const primeira = relevantes[0];
+  if (relevantes.length === 1) {
+    if (primeira.tipo === "capa") return `Página ${paginaAtual} · Capa`;
+    if (primeira.tipo === "sumario")
+      return `Página ${paginaAtual} · Sumário`;
+    if (primeira.tipo === "anexo")
+      return `Página ${paginaAtual} · ${primeira.label}`;
+    if (primeira.tipo === "passo")
+      return `Página ${paginaAtual} · ${primeira.label}`;
+  }
+
+  // Múltiplos passos
+  const passos = relevantes.filter((e) => e.tipo === "passo");
+  if (passos.length > 1) {
+    const numeros = passos
+      .map(extrairNumero)
+      .filter((n): n is number => n !== null);
+    if (numeros.length >= 2) {
+      const min = Math.min(...numeros);
+      const max = Math.max(...numeros);
+      return `Página ${paginaAtual} · Passos ${min}–${max}`;
+    }
+  }
+
+  return `Página ${paginaAtual} · ${primeira.label}`;
+}
+
 function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
-  const navigate = useNavigate();
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
   const [paginaAtual, setPaginaAtual] = useState(1);
@@ -88,7 +136,14 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   }, [docData, paginaAtual]);
 
   const indice = itDoc.getIndice(slug);
-  const entradaAtual = itDoc.getEntradaAtual(slug, paginaAtual);
+  const entradasDaPagina = useMemo(
+    () => indice.filter((e) => e.pagina === paginaAtual),
+    [indice, paginaAtual],
+  );
+  const labelTopo = useMemo(
+    () => montarLabelTopo(paginaAtual, entradasDaPagina),
+    [paginaAtual, entradasDaPagina],
+  );
 
   // Pré-carregar próxima página
   useEffect(() => {
@@ -213,8 +268,8 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             </Button>
           </div>
 
-          <div className="hidden flex-1 px-4 text-center text-sm text-muted-foreground md:block">
-            {entradaAtual?.label}
+          <div className="hidden flex-1 truncate px-4 text-center text-sm text-muted-foreground md:block">
+            {labelTopo}
           </div>
 
           <Sheet open={indiceOpen} onOpenChange={setIndiceOpen}>
@@ -256,9 +311,9 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
         )}
       </main>
 
-      {/* Voltar / próxima fixos no rodapé pra dedo grande no tablet */}
-      <div className="border-t border-border bg-card md:hidden">
-        <div className="flex items-center justify-between gap-2 px-3 py-2">
+      {/* Rodapé de navegação — visível em todas as larguras (tablet com luva) */}
+      <div className="border-t border-border bg-card">
+        <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between gap-2 px-3 py-2 md:px-6">
           <Button
             variant="outline"
             onClick={() => irPara(paginaAtual - 1)}
@@ -282,42 +337,95 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   );
 }
 
+type ImagemStatus = "loading" | "ready" | "error";
+
 function PaginaImagem({ url, alt }: { url: string; alt: string }) {
-  const [carregando, setCarregando] = useState(true);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [imagemStatus, setImagemStatus] = useState<ImagemStatus>("loading");
 
   return (
-    <div className="relative h-[calc(100vh-180px)] w-full md:h-[calc(100vh-140px)]">
-      {carregando && (
+    <div className="relative h-[calc(100vh-160px)] w-full md:h-[calc(100vh-200px)]">
+      {imagemStatus === "loading" && (
         <div className="absolute inset-0 z-10 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       )}
+      {imagemStatus === "error" && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-6 text-center">
+          <WifiOff className="h-10 w-10 text-muted-foreground" />
+          <p className="text-base font-semibold text-foreground">
+            Não foi possível carregar esta página
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Verifique sua conexão e tente novamente
+          </p>
+        </div>
+      )}
       <TransformWrapper
         initialScale={1}
-        minScale={1}
+        minScale={0.8}
         maxScale={5}
-        doubleClick={{ mode: "toggle", step: 1.5 }}
+        doubleClick={{ mode: "toggle", step: 2.5 }}
         wheel={{ step: 0.15 }}
         pinch={{ step: 5 }}
         panning={{ velocityDisabled: true }}
         centerOnInit
       >
-        <TransformComponent
-          wrapperClass="!h-full !w-full"
-          contentClass="!h-full !w-full flex items-center justify-center"
-        >
-          <img
-            ref={imgRef}
-            src={url}
-            alt={alt}
-            loading="lazy"
-            onLoad={() => setCarregando(false)}
-            onError={() => setCarregando(false)}
-            className="max-h-full max-w-full object-contain select-none"
-            draggable={false}
-          />
-        </TransformComponent>
+        {({ zoomIn, zoomOut, resetTransform }) => (
+          <>
+            <TransformComponent
+              wrapperClass="!h-full !w-full"
+              contentClass="!h-full !w-full flex items-center justify-center"
+            >
+              <img
+                src={url}
+                alt={alt}
+                loading="eager"
+                onLoad={() => setImagemStatus("ready")}
+                onError={() => setImagemStatus("error")}
+                className={cn(
+                  "max-h-full max-w-full object-contain select-none transition-opacity",
+                  imagemStatus === "error" && "opacity-0",
+                )}
+                draggable={false}
+              />
+            </TransformComponent>
+
+            {imagemStatus === "ready" && (
+              <div className="pointer-events-none absolute bottom-3 right-3 z-20 flex flex-col gap-2">
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  onClick={() => zoomIn()}
+                  aria-label="Aumentar zoom"
+                  className="pointer-events-auto h-12 w-12 shadow-md"
+                >
+                  <Plus className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  onClick={() => zoomOut()}
+                  aria-label="Diminuir zoom"
+                  className="pointer-events-auto h-12 w-12 shadow-md"
+                >
+                  <Minus className="h-5 w-5" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="secondary"
+                  onClick={() => resetTransform()}
+                  aria-label="Resetar zoom"
+                  className="pointer-events-auto h-12 w-12 shadow-md"
+                >
+                  <RotateCcw className="h-5 w-5" />
+                </Button>
+              </div>
+            )}
+          </>
+        )}
       </TransformWrapper>
     </div>
   );
@@ -353,14 +461,15 @@ function PainelIndice({
               onClick={() => onSelect(entry.pagina)}
               className={cn(
                 "flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted",
-                ativo && "bg-primary-soft font-semibold text-primary",
+                ativo &&
+                  "border-l-2 border-primary/40 bg-primary/8 text-foreground",
               )}
             >
               <span className="flex-1 truncate">{entry.label}</span>
               <span
                 className={cn(
                   "shrink-0 text-xs text-muted-foreground",
-                  ativo && "text-primary",
+                  ativo && "text-foreground/70",
                 )}
               >
                 p. {entry.pagina}
