@@ -346,6 +346,7 @@ export function useItTelemetria(
   // ── heartbeat + tracking de interação ──
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: sem heartbeat, sem rastro
 
     const marcarInteracao = () => {
       ultimaInteracaoRef.current = Date.now();
