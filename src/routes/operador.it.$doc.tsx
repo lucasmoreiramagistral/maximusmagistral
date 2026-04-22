@@ -1,20 +1,23 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Database,
   List,
   Loader2,
   Minus,
   Plus,
   RefreshCw,
   RotateCcw,
+  Search,
   WifiOff,
 } from "lucide-react";
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -81,10 +84,12 @@ function extrairNumero(entry: IndiceEntry): number | null {
 
 function montarLabelTopo(
   paginaAtual: number,
+  totalPaginas: number,
   entradasDaPagina: IndiceEntry[],
 ): string {
+  const fallback = `Página ${paginaAtual} de ${totalPaginas}`;
   const relevantes = entradasDaPagina.filter((e) => e.tipo !== "secao");
-  if (relevantes.length === 0) return `Página ${paginaAtual}`;
+  if (relevantes.length === 0) return fallback;
 
   // Tipos especiais únicos
   const primeira = relevantes[0];
@@ -111,7 +116,8 @@ function montarLabelTopo(
     }
   }
 
-  return `Página ${paginaAtual} · ${primeira.label}`;
+  if (primeira.label) return `Página ${paginaAtual} · ${primeira.label}`;
+  return fallback;
 }
 
 function Visualizador({ slug }: { slug: ItDocSlug }) {
@@ -141,17 +147,20 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
     [indice, paginaAtual],
   );
   const labelTopo = useMemo(
-    () => montarLabelTopo(paginaAtual, entradasDaPagina),
-    [paginaAtual, entradasDaPagina],
+    () => montarLabelTopo(paginaAtual, totalPaginas, entradasDaPagina),
+    [paginaAtual, totalPaginas, entradasDaPagina],
   );
 
-  // Pré-carregar próxima página
+  // Pré-carregar próxima e anterior
   useEffect(() => {
     if (!docData) return;
-    const proxima = docData.paginas.find((p) => p.pagina === paginaAtual + 1);
-    if (!proxima) return;
-    const img = new Image();
-    img.src = itDoc.getImageUrl(proxima.arquivo);
+    const vizinhas = [paginaAtual + 1, paginaAtual - 1];
+    for (const n of vizinhas) {
+      const p = docData.paginas.find((x) => x.pagina === n);
+      if (!p) continue;
+      const img = new Image();
+      img.src = itDoc.getImageUrl(p.arquivo);
+    }
   }, [docData, paginaAtual, itDoc]);
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -219,6 +228,10 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
     setIndiceOpen(false);
   };
 
+  // Indicador discreto: offline (prioridade) ou cache
+  const mostrarOffline = !isOnline;
+  const mostrarCache = !mostrarOffline && itDoc.fromCache;
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
@@ -281,7 +294,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             </SheetTrigger>
             <SheetContent
               side="right"
-              className="w-[300px] overflow-y-auto p-0 sm:w-[320px]"
+              className="flex w-[300px] flex-col overflow-hidden p-0 sm:w-[340px]"
             >
               <SheetHeader className="border-b border-border p-4">
                 <SheetTitle>Índice</SheetTitle>
@@ -290,10 +303,36 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
                 indice={indice}
                 paginaAtual={paginaAtual}
                 onSelect={irPara}
+                aberto={indiceOpen}
               />
             </SheetContent>
           </Sheet>
         </div>
+
+        {/* Indicador discreto offline / cache */}
+        {(mostrarOffline || mostrarCache) && (
+          <div
+            className={cn(
+              "flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-medium",
+              mostrarOffline
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                : "bg-muted/60 text-muted-foreground",
+            )}
+            role="status"
+          >
+            {mostrarOffline ? (
+              <>
+                <WifiOff className="h-3 w-3" />
+                <span>Modo offline — usando dados em cache</span>
+              </>
+            ) : (
+              <>
+                <Database className="h-3 w-3" />
+                <span>Consulta em cache</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Área da página */}
@@ -341,6 +380,14 @@ type ImagemStatus = "loading" | "ready" | "error";
 
 function PaginaImagem({ url, alt }: { url: string; alt: string }) {
   const [imagemStatus, setImagemStatus] = useState<ImagemStatus>("loading");
+  const [tentativa, setTentativa] = useState(0);
+
+  const srcEfetivo = tentativa === 0 ? url : `${url}?r=${tentativa}`;
+
+  const tentarNovamente = () => {
+    setImagemStatus("loading");
+    setTentativa((t) => t + 1);
+  };
 
   return (
     <div className="relative h-[calc(100vh-160px)] w-full md:h-[calc(100vh-200px)]">
@@ -350,7 +397,7 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
         </div>
       )}
       {imagemStatus === "error" && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 px-6 text-center">
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 px-6 text-center">
           <WifiOff className="h-10 w-10 text-muted-foreground" />
           <p className="text-base font-semibold text-foreground">
             Não foi possível carregar esta página
@@ -358,6 +405,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
           <p className="text-sm text-muted-foreground">
             Verifique sua conexão e tente novamente
           </p>
+          <Button onClick={tentarNovamente} className="mt-1 gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Tentar novamente
+          </Button>
         </div>
       )}
       <TransformWrapper
@@ -377,7 +428,8 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
               contentClass="!h-full !w-full flex items-center justify-center"
             >
               <img
-                src={url}
+                key={tentativa}
+                src={srcEfetivo}
                 alt={alt}
                 loading="eager"
                 onLoad={() => setImagemStatus("ready")}
@@ -431,53 +483,125 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
   );
 }
 
+function normalizar(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 function PainelIndice({
   indice,
   paginaAtual,
   onSelect,
+  aberto,
 }: {
   indice: IndiceEntry[];
   paginaAtual: number;
   onSelect: (pag: number) => void;
+  aberto: boolean;
 }) {
+  const [filtro, setFiltro] = useState("");
+  const itemAtivoRef = useRef<HTMLLIElement | null>(null);
+  const filtroNorm = normalizar(filtro);
+  const filtroAtivo = filtroNorm.length > 0;
+
+  // Auto-scroll para o item ativo quando o painel abre
+  useEffect(() => {
+    if (!aberto) return;
+    if (filtroAtivo) return;
+    const t = window.setTimeout(() => {
+      itemAtivoRef.current?.scrollIntoView({
+        block: "center",
+        behavior: "auto",
+      });
+    }, 80);
+    return () => window.clearTimeout(t);
+  }, [aberto, filtroAtivo, paginaAtual]);
+
+  // Reset do filtro ao fechar
+  useEffect(() => {
+    if (!aberto) setFiltro("");
+  }, [aberto]);
+
+  const entradasFiltradas = useMemo(() => {
+    if (!filtroAtivo) return indice;
+    return indice.filter((entry) => {
+      if (entry.tipo === "secao") return false;
+      const labelN = normalizar(entry.label);
+      const numN = entry.numero != null ? normalizar(String(entry.numero)) : "";
+      return labelN.includes(filtroNorm) || numN.includes(filtroNorm);
+    });
+  }, [indice, filtroAtivo, filtroNorm]);
+
+  const semResultados = filtroAtivo && entradasFiltradas.length === 0;
+  let primeiroAtivoEntregue = false;
+
   return (
-    <ul className="flex flex-col py-2">
-      {indice.map((entry, i) => {
-        if (entry.tipo === "secao") {
-          return (
-            <li
-              key={`secao-${i}`}
-              className="mt-3 px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground first:mt-0"
-            >
-              {entry.label}
-            </li>
-          );
-        }
-        const ativo = entry.pagina === paginaAtual;
-        return (
-          <li key={`${entry.tipo}-${i}`}>
-            <button
-              type="button"
-              onClick={() => onSelect(entry.pagina)}
-              className={cn(
-                "flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted",
-                ativo &&
-                  "border-l-2 border-primary/40 bg-primary/8 text-foreground",
-              )}
-            >
-              <span className="flex-1 truncate">{entry.label}</span>
-              <span
-                className={cn(
-                  "shrink-0 text-xs text-muted-foreground",
-                  ativo && "text-foreground/70",
-                )}
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="border-b border-border p-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={filtro}
+            onChange={(e) => setFiltro(e.target.value)}
+            placeholder="Buscar passo, anexo ou palavra..."
+            className="h-10 pl-9"
+            aria-label="Buscar no índice"
+          />
+        </div>
+      </div>
+
+      {semResultados ? (
+        <div className="flex flex-1 items-center justify-center px-4 py-8 text-center text-sm text-muted-foreground">
+          Nenhum item encontrado
+        </div>
+      ) : (
+        <ul className="flex flex-1 flex-col overflow-y-auto py-2">
+          {entradasFiltradas.map((entry, i) => {
+            if (entry.tipo === "secao") {
+              return (
+                <li
+                  key={`secao-${i}`}
+                  className="mt-3 px-4 pb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground first:mt-0"
+                >
+                  {entry.label}
+                </li>
+              );
+            }
+            const ativo = entry.pagina === paginaAtual;
+            const ehPrimeiroAtivo = ativo && !primeiroAtivoEntregue;
+            if (ehPrimeiroAtivo) primeiroAtivoEntregue = true;
+            return (
+              <li
+                key={`${entry.tipo}-${i}`}
+                ref={ehPrimeiroAtivo ? itemAtivoRef : undefined}
               >
-                p. {entry.pagina}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
+                <button
+                  type="button"
+                  onClick={() => onSelect(entry.pagina)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted",
+                    ativo &&
+                      "border-l-2 border-primary/40 bg-primary/10 text-foreground",
+                  )}
+                >
+                  <span className="flex-1 truncate">{entry.label}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 text-xs text-muted-foreground",
+                      ativo && "text-foreground/70",
+                    )}
+                  >
+                    p. {entry.pagina}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
