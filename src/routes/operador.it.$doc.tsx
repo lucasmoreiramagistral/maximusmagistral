@@ -188,6 +188,21 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
   if (loading || !usuario) return <TelaCarregando />;
 
+  // Gate de identidade: bloqueia o viewer até o operador se identificar
+  if (!identidadePronta) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <p className="text-center text-sm text-muted-foreground">
+            Aguardando identificação do operador...
+          </p>
+        </div>
+        {modalIdentidade}
+      </div>
+    );
+  }
+
   // Estado de carregamento do manifest
   if (itDoc.status === "loading" || itDoc.status === "idle") {
     return (
