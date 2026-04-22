@@ -20,8 +20,7 @@ import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import {
   exportarFolhaDiaExcel,
   exportarFrenteVersoCompletoExcel,
-  exportarTurnoComVersoExcel,
-  exportarTurnoExcel,
+  exportarVersoApenasExcel,
 } from "@/lib/checklist/excel-export";
 import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
 import { VersoDiaDetalhe } from "@/components/verso-dia-detalhe";
@@ -40,7 +39,7 @@ function VisualizarDiaPage() {
   const { data: anomalias, loading: loadingA } = useAnomaliasRemote({ realtime: true });
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState<
-    "turno" | "dia" | "turno-verso" | "frente-verso-completo" | null
+    "frente" | "verso" | "frente-verso" | null
   >(null);
 
   const todasFolhas = useMemo(
@@ -61,18 +60,14 @@ function VisualizarDiaPage() {
 
   if (loading || loadingC || loadingA || !usuario) return <TelaCarregando />;
 
-  async function handleExport(
-    modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
-  ) {
+  async function handleExport(modo: "frente" | "verso" | "frente-verso") {
     if (!folha) return;
     setExporting(modo);
     try {
-      if (modo === "turno") {
-        await exportarTurnoExcel(folha, anomalias);
-      } else if (modo === "dia") {
+      if (modo === "frente") {
         await exportarFolhaDiaExcel(folha, todasFolhas, anomalias);
-      } else if (modo === "turno-verso") {
-        await exportarTurnoComVersoExcel(folha, anomalias);
+      } else if (modo === "verso") {
+        await exportarVersoApenasExcel(folha);
       } else {
         await exportarFrenteVersoCompletoExcel(folha, todasFolhas, anomalias);
       }
