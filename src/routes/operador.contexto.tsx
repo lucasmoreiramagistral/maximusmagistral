@@ -47,6 +47,7 @@ function ContextoPage() {
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
+  const [nomeOperador, setNomeOperador] = useState("");
 
   // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
   const turno = usuario?.turnoPadrao ?? null;
@@ -64,6 +65,11 @@ function ContextoPage() {
       );
       return;
     }
+    const nomeLimpo = nomeOperador.trim();
+    if (!nomeLimpo) {
+      setErro("Digite seu nome no Operador responsável");
+      return;
+    }
     const ctx: ContextoChecklist = {
       data: calcularDataFolha(equipe, turno),
       turno,
@@ -72,7 +78,7 @@ function ContextoPage() {
       maquina: "Enchedora 3",
       area: "Envase",
       equipamento: "Enchedora Zegla 50V",
-      operadorResponsavel: usuario.nome,
+      operadorResponsavel: nomeLimpo,
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
