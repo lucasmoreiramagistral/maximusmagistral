@@ -9,7 +9,11 @@ import {
   calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
-import { LABEL_PTP_STATUS, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import {
+  LABEL_PTP_STATUS,
+  PTP_JANELAS_POR_TURNO,
+  VERSO_CONTEXTO_FIXO,
+} from "@/lib/verso/constants";
 import type { PtpJanela, PtpJanelaStatus } from "@/lib/verso/types";
 import { formatarDataHora } from "@/lib/checklist/format";
 
@@ -42,11 +46,22 @@ function PtpListaPage() {
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
+  // Filtra janelas por turno do operador logado.
+  // 12x36 Dia   → J01..J06 (06:00 → 18:00)
+  // 12x36 Noite → J07..J12 (18:00 → 06:00)
+  const codigosDoTurno =
+    turno === "12x36 Dia" || turno === "12x36 Noite"
+      ? PTP_JANELAS_POR_TURNO[turno]
+      : null;
+  const janelasVisiveis = codigosDoTurno
+    ? janelas.filter((j) => codigosDoTurno.includes(j.janelaCodigo))
+    : janelas;
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="PTP Garrafas"
-        subtitulo={`Folha do dia ${formatarDataBR(data)}`}
+        subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno ?? "—"}`}
         voltarPara="/operador/verso"
       />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
@@ -58,8 +73,9 @@ function PtpListaPage() {
         )}
 
         <p className="mb-3 text-sm text-muted-foreground">
-          Toque em uma janela para preencher ou editar. As 12 janelas cobrem o dia
-          inteiro de operação.
+          Toque em uma janela para preencher ou editar. Você vê apenas as{" "}
+          {janelasVisiveis.length} janelas do seu turno
+          {turno ? ` (${turno})` : ""}.
         </p>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
