@@ -126,6 +126,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
+  const telemetria = useItTelemetria(slug);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
 
@@ -137,6 +138,22 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   useEffect(() => {
     setPaginaAtual(1);
   }, [slug]);
+
+  // ── telemetria: page_view a cada mudança de página, com manifest pronto ──
+  useEffect(() => {
+    if (totalPaginas <= 0) return;
+    telemetria.trackPageView(paginaAtual);
+  }, [paginaAtual, totalPaginas, telemetria]);
+
+  // ── telemetria: cache_mode só em mudança real do par (isOnline, fromCache) ──
+  const ultimoModoCacheRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (totalPaginas <= 0) return;
+    const modo = !isOnline ? "offline" : itDoc.fromCache ? "cache" : "online";
+    if (ultimoModoCacheRef.current === modo) return;
+    ultimoModoCacheRef.current = modo;
+    telemetria.trackEvento("cache_mode", { modo_cache: modo });
+  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria]);
 
   const paginaInfo = useMemo(() => {
     if (!docData) return null;
