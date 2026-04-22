@@ -380,16 +380,37 @@ function ItAnalytics() {
         voltarPara="/gestao"
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-10">
-        {/* Banner não-punitivo */}
+        {/* Banner não-punitivo + indicador ao vivo */}
         <Card className="mb-6 border-primary/30 bg-primary-soft/40">
           <CardContent className="flex items-start gap-3 p-4 md:p-5">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            <p className="text-sm text-foreground md:text-base">
-              Esta análise serve para identificar pontos da instrução que precisam
-              de reforço de treinamento, <strong>não</strong> para avaliar
-              operadores individualmente. O foco está em onde a operação encontra
-              dificuldade — não em quem.
-            </p>
+            <div className="flex-1">
+              <p className="text-sm text-foreground md:text-base">
+                Esta análise serve para identificar pontos da instrução que precisam
+                de reforço de treinamento, <strong>não</strong> para avaliar
+                operadores individualmente. O foco está em onde a operação encontra
+                dificuldade — não em quem.
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                <span>
+                  Atualização ao vivo
+                  {ultimaAtualizacao && (
+                    <>
+                      {" · última: "}
+                      {ultimaAtualizacao.toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
