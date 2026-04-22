@@ -151,6 +151,7 @@ function ItAnalytics() {
   const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
   const [alertas, setAlertas] = useState<AlertaRow[]>([]);
+  const [legadasCount, setLegadasCount] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
