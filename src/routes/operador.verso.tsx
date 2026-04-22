@@ -15,10 +15,16 @@ import {
   calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
-import { TURNOS_ATIVOS_LIMPEZA, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
-import type { LimpezaTurno } from "@/lib/verso/types";
+import {
+  PTP_JANELAS_POR_TURNO,
+  TURNOS_ATIVOS_LIMPEZA,
+  VERSO_CONTEXTO_FIXO,
+} from "@/lib/verso/constants";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import { formatarDataHora } from "@/lib/checklist/format";
 import { toast } from "sonner";
+
+type TurnoAtivo = "12x36 Dia" | "12x36 Noite";
 
 export const Route = createFileRoute("/operador/verso")({
   head: () => ({
@@ -67,6 +73,10 @@ function VersoHome() {
   const limpezaAguardando = limpeza.turnos.filter(
     (t) => t.status === "aguardando_validacao",
   ).length;
+
+  const turnoLogado = (turno === "12x36 Dia" || turno === "12x36 Noite"
+    ? turno
+    : null) as TurnoAtivo | null;
 
   return (
     <div className="min-h-screen bg-background">
@@ -144,14 +154,33 @@ function VersoHome() {
           </Link>
         </div>
 
-        <BlocoValidacaoLider
-          ptpJanelas={ptp.janelas}
-          limpezaTurnos={limpeza.turnos}
-          ptpConcluidas={ptpConcluidas}
-          salvarTurno={limpeza.salvarTurno}
-          usuarioLogin={usuario.usuario}
-          usuarioNome={usuario.nome}
-        />
+        <section className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-bold text-foreground">
+              Validação dos Líderes
+            </h2>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Cada líder valida o seu próprio turno (PTP do turno + limpeza do
+            turno). São duas validações independentes — uma para cada turno.
+          </p>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {TURNOS_ATIVOS_LIMPEZA.map((tn) => (
+              <BlocoValidacaoTurno
+                key={tn}
+                turnoAlvo={tn as TurnoAtivo}
+                ptpJanelas={ptp.janelas}
+                limpezaTurnos={limpeza.turnos}
+                salvarTurno={limpeza.salvarTurno}
+                usuarioLogin={usuario.usuario}
+                usuarioNome={usuario.nome}
+                turnoLogado={turnoLogado}
+              />
+            ))}
+          </div>
+        </section>
       </main>
     </div>
   );
@@ -166,91 +195,122 @@ function Info({ titulo, valor }: { titulo: string; valor: string }) {
   );
 }
 
-// ─── Validação do Líder ──────────────────────────────────────────────
-interface BlocoValidacaoLiderProps {
-  ptpJanelas: ReturnType<typeof usePtpJanelas>["janelas"];
+// ─── Validação do Líder — por turno ──────────────────────────────────
+interface BlocoValidacaoTurnoProps {
+  turnoAlvo: TurnoAtivo;
+  ptpJanelas: PtpJanela[];
   limpezaTurnos: LimpezaTurno[];
-  ptpConcluidas: number;
   salvarTurno: ReturnType<typeof useLimpezaTurnos>["salvarTurno"];
   usuarioLogin: string;
   usuarioNome: string;
+  turnoLogado: TurnoAtivo | null;
 }
 
-function BlocoValidacaoLider({
+function BlocoValidacaoTurno({
+  turnoAlvo,
   ptpJanelas,
   limpezaTurnos,
-  ptpConcluidas,
   salvarTurno,
   usuarioLogin,
   usuarioNome,
-}: BlocoValidacaoLiderProps) {
+  turnoLogado,
+}: BlocoValidacaoTurnoProps) {
   const [abrindo, setAbrindo] = useState(false);
   const [liderNome, setLiderNome] = useState(usuarioNome);
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const ptpOk = ptpJanelas.length === 12 && ptpConcluidas === 12;
+  const ehDoOperador = turnoLogado === turnoAlvo;
+  const codigosDoTurno = PTP_JANELAS_POR_TURNO[turnoAlvo];
 
-  // Status por turno ativo
-  const statusPorTurno = useMemo(() => {
-    return TURNOS_ATIVOS_LIMPEZA.map((tn) => {
-      const t = limpezaTurnos.find((x) => x.turno === tn);
-      return {
-        turno: tn,
-        registro: t,
-        concluido:
-          t?.status === "aguardando_validacao" || t?.status === "validado",
-        validado: t?.status === "validado",
-      };
-    });
-  }, [limpezaTurnos]);
+  // PTP do turno (6 janelas)
+  const janelasDoTurno = useMemo(
+    () => ptpJanelas.filter((j) => codigosDoTurno.includes(j.janelaCodigo)),
+    [ptpJanelas, codigosDoTurno],
+  );
+  const ptpRegistradas = janelasDoTurno.filter(
+    (j) => j.statusJanela !== "pendente" && j.statusJanela !== "rascunho",
+  ).length;
+  const ptpOk = ptpRegistradas === codigosDoTurno.length;
 
-  const limpezaTodaConcluida = statusPorTurno.every((s) => s.concluido);
-  const tudoValidado =
-    statusPorTurno.length > 0 && statusPorTurno.every((s) => s.validado);
-  const liberado = ptpOk && limpezaTodaConcluida && !tudoValidado;
+  // Limpeza deste turno
+  const limpezaTurno = limpezaTurnos.find((t) => t.turno === turnoAlvo);
+  const limpezaConcluida =
+    limpezaTurno?.status === "aguardando_validacao" ||
+    limpezaTurno?.status === "validado";
+  const turnoValidado = limpezaTurno?.status === "validado";
 
-  // Estado já validado: mostrar bloco verde com info
-  if (tudoValidado) {
-    const primeiroValidado = statusPorTurno[0]?.registro;
+  const liberado = ptpOk && limpezaConcluida && !turnoValidado && ehDoOperador;
+
+  // ─── Estado: já validado ──────────────────────────────────────────
+  if (turnoValidado && limpezaTurno) {
     return (
-      <section className="mt-6 rounded-2xl border-2 border-success/40 bg-success/5 p-5 shadow-sm md:p-6">
+      <div className="rounded-2xl border-2 border-success/40 bg-success/5 p-5 shadow-sm">
         <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/15 text-success">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-success/15 text-success">
             <CheckCircle2 className="h-7 w-7" />
           </div>
           <div className="flex-1">
-            <p className="text-lg font-bold text-foreground">
-              Folha validada pelo líder
+            <p className="text-base font-bold text-foreground">
+              Líder {turnoAlvo}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Validada por{" "}
+              Validado por{" "}
               <strong className="text-foreground">
-                {primeiroValidado?.liderNome ?? "—"}
+                {limpezaTurno.liderNome ?? "—"}
               </strong>
-              {primeiroValidado?.liderAssinouEm && (
-                <> em {formatarDataHora(primeiroValidado.liderAssinouEm)}</>
+              {limpezaTurno.liderAssinouEm && (
+                <> em {formatarDataHora(limpezaTurno.liderAssinouEm)}</>
               )}
               .
             </p>
             <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-              {statusPorTurno.map((s) => (
-                <li key={s.turno} className="flex items-center gap-2">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                  Limpeza {s.turno} validada
-                </li>
-              ))}
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                12/12 janelas do PTP registradas
+                {ptpRegistradas}/{codigosDoTurno.length} janelas do PTP
+                registradas
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                Limpeza {turnoAlvo} concluída
               </li>
             </ul>
           </div>
         </div>
-      </section>
+      </div>
     );
   }
 
+  // ─── Estado: bloqueado por turno errado ───────────────────────────
+  if (!ehDoOperador) {
+    return (
+      <div className="rounded-2xl border-2 border-dashed border-border bg-muted/40 p-5 opacity-80">
+        <div className="flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
+            <Lock className="h-7 w-7" />
+          </div>
+          <div className="flex-1">
+            <p className="text-base font-bold text-foreground">
+              Líder {turnoAlvo}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Acesso restrito ao líder do turno {turnoAlvo}.
+            </p>
+            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+              <li>
+                PTP do turno: {ptpRegistradas}/{codigosDoTurno.length} janelas
+              </li>
+              <li>
+                Limpeza: {limpezaConcluida ? "concluída" : "aguardando conclusão"}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Estado: aberto para validação ────────────────────────────────
   const handleConfirmar = async () => {
     if (!liderNome.trim()) {
       toast.error("Informe o nome do líder.");
@@ -260,36 +320,33 @@ function BlocoValidacaoLider({
       toast.error("Assine como líder para validar.");
       return;
     }
+    if (!limpezaTurno) {
+      toast.error("Turno de limpeza não encontrado.");
+      return;
+    }
     setSalvando(true);
     try {
       const agora = new Date().toISOString();
-      const turnosParaValidar = statusPorTurno
-        .filter((s) => s.registro && !s.validado)
-        .map((s) => s.registro!) as LimpezaTurno[];
-
-      // Aplica em série para evitar conflitos de versão concorrentes.
-      for (const t of turnosParaValidar) {
-        const payload: LimpezaTurno = {
-          ...t,
-          status: "validado",
-          liderNome: liderNome.trim(),
-          assinaturaLider: {
-            dataUrl: assinaturaLider,
-            nome: liderNome.trim(),
-            assinadoEm: agora,
-          },
-          liderAssinouEm: agora,
-          ultimaEdicaoPorLogin: usuarioLogin,
-          ultimaEdicaoPorNome: usuarioNome,
-        };
-        await salvarTurno(payload, {
-          anterior: t,
-          editadoPorLogin: usuarioLogin,
-          editadoPorNome: usuarioNome,
-          motivoEdicao: "Validação do líder (folha completa)",
-        });
-      }
-      toast.success("Folha validada pelo líder.");
+      const payload: LimpezaTurno = {
+        ...limpezaTurno,
+        status: "validado",
+        liderNome: liderNome.trim(),
+        assinaturaLider: {
+          dataUrl: assinaturaLider,
+          nome: liderNome.trim(),
+          assinadoEm: agora,
+        },
+        liderAssinouEm: agora,
+        ultimaEdicaoPorLogin: usuarioLogin,
+        ultimaEdicaoPorNome: usuarioNome,
+      };
+      await salvarTurno(payload, {
+        anterior: limpezaTurno,
+        editadoPorLogin: usuarioLogin,
+        editadoPorNome: usuarioNome,
+        motivoEdicao: `Validação do líder — ${turnoAlvo}`,
+      });
+      toast.success(`Turno ${turnoAlvo} validado pelo líder.`);
       setAbrindo(false);
       setAssinaturaLider(null);
     } catch (e) {
@@ -300,10 +357,10 @@ function BlocoValidacaoLider({
   };
 
   return (
-    <section className="mt-6 rounded-2xl border-2 border-border bg-card p-5 shadow-sm md:p-6">
+    <div className="rounded-2xl border-2 border-border bg-card p-5 shadow-sm">
       <div className="flex items-start gap-3">
         <div
-          className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
             liberado
               ? "bg-primary-soft text-primary"
               : "bg-muted text-muted-foreground"
@@ -316,41 +373,34 @@ function BlocoValidacaoLider({
           )}
         </div>
         <div className="flex-1">
-          <p className="text-lg font-bold text-foreground">Validação do Líder</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            O líder valida toda a folha (PTP + limpeza) após o operador concluir
-            todos os itens.
+          <p className="text-base font-bold text-foreground">
+            Líder {turnoAlvo}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {liberado
+              ? "Tudo pronto para validar este turno."
+              : "Conclua os pré-requisitos abaixo para liberar."}
           </p>
 
-          {/* Checklist de pré-requisitos */}
-          <ul className="mt-4 space-y-2 text-sm">
+          <ul className="mt-3 space-y-2 text-sm">
             <PreReqItem
               ok={ptpOk}
-              labelOk="12/12 janelas do PTP registradas"
-              labelPendente={`${ptpConcluidas}/12 janelas do PTP registradas`}
+              labelOk={`${codigosDoTurno.length}/${codigosDoTurno.length} janelas do PTP do turno registradas`}
+              labelPendente={`${ptpRegistradas}/${codigosDoTurno.length} janelas do PTP do turno registradas`}
             />
-            {statusPorTurno.map((s) => (
-              <PreReqItem
-                key={s.turno}
-                ok={s.concluido}
-                labelOk={`Limpeza ${s.turno} concluída`}
-                labelPendente={`Limpeza ${s.turno} (aguardando conclusão)`}
-              />
-            ))}
+            <PreReqItem
+              ok={limpezaConcluida}
+              labelOk={`Limpeza ${turnoAlvo} concluída`}
+              labelPendente={`Limpeza ${turnoAlvo} (aguardando conclusão)`}
+            />
           </ul>
 
-          {/* Botão / painel */}
           {!abrindo && (
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              {!liberado && (
-                <p className="text-xs italic text-muted-foreground">
-                  Conclua todos os itens acima para liberar a validação.
-                </p>
-              )}
+            <div className="mt-4 flex justify-end">
               <Button
                 onClick={() => setAbrindo(true)}
                 disabled={!liberado}
-                className="sm:ml-auto"
+                size="sm"
               >
                 {liberado ? "Validar como líder" : "Bloqueado"}
               </Button>
@@ -358,27 +408,25 @@ function BlocoValidacaoLider({
           )}
 
           {abrindo && (
-            <div className="mt-5 rounded-xl border-2 border-primary bg-primary-soft p-4">
+            <div className="mt-4 rounded-xl border-2 border-primary bg-primary-soft p-4">
               <p className="text-sm font-semibold text-foreground">
-                Resumo da validação
+                Validação — Líder {turnoAlvo}
               </p>
               <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                <li>• 12 janelas do PTP serão consideradas validadas pelo líder.</li>
                 <li>
-                  •{" "}
-                  {
-                    statusPorTurno.filter((s) => s.concluido && !s.validado)
-                      .length
-                  }{" "}
-                  turno(s) de limpeza serão marcados como{" "}
+                  • {codigosDoTurno.length} janelas do PTP do turno serão
+                  consideradas validadas.
+                </li>
+                <li>
+                  • Limpeza do turno {turnoAlvo} será marcada como{" "}
                   <strong className="text-foreground">Validado</strong>.
                 </li>
               </ul>
 
-              <div className="mt-4">
-                <Label htmlFor="lider-home">Nome do líder *</Label>
+              <div className="mt-3">
+                <Label htmlFor={`lider-${turnoAlvo}`}>Nome do líder *</Label>
                 <Input
-                  id="lider-home"
+                  id={`lider-${turnoAlvo}`}
                   value={liderNome}
                   onChange={(e) => setLiderNome(e.target.value)}
                   className="mt-1.5 bg-background"
@@ -386,15 +434,15 @@ function BlocoValidacaoLider({
                 />
               </div>
 
-              <div className="mt-4">
+              <div className="mt-3">
                 <SignaturePad
                   value={assinaturaLider}
                   onChange={setAssinaturaLider}
-                  label={`Assinatura do líder — ${liderNome || "..."}`}
+                  label={`Assinatura do líder ${turnoAlvo} — ${liderNome || "..."}`}
                 />
               </div>
 
-              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -402,10 +450,11 @@ function BlocoValidacaoLider({
                     setAssinaturaLider(null);
                   }}
                   disabled={salvando}
+                  size="sm"
                 >
                   Cancelar
                 </Button>
-                <Button onClick={handleConfirmar} disabled={salvando}>
+                <Button onClick={handleConfirmar} disabled={salvando} size="sm">
                   Confirmar validação
                 </Button>
               </div>
@@ -413,7 +462,7 @@ function BlocoValidacaoLider({
           )}
         </div>
       </div>
-    </section>
+    </div>
   );
 }
 
@@ -427,15 +476,17 @@ function PreReqItem({
   labelPendente: string;
 }) {
   return (
-    <li className="flex items-center gap-2">
+    <li className="flex items-start gap-2">
       {ok ? (
-        <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
+        <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
       ) : (
-        <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-warning text-[10px] font-bold text-warning">
+        <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-warning text-[10px] font-bold text-warning">
           ✕
         </span>
       )}
-      <span className={ok ? "text-foreground" : "text-muted-foreground"}>
+      <span
+        className={`text-xs ${ok ? "text-foreground" : "text-muted-foreground"}`}
+      >
         {ok ? labelOk : labelPendente}
       </span>
     </li>
