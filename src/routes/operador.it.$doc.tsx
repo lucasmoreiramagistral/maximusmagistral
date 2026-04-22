@@ -304,7 +304,19 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             {labelTopo}
           </div>
 
-          <Sheet open={indiceOpen} onOpenChange={setIndiceOpen}>
+          <Sheet
+            open={indiceOpen}
+            onOpenChange={(open) => {
+              setIndiceOpen(open);
+              if (open) {
+                try {
+                  telemetria.trackEvento("index_open");
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
+          >
             <SheetTrigger asChild>
               <Button variant="outline" size="sm" className="min-h-[40px] gap-2">
                 <List className="h-4 w-4" />
@@ -323,6 +335,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
                 paginaAtual={paginaAtual}
                 onSelect={irPara}
                 aberto={indiceOpen}
+                telemetria={telemetria}
               />
             </SheetContent>
           </Sheet>
@@ -361,6 +374,8 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             key={`${slug}-${paginaInfo.pagina}`}
             url={itDoc.getImageUrl(paginaInfo.arquivo)}
             alt={`${tituloIt} — página ${paginaInfo.pagina}`}
+            paginaNumero={paginaInfo.pagina}
+            telemetria={telemetria}
           />
         ) : (
           <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
