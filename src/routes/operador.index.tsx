@@ -7,6 +7,7 @@ import {
   Play,
   Layers,
   CheckCircle2,
+  BookOpen,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -238,6 +239,12 @@ function OperadorHome() {
             titulo="Verso da folha"
             descricao="PTP e limpeza da sala de envase"
             badge={ptpOk && limpezaOk ? "Concluído" : undefined}
+          />
+          <BotaoAcao
+            to="/operador/it"
+            icon={<BookOpen className="h-8 w-8" />}
+            titulo="Instruções de Trabalho"
+            descricao="Consultar instruções oficiais da linha"
           />
           <BotaoAcao
             to="/operador/historico"
