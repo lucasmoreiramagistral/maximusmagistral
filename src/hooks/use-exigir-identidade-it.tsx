@@ -99,6 +99,12 @@ export function useExigirIdentidadeIt(
       setSemTreinamento(false);
       return;
     }
+    // Bypass master: pula check de ata, libera direto sem rastro.
+    if (isIdentidadeBypass(confirmada.nomeCanonico)) {
+      setSemTreinamento(false);
+      setVerificandoAta(false);
+      return;
+    }
     let cancelado = false;
     setVerificandoAta(true);
     void temAtaCadastrada({
