@@ -66,7 +66,6 @@ export interface UseItDocumentResult {
   getDoc: (doc: ItDocSlug) => ManifestDoc | null;
   getImageUrl: (filename: string) => string;
   getIndice: (doc: ItDocSlug) => IndiceEntry[];
-  getEntradaAtual: (doc: ItDocSlug, paginaAtual: number) => IndiceEntry | null;
   recarregar: () => Promise<void>;
 }
 
@@ -162,18 +161,6 @@ export function useItDocument(): UseItDocumentResult {
     [getDoc],
   );
 
-  const getEntradaAtual = useCallback(
-    (doc: ItDocSlug, paginaAtual: number): IndiceEntry | null => {
-      const indice = getIndice(doc);
-      const candidatas = indice.filter(
-        (e) => e.tipo !== "secao" && e.pagina <= paginaAtual,
-      );
-      if (candidatas.length === 0) return null;
-      return candidatas.reduce((a, b) => (b.pagina > a.pagina ? b : a));
-    },
-    [getIndice],
-  );
-
   return {
     status,
     manifest,
@@ -182,7 +169,6 @@ export function useItDocument(): UseItDocumentResult {
     getDoc,
     getImageUrl,
     getIndice,
-    getEntradaAtual,
     recarregar: carregar,
   };
 }
