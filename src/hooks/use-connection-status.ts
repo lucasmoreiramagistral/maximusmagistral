@@ -248,6 +248,15 @@ const store = {
           console.error("[fila] insertLimpezaEdicao falhou:", e);
         }
       }
+    } else if (item.tipo === "it_evento") {
+      const evento = item.payload as EventoIt;
+      await insertItEvento(evento);
+    } else if (item.tipo === "it_sessao_close") {
+      const { sessao_id, duracao_total_ms } = item.payload as {
+        sessao_id: string;
+        duracao_total_ms: number;
+      };
+      await updateItSessaoFechamento(sessao_id, duracao_total_ms);
     }
   },
 
