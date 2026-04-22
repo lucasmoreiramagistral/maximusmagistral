@@ -224,7 +224,6 @@ function OperadorHome() {
             icon={<Play className="h-8 w-8" />}
             titulo="Novo checklist"
             descricao="Iniciar um novo checklist operacional"
-            destaque
             badge={checklistOk ? "Concluído" : undefined}
           />
           <BotaoAcao
