@@ -135,17 +135,23 @@ function ItAnalytics() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
+  // ref pra cancelar fetch antigo se chegar realtime no meio
+  const fetchAbortRef = useRef<{ cancelled: boolean } | null>(null);
 
-  // Carregamento dos dados — Promise.allSettled: falha de uma query
-  // (ex: view ainda não criada) não derruba o painel inteiro.
-  useEffect(() => {
-    if (!usuario) return;
-    let cancelled = false;
-    setCarregando(true);
-    setErro(null);
-    setErroDificuldade(null);
+  // Fetch unificado — silent=true não mostra spinner (usado em refetches realtime)
+  const carregarDados = useCallback(
+    async (silent = false) => {
+      if (!usuario) return;
+      // cancela fetch anterior em voo
+      if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
+      const guard = { cancelled: false };
+      fetchAbortRef.current = guard;
 
-    (async () => {
+      if (!silent) setCarregando(true);
+      setErro(null);
+      setErroDificuldade(null);
+
       try {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
@@ -189,9 +195,8 @@ function ItAnalytics() {
           qDif,
         ]);
 
-        if (cancelled) return;
+        if (guard.cancelled) return;
 
-        // Sessões e eventos são essenciais — se falharem, mostra erro principal
         if (sesRes.status === "rejected") {
           throw sesRes.reason instanceof Error
             ? sesRes.reason
@@ -209,7 +214,6 @@ function ItAnalytics() {
         setSessoes((sesRes.value.data as SessaoRow[]) ?? []);
         setEventos((evRes.value.data as EventoRow[]) ?? []);
 
-        // Dificuldade é opcional — degrada graciosamente
         if (difRes.status === "rejected") {
           setDificuldade([]);
           setErroDificuldade(
@@ -223,18 +227,30 @@ function ItAnalytics() {
         } else {
           setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
         }
+
+        setUltimaAtualizacao(new Date());
       } catch (e) {
-        if (cancelled) return;
+        if (guard.cancelled) return;
         setErro(e instanceof Error ? e.message : "Erro ao carregar analytics.");
       } finally {
-        if (!cancelled) setCarregando(false);
+        if (!guard.cancelled && !silent) setCarregando(false);
       }
-    })();
+    },
+    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno],
+  );
 
+  // Carregamento inicial / quando filtros mudam
+  useEffect(() => {
+    void carregarDados(false);
     return () => {
-      cancelled = true;
+      if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
     };
-  }, [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno]);
+  }, [carregarDados]);
+
+  // Realtime: refetch silencioso quando chegar evento/sessão nova (debounced)
+  useItAnalyticsRealtime(!!usuario, () => {
+    void carregarDados(true);
+  });
 
   // Agregações memoizadas
   const kpis = useMemo(() => {
