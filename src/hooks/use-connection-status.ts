@@ -270,7 +270,7 @@ const store = {
           fila = fila.filter((x) => x.id !== item.id);
           writeFila(fila);
           sucessos++;
-          this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
+          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
           this.emit();
           // ajusta índice porque removemos
           i--;
