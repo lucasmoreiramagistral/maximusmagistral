@@ -1,5 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Component, useMemo, useState, type ReactNode } from "react";
+import { useVersoRelatorioRemote } from "@/hooks/use-verso-relatorio";
+import {
+  calcularAlertasVerso,
+  calcularDiagnosticoLimpeza,
+  calcularDiagnosticoPtp,
+  calcularResumoVersoRelatorio,
+  construirReferenciaFrente,
+  cruzarFrenteVerso,
+  filtrarLimpezaDoRecorte,
+  filtrarPtpDoRecorte,
+  registrosVersoForaDoRecorte,
+  type LinhaAderencia,
+  type SituacaoVerso,
+} from "@/lib/verso/reporting";
 import {
   Bar,
   BarChart,
