@@ -571,11 +571,13 @@ function PainelIndice({
   paginaAtual,
   onSelect,
   aberto,
+  telemetria,
 }: {
   indice: IndiceEntry[];
   paginaAtual: number;
   onSelect: (pag: number) => void;
   aberto: boolean;
+  telemetria: ReturnType<typeof useItTelemetria>;
 }) {
   const [filtro, setFiltro] = useState("");
   const itemAtivoRef = useRef<HTMLLIElement | null>(null);
@@ -610,8 +612,54 @@ function PainelIndice({
     });
   }, [indice, filtroAtivo, filtroNorm]);
 
+  // Telemetria: index_search com debounce + sanitização
+  const debouncerRef = useRef(criarDebouncerBusca(600));
+  useEffect(() => {
+    if (!aberto) return;
+    if (!filtroAtivo) return;
+    const qtd = entradasFiltradas.filter((e) => e.tipo !== "secao").length;
+    debouncerRef.current.agendar(filtro, qtd, (termo, quantidade) => {
+      try {
+        telemetria.trackEvento("index_search", {
+          termo_busca: termo,
+          quantidade_resultados: quantidade,
+        });
+      } catch {
+        /* ignore */
+      }
+    });
+  }, [filtro, filtroAtivo, aberto, entradasFiltradas, telemetria]);
+
+  // Reset do debouncer ao fechar
+  useEffect(() => {
+    if (!aberto) {
+      debouncerRef.current.cancelar();
+      debouncerRef.current.reset();
+    }
+  }, [aberto]);
+
   const semResultados = filtroAtivo && entradasFiltradas.length === 0;
   let primeiroAtivoEntregue = false;
+
+  const handleSelect = (entry: IndiceEntry) => {
+    try {
+      const tipoEvento = filtroAtivo
+        ? "index_search_result_click"
+        : "index_click";
+      telemetria.trackEvento(tipoEvento, {
+        pagina_destino: entry.pagina,
+        tipo_entrada: entry.tipo,
+        label: entry.label,
+        numero: entry.numero != null ? String(entry.numero) : null,
+        termo_busca: filtroAtivo
+          ? (filtro.trim().toLowerCase().slice(0, 100) || null)
+          : null,
+      });
+    } catch {
+      /* ignore */
+    }
+    onSelect(entry.pagina);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -655,7 +703,7 @@ function PainelIndice({
               >
                 <button
                   type="button"
-                  onClick={() => onSelect(entry.pagina)}
+                  onClick={() => handleSelect(entry)}
                   className={cn(
                     "flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted",
                     ativo &&
