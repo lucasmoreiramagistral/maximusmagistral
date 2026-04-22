@@ -412,15 +412,47 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
 type ImagemStatus = "loading" | "ready" | "error";
 
-function PaginaImagem({ url, alt }: { url: string; alt: string }) {
+function PaginaImagem({
+  url,
+  alt,
+  paginaNumero,
+  telemetria,
+}: {
+  url: string;
+  alt: string;
+  paginaNumero: number;
+  telemetria: ReturnType<typeof useItTelemetria>;
+}) {
   const [imagemStatus, setImagemStatus] = useState<ImagemStatus>("loading");
   const [tentativa, setTentativa] = useState(0);
 
   const srcEfetivo = tentativa === 0 ? url : `${url}?r=${tentativa}`;
 
   const tentarNovamente = () => {
+    try {
+      telemetria.trackEvento("image_retry", { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
     setImagemStatus("loading");
     setTentativa((t) => t + 1);
+  };
+
+  const onErrorImg = () => {
+    try {
+      telemetria.trackEvento("image_error", { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
+    setImagemStatus("error");
+  };
+
+  const safeTrack = (tipo: "zoom_in" | "zoom_out" | "zoom_reset") => {
+    try {
+      telemetria.trackEvento(tipo, { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -467,7 +499,7 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                 alt={alt}
                 loading="eager"
                 onLoad={() => setImagemStatus("ready")}
-                onError={() => setImagemStatus("error")}
+                onError={onErrorImg}
                 className={cn(
                   "max-h-full max-w-full object-contain select-none transition-opacity",
                   imagemStatus === "error" && "opacity-0",
@@ -482,7 +514,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => zoomIn()}
+                  onClick={() => {
+                    safeTrack("zoom_in");
+                    zoomIn();
+                  }}
                   aria-label="Aumentar zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
@@ -492,7 +527,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => zoomOut()}
+                  onClick={() => {
+                    safeTrack("zoom_out");
+                    zoomOut();
+                  }}
                   aria-label="Diminuir zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
@@ -502,7 +540,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => resetTransform()}
+                  onClick={() => {
+                    safeTrack("zoom_reset");
+                    resetTransform();
+                  }}
                   aria-label="Resetar zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
