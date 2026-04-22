@@ -3,9 +3,11 @@ import { useMemo } from "react";
 import { CheckCircle2, Clock, Circle, AlertTriangle, History } from "lucide-react";
 import { ChecklistDetalhe } from "@/components/checklist-detalhe";
 import { Button } from "@/components/ui/button";
+import { VersoDiaResumoBadges } from "@/components/verso-dia-resumo-badges";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { itensPorMomento } from "@/lib/checklist/itens";
 import { useEdicoesChecklists } from "@/hooks/use-edicoes-checklists";
+import type { ResumoVerso } from "@/lib/verso/resumo";
 import type {
   Anomalia,
   FolhaChecklistDia,
@@ -38,9 +40,11 @@ function StatusBadge({ status }: { status: StatusMomentoFolha }) {
 export function ChecklistDiaResumoCard({
   folha,
   href,
+  versoResumo,
 }: {
   folha: FolhaChecklistDia;
   href: string;
+  versoResumo?: ResumoVerso;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md md:p-6">
@@ -99,6 +103,8 @@ export function ChecklistDiaResumoCard({
           </span>
         )}
       </div>
+
+      {versoResumo && <VersoDiaResumoBadges resumo={versoResumo} />}
     </div>
   );
 }

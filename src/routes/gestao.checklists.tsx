@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAnomaliasRemote, useChecklistsRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
+import { useVersosDosDiasRemote } from "@/hooks/use-versos-dos-dias";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import {
   getFiltros,
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
+import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import { Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
