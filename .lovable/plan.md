@@ -1,69 +1,79 @@
 
 
-# Plano aprovado — execução
+# Plano final (blindado) — Verso na /gestao/checklists
 
-Vou executar o plano blindado em 3 fases. A SQL eu te mando aqui no chat pra você colar no SQL Editor do Supabase, e o código eu implemento direto nos arquivos.
+Plano revisado uma última vez. Furos zerados. Inclui SQL de garantia caso o RLS das tabelas de edição não cubra a role `gestao`.
 
-## Fase 1 — SQL pra você colar (eu mando no chat)
+## SQL — antes do código (você cola no SQL Editor)
 
-Migration única: `<ts>_it_blindagem_rastreabilidade.sql`
+Não tenho acesso direto ao banco pra confirmar policies. Como o operador hoje só **insere** em `ptp_janelas_edicoes` / `limpeza_turnos_edicoes` (e nunca lê), provavelmente não existe policy de SELECT. A gestão precisa ler. Vou te mandar uma migration enxuta no próximo turno com:
 
-Inclui:
-- Função `canonizar_nome_operador(text)` immutable
-- Colunas em `it_consulta_sessoes`: `ultimo_evento_em`, `device_id`, `operador_nome_canonico` (GENERATED), `ip_address`, `user_agent`
-- Colunas em `it_consulta_eventos`: `device_id`, `operador_nome_canonico` (GENERATED)
-- Trigger `tg_it_evento_atualiza_sessao` — atualiza `ultimo_evento_em` e fecha sessão em `it_close`
-- Trigger `tg_it_sessao_detecta_troca` — detecta troca de operador no mesmo device e grava `identidade_trocada_servidor`
-- View `it_consulta_sessoes_efetivas` com `duracao_efetiva_ms` e `ativa_agora`
-- View `it_alertas_identidade` (multi-device + trocas rápidas)
-- Índices em `(operador_nome_canonico, iniciado_em)` e `(device_id, iniciado_em)`
-- `GRANT SELECT` das views pra `authenticated` (RLS herdada via security_invoker)
+```sql
+-- Garante SELECT para qualquer authenticated nas tabelas de auditoria do verso.
+-- (a UI já é gateada por useGuard("gestao") no front)
+ALTER TABLE public.ptp_janelas_edicoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.limpeza_turnos_edicoes ENABLE ROW LEVEL SECURITY;
 
-## Fase 2 — Código (eu implemento)
+DROP POLICY IF EXISTS "ptp_janelas_edicoes_select_authenticated" ON public.ptp_janelas_edicoes;
+CREATE POLICY "ptp_janelas_edicoes_select_authenticated"
+  ON public.ptp_janelas_edicoes FOR SELECT TO authenticated USING (true);
 
-**Novos:**
-- `src/lib/it/identidade.ts` — `obterOuCriarDeviceId`, `canonizarNomeOperador`, `lerIdentidadeDevice`, `salvarIdentidadeDevice`, `decidirModoIdentidade`, `registrarUltimoHeartbeat`, `lerUltimoHeartbeat`
-- `src/hooks/use-exigir-identidade-it.ts` — gate reutilizável retornando `{ identidade, modal, pronto }`
-- `src/components/it-identificacao-dialog.tsx` — modos completo + leve com guardas anti-tap (800ms / 1.5s)
+DROP POLICY IF EXISTS "limpeza_turnos_edicoes_select_authenticated" ON public.limpeza_turnos_edicoes;
+CREATE POLICY "limpeza_turnos_edicoes_select_authenticated"
+  ON public.limpeza_turnos_edicoes FOR SELECT TO authenticated USING (true);
+```
 
-**Editados:**
-- `src/lib/it/telemetria.ts` — adiciona ao union `TipoEventoIt`: `identidade_declarada`, `identidade_confirmada`, `identidade_trocada`, `identidade_trocada_servidor`, `identidade_expirada`, `heartbeat`
-- `src/hooks/use-it-telemetria.ts` — recebe `{ nomeCompleto, nomeCanonico, deviceId }`, grava `device_id` em sessão e eventos, heartbeat 60s com flag de interação, reuso de sessão por slug+canonico+device com guarda de 4h + 30min inatividade, captura `user_agent` no insert da sessão
-- `src/routes/operador.it.$doc.tsx` — usa `useExigirIdentidadeIt(slug)` antes do `<Visualizador />`, passa identidade confirmada
-- `src/routes/gestao.it-analytics.tsx` — lê `it_consulta_sessoes_efetivas`, KPI "Em consulta agora", card vermelho "⚠ Alertas de identidade" no topo (consome `it_alertas_identidade`), agrupa "Por operador" pelo `operador_nome_canonico` com sub-linha de variantes e badge multi-device, novo card "Trocas de operador (24h)"
+Se as policies já existirem, o `DROP IF EXISTS` + `CREATE` é idempotente. Você confirma e eu sigo.
 
-## Fase 3 — Verificação (você roda 24h depois)
+## Código (depois do SQL)
 
-3 queries de validação:
-1. `pct_sem_fechamento` — esperado < 5%
-2. Eventos `identidade_trocada%` — trilha de auditoria
-3. `SELECT * FROM it_alertas_identidade` — alertas ativos
+### Arquivos novos (6)
 
-## Detalhes técnicos importantes
+- **`src/lib/verso/aplicabilidade.ts`** — `temVerso(folha)` (Linha 3 + Enchedora 3) e `extrairFolhasDiaKeysComVerso(folhas)` com dedup por `Set`.
+- **`src/lib/verso/resumo.ts`** — `calcularResumoVerso({ janelas, turnos })` puro, baseado **só em `status`** (nunca presença de assinatura). Saída:
+  - `ptp: { registradas, comOcorrencia, semOcorrencia, naoRodou, rascunho }`
+  - `limpeza: { dia, noite, temItemNaoRealizado }`
+  - `saude: "completo" | "atencao" | "parcial" | "nao_iniciado"`
+- **`src/hooks/use-versos-dos-dias.ts`** — `useVersosDosDiasRemote(folhaDiaKeys[])`: 2 queries totais (`.in("folha_dia_key", keys)` em `ptp_janelas` e `limpeza_turnos`), retorna `Map<folhaDiaKey, ResumoVerso>`. Refetch on mount + `visibilitychange` debounced 500ms. Sem realtime.
+- **`src/hooks/use-edicoes-verso.ts`** — Lazy: `enabled` flag. Só dispara quando dialog abre.
+- **`src/components/verso-dia-resumo-badges.tsx`** — Renderiza só se `temVerso(folha)`. Tooltip explicando ciclo 06h→06h. Cores: verde / âmbar / cinza / vermelho. Quebra em coluna em <768px.
+- **`src/components/verso-dia-detalhe.tsx`** — Read-only. **Fetch direto** via `fetchPtpJanelas`/`fetchLimpezaTurnos` (sem merge com defaults). Itera `PTP_JANELAS` e `TURNOS_ATIVOS_LIMPEZA` fazendo lookup; ausente = "Não registrada"/"Sem registro do turno" (cinza). Mostra assinaturas como `<img>` informativo. Botão "Histórico de edições" abre Dialog com `useEdicoesVerso` lazy.
 
-- **Canonização espelhada**: a função SQL e o helper TS usam exatamente o mesmo algoritmo (trim → colapsa espaços → remove acentos → uppercase). A coluna no banco é `GENERATED ALWAYS AS STORED` — impossível burlar via DevTools.
-- **Auditoria redundante**: troca de operador gera dois registros — `identidade_trocada` (client, otimista) + `identidade_trocada_servidor` (trigger, garantido). Mesmo offline a auditoria fica.
-- **Realtime já cobre**: `useItAnalyticsRealtime` existente (já lê `it_consulta_eventos` e `it_consulta_sessoes`) propaga alertas e trocas pro painel automaticamente.
-- **Gate centralizado**: hook `useExigirIdentidadeIt` evita esquecer o modal em rotas IT futuras.
+### Arquivos editados (5)
+
+- **`src/lib/checklist/filtros.ts`** — adiciona `estadoVerso?: "com_verso" | "pendente" | "ocorrencias" | "validado"`. `filtrarFolhas` ganha 4º parâmetro `resumosVerso?: Map<string, ResumoVerso>`. Folhas sem verso passam direto, exceto se filtro = `com_verso` (excluídas). Atualiza `filtrosAtivos`.
+- **`src/components/checklist-dia-detalhe.tsx`** — `ChecklistDiaResumoCard` ganha prop opcional `versoResumo?: ResumoVerso` e renderiza `<VersoDiaResumoBadges>` abaixo da grade dos 3 momentos.
+- **`src/routes/gestao.checklists.tsx`** — deriva `folhaDiaKeys` via `extrairFolhasDiaKeysComVerso`, chama `useVersosDosDiasRemote`, passa `resumos` pro `filtrarFolhas` e injeta `versoResumo` no card.
+- **`src/routes/gestao.filtros.tsx`** — UI do select "Estado do verso" (5 opções: Todos · Apenas folhas com verso · Verso pendente · Verso com ocorrências · Verso 100% validado).
+- **`src/routes/gestao.visualizar.dia.$folhaKey.tsx`** — após `<ChecklistDiaDetalhe />` e antes de `<ObservacoesVersoConsolidado />`, renderiza `{temVerso(folha) && <VersoDiaDetalhe folhaDiaKey={buildFolhaDiaKey(...)} dataOperacao={folha.contexto.data} />}`. `folhaDiaKey` deriva de `folha.contexto` (compatível com URL legada de 5 partes).
+
+### O que NÃO faço
+
+- ❌ Realtime websocket (refetch on focus resolve).
+- ❌ Mexer em `usePtpJanelas`/`useLimpezaTurnos` (corretos pro operador, mesclam defaults).
+- ❌ Edição via gestão (read-only é princípio).
+- ❌ Tocar no Excel (TODO já documentado).
+- ❌ Remover `<ObservacoesVersoConsolidado>` (continua útil como timeline).
+
+## Critérios de aceitação (12)
+
+1. Folha Linha 1 → sem badge, ignora filtro de verso.
+2. Linha 3/Enchedora 3 sem registros → cinza "Verso não iniciado" (não "12 pendentes").
+3. 12 janelas final + 2 turnos `validado` + 0 itens `nao_realizado` → verde "Verso completo".
+4. ≥1 PTP `houve_ocorrencia` ou ≥1 item `nao_realizado` → âmbar "Atenção".
+5. Filtro "Apenas folhas com verso" reduz lista a Linha 3/Enchedora 3.
+6. Filtro "Verso 100% validado" lista só dias completos.
+7. Filtro "Verso com ocorrências" só âmbar.
+8. Detalhe mostra grade fixa J01–J12 com lookup; ausente = "Não registrada".
+9. Histórico só consulta banco quando dialog abre.
+10. Voltar pra `/gestao/checklists` da aba refaz fetch (debounced 500ms).
+11. **Performance: 2 queries SQL totais** para a listagem, qualquer N de folhas.
+12. URL legada `folhaKey` 5 partes funciona — `folhaDiaKey` deriva de `folha.contexto`.
 
 ## Ordem de execução
 
-1. Eu te mando a SQL completa no próximo turno
-2. Você cola no SQL Editor e confirma
-3. Eu implemento todos os arquivos de código no turno seguinte
-4. Você testa: abre IT no operador → modal aparece → digita "Lucas Moreira" → confirma → vai pro painel e vê o nome real
-
-## Critérios de aceitação
-
-1. `pct_sem_fechamento` < 5% em 24h
-2. Toda sessão tem `device_id`, `operador_nome_canonico` (do banco), `user_agent`
-3. Modal completo: "Continuar" só ativa após 800ms de input válido
-4. Modal leve: "Sim, sou eu" só ativa após 1.5s
-5. Troca de operador gera 2 registros (client + servidor)
-6. `Lucas`, `LUCAS`, `lucas ` agrupam sob `LUCAS`
-7. Operador da equipe Karolainny aparece com nome real
-8. Heartbeat 60s + corte 5min reflete atividade real
-9. Card "⚠ Alertas de identidade" aparece quando há multi-device ou ≥3 trocas/h
-10. Card "Trocas de operador (24h)" mostra trilha auditável
-11. RLS preservada — operador não lê analytics
+1. Eu te mando a SQL completa no próximo turno.
+2. Você cola no SQL Editor e confirma.
+3. Eu implemento os 6 arquivos novos + 5 edições.
+4. Você testa: abre `/gestao/checklists` em dia da Linha 3 com PTP/limpeza preenchidos → vê badges → filtra "Verso com ocorrências" → abre detalhe do dia → vê grade J01–J12 + 2 turnos com assinaturas → clica "Histórico" e vê edições.
 
