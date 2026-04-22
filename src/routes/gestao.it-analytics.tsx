@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
   AlertCircle,
   BookOpen,
