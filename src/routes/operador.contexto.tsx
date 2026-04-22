@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,11 @@ export const Route = createFileRoute("/operador/contexto")({
 });
 
 const STORAGE_CTX = "fm-checklist:contexto-pendente";
+const STORAGE_NOME_PREFIX = "fm-checklist:operador-nome:";
+
+function nomeStorageKey(userId: string | undefined | null) {
+  return userId ? `${STORAGE_NOME_PREFIX}${userId}` : null;
+}
 
 function ContextoPage() {
   const { usuario, loading } = useGuard("operador");
@@ -48,6 +53,15 @@ function ContextoPage() {
 
   const [erro, setErro] = useState("");
   const [nomeOperador, setNomeOperador] = useState("");
+
+  // Pré-carregar nome salvo do operador (por userId), se houver.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = nomeStorageKey(usuario?.userId);
+    if (!key) return;
+    const salvo = window.localStorage.getItem(key);
+    if (salvo) setNomeOperador(salvo);
+  }, [usuario?.userId]);
 
   // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
   const turno = usuario?.turnoPadrao ?? null;
@@ -82,6 +96,13 @@ function ContextoPage() {
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
+      const nomeKey = nomeStorageKey(usuario.userId);
+      if (nomeKey) {
+        window.localStorage.setItem(nomeKey, nomeLimpo);
+        window.dispatchEvent(
+          new CustomEvent("fm-storage-update", { detail: { key: nomeKey } }),
+        );
+      }
     }
     storage.clearRascunho();
     navigate({ to: "/operador/momento" });
@@ -168,4 +189,4 @@ function CampoFixo({ titulo, valor }: { titulo: string; valor: string }) {
   );
 }
 
-export { STORAGE_CTX };
+export { STORAGE_CTX, STORAGE_NOME_PREFIX, nomeStorageKey };

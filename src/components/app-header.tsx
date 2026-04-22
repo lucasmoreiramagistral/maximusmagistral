@@ -1,9 +1,11 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUsuario } from "@/hooks/use-storage";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { Button } from "@/components/ui/button";
+import { STORAGE_NOME_PREFIX, nomeStorageKey } from "@/routes/operador.contexto";
 
 interface AppHeaderProps {
   titulo: string;
@@ -12,15 +14,65 @@ interface AppHeaderProps {
   voltarLabel?: string;
 }
 
+function primeiroNome(nome: string): string {
+  const limpo = nome.trim();
+  if (!limpo) return "";
+  return limpo.split(/\s+/)[0];
+}
+
 export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHeaderProps) {
   const usuario = useUsuario();
   const navigate = useNavigate();
   const { isOnline, pendingCount, sincronizando } = useConnectionStatus();
+  const [nomeOperadorSalvo, setNomeOperadorSalvo] = useState<string>("");
+
+  // Lê o nome do operador salvo no localStorage (por userId) e mantém sincronizado.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = nomeStorageKey(usuario?.userId);
+    if (!key) {
+      setNomeOperadorSalvo("");
+      return;
+    }
+    const ler = () => {
+      const v = window.localStorage.getItem(key);
+      setNomeOperadorSalvo(v ?? "");
+    };
+    ler();
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ key: string }>).detail;
+      if (!detail || detail.key === key) ler();
+    };
+    const sh = (e: StorageEvent) => {
+      if (e.key === key) ler();
+    };
+    window.addEventListener("fm-storage-update", handler);
+    window.addEventListener("storage", sh);
+    return () => {
+      window.removeEventListener("fm-storage-update", handler);
+      window.removeEventListener("storage", sh);
+    };
+  }, [usuario?.userId]);
 
   const sair = async () => {
+    // Limpa todos os nomes de operador salvos (forçar re-digitar ao logar de novo).
+    if (typeof window !== "undefined") {
+      const keys: string[] = [];
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const k = window.localStorage.key(i);
+        if (k && k.startsWith(STORAGE_NOME_PREFIX)) keys.push(k);
+      }
+      keys.forEach((k) => window.localStorage.removeItem(k));
+    }
     await supabase.auth.signOut();
     navigate({ to: "/" });
   };
+
+  // Para operador: mostrar primeiro nome digitado em "Operador responsável", se houver.
+  const nomeExibido =
+    usuario?.perfil === "operador" && nomeOperadorSalvo
+      ? primeiroNome(nomeOperadorSalvo)
+      : usuario?.nome ?? "";
 
   return (
     <header className="border-b border-border bg-card">
@@ -88,7 +140,7 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
               </span>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium text-foreground">{usuario.nome}</p>
+              <p className="text-sm font-medium text-foreground">{nomeExibido}</p>
               <p className="text-xs text-muted-foreground">
                 {usuario.perfil === "operador"
                   ? "Operador"
