@@ -109,6 +109,7 @@ export function filtrarFolhas(
   lista: FolhaChecklistDia[],
   f: Filtros,
   anomalias?: Anomalia[],
+  resumosVerso?: Map<string, ResumoVerso>,
 ): FolhaChecklistDia[] {
   // Mesmo critério das checklists: folha do dia precisa ter anomalia com aquele equipamento.
   let folhasComEquipamento: Set<string> | null = null;
@@ -126,6 +127,35 @@ export function filtrarFolhas(
     if (f.turno && folha.contexto.turno !== f.turno) return false;
     if (f.equipe && folha.contexto.equipe !== f.equipe) return false;
     if (folhasComEquipamento && !folhasComEquipamento.has(folha.folhaKey)) return false;
+
+    // ── Filtro por estado do verso ────────────────────────────────────
+    if (f.estadoVerso) {
+      const ehVerso = temVerso(folha);
+      if (!ehVerso) {
+        // Folha sem verso só passa quando o filtro não exige verso. O filtro
+        // "com_verso" e qualquer estado específico (pendente/ocorrencias/validado)
+        // implicitamente requerem verso.
+        return false;
+      }
+      // A partir daqui temVerso === true, então precisamos do resumo.
+      const key = buildFolhaDiaKey(
+        folha.contexto.data,
+        folha.contexto.linha,
+        folha.contexto.maquina,
+      );
+      const resumo = resumosVerso?.get(key);
+      if (f.estadoVerso === "com_verso") {
+        // basta ser Linha 3 / Enchedora 3 — não exige resumo
+      } else if (f.estadoVerso === "pendente") {
+        const saude = resumo?.saude ?? "nao_iniciado";
+        if (saude !== "nao_iniciado" && saude !== "parcial") return false;
+      } else if (f.estadoVerso === "ocorrencias") {
+        if (resumo?.saude !== "atencao") return false;
+      } else if (f.estadoVerso === "validado") {
+        if (resumo?.saude !== "completo") return false;
+      }
+    }
+
     return true;
   });
 }
@@ -141,7 +171,8 @@ export function filtrosAtivos(f: Filtros): boolean {
     f.categoriaAnomalia ||
     f.criticidadeAnomalia ||
     f.maquina ||
-    f.equipamentoAfetado
+    f.equipamentoAfetado ||
+    f.estadoVerso
   );
 }
 

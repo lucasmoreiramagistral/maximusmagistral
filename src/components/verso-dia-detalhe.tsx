@@ -343,7 +343,7 @@ function PtpRow({
         {janela.operadorNome || janela.operadorLogin || "—"}
       </td>
       <td className="px-3 py-2">
-        {janela.assinaturaOperador?.imagem ? (
+        {janela.assinaturaOperador?.dataUrl ? (
           <img
             src={janela.assinaturaOperador.dataUrl}
             alt="Assinatura do operador"
@@ -478,7 +478,7 @@ function LimpezaCard({
           <p className="font-medium text-foreground">
             {dado.operadorNome || dado.operadorLogin || "—"}
           </p>
-          {dado.assinaturaOperador?.imagem ? (
+          {dado.assinaturaOperador?.dataUrl ? (
             <img
               src={dado.assinaturaOperador.dataUrl}
               alt="Assinatura do operador"
@@ -496,7 +496,7 @@ function LimpezaCard({
         <div>
           <p className="font-semibold text-muted-foreground">Líder</p>
           <p className="font-medium text-foreground">{dado.liderNome || "—"}</p>
-          {dado.assinaturaLider?.imagem ? (
+          {dado.assinaturaLider?.dataUrl ? (
             <img
               src={dado.assinaturaLider.dataUrl}
               alt="Assinatura do líder"
