@@ -12,8 +12,10 @@ import {
   filtrarFolhas,
   filtrosAtivos,
   getFiltros,
+  setFiltros,
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
+import type { EstadoVersoFiltro } from "@/lib/checklist/filtros";
 import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
@@ -128,6 +130,8 @@ function ListaChecklists() {
           </div>
         </div>
 
+        {visao === "dia" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
+
         {erro && (
           <p className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive">
             {erro}
@@ -139,9 +143,7 @@ function ListaChecklists() {
           </div>
         ) : visao === "dia" ? (
           folhas.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-              Nenhum checklist disponível
-            </p>
+            <FolhasVazio filtros={filtros} />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {folhas.map((f) => {
@@ -227,5 +229,93 @@ function ListaChecklists() {
         )}
       </main>
     </div>
+  );
+}
+
+const CHIPS: Array<{ label: string; valor: EstadoVersoFiltro | undefined }> = [
+  { label: "Todos", valor: undefined },
+  { label: "Com verso", valor: "com_verso" },
+  { label: "Pendente", valor: "pendente" },
+  { label: "Ocorrências", valor: "ocorrencias" },
+  { label: "Validado", valor: "validado" },
+];
+
+function ChipsFiltroVerso({ estadoAtual }: { estadoAtual: EstadoVersoFiltro | undefined }) {
+  function aplicar(novo: EstadoVersoFiltro | undefined) {
+    const atual = getFiltros();
+    setFiltros({ ...atual, estadoVerso: novo });
+  }
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
+      <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+        Verso (Linha 3):
+      </span>
+      {CHIPS.map((chip) => {
+        const ativo = estadoAtual === chip.valor;
+        return (
+          <button
+            key={chip.label}
+            type="button"
+            aria-pressed={ativo}
+            onClick={() => aplicar(chip.valor)}
+            className={`h-8 rounded-md px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${
+              ativo
+                ? "bg-primary text-primary-foreground"
+                : "border border-border bg-card text-muted-foreground hover:border-primary/40 hover:text-foreground"
+            }`}
+          >
+            {chip.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FolhasVazio({ filtros }: { filtros: Filtros }) {
+  const versoAtivo = !!filtros.estadoVerso;
+  const outrosAtivos = filtrosAtivos({ ...filtros, estadoVerso: undefined });
+
+  function limparVerso() {
+    const atual = getFiltros();
+    setFiltros({ ...atual, estadoVerso: undefined });
+  }
+  function limparTudo() {
+    setFiltros({});
+  }
+
+  if (versoAtivo && outrosAtivos) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+        <p className="mb-4 text-muted-foreground">
+          Nenhuma folha corresponde aos filtros aplicados.
+        </p>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Button variant="outline" size="sm" onClick={limparVerso}>
+            Limpar filtro de verso
+          </Button>
+          <Button variant="outline" size="sm" onClick={limparTudo}>
+            Limpar todos os filtros
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  if (versoAtivo) {
+    return (
+      <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+        <p className="mb-4 text-muted-foreground">
+          Nenhuma folha corresponde ao filtro de verso aplicado.
+        </p>
+        <Button variant="outline" size="sm" onClick={limparVerso}>
+          Limpar filtro de verso
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
+      Nenhum checklist disponível
+    </p>
   );
 }
