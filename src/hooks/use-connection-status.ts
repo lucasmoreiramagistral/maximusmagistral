@@ -83,6 +83,13 @@ function genFilaId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Conta apenas itens "ao vivo" — exclui conflito e itens que estouraram tentativas. */
+function countAtivos(fila: FilaItem[]): number {
+  return fila.filter(
+    (f) => f.status !== "conflito" && f.tentativas < MAX_TENTATIVAS,
+  ).length;
+}
+
 const store = {
   state: {
     isOnline: isBrowser() ? navigator.onLine : true,
