@@ -1,7 +1,26 @@
 # 📱 Gerar APK Android com Capacitor
 
 App ID: `digital.maximusmagistral.checklist`
-Modo: Bundle local (offline-first)
+Estratégia: **wrapper online** (o APK carrega https://maximusmagistral.digital)
+
+## Por que wrapper online?
+
+Este projeto usa **TanStack Start com SSR** (renderização no servidor) — não é
+um SPA estático. Para o APK funcionar sem quebrar o app web, o Capacitor é
+configurado para **carregar a versão já publicada** do site dentro de uma
+WebView nativa.
+
+Vantagens:
+- ✅ Não precisa refatorar nada do código
+- ✅ APK pega automaticamente cada nova publicação (sem rebuildar o APK)
+- ✅ Login, banco, anomalias, checklist e verso funcionam exatamente igual ao web
+- ✅ Mesma origem que o site → cookies/auth Supabase funcionam normal
+
+Limitações:
+- ⚠️ Precisa de internet para abrir (igual ao web). O cache do navegador interno
+  do app cobre re-aberturas curtas, mas não funciona 100% offline.
+- ⚠️ APIs nativas (câmera, file system local, share menu) não estão expostas
+  ao código web nesta configuração — se precisar disso, fala que eu adiciono.
 
 ## Pré-requisitos no PC
 
@@ -20,16 +39,17 @@ cd checklist-l3
 npm install
 
 # 3. Instale os pacotes do Capacitor
-npm install @capacitor/core @capacitor/cli
-npm install @capacitor/android @capacitor/filesystem @capacitor/share
+npm install @capacitor/core @capacitor/cli @capacitor/android
 
-# 4. Build do frontend (gera a pasta dist/)
-npm run build
+# 4. Crie um dist/ vazio (Capacitor exige a pasta, mas ela não é usada
+#    porque o app carrega a URL configurada em capacitor.config.ts)
+mkdir -p dist
+echo '<!doctype html><html><body></body></html>' > dist/index.html
 
 # 5. Adicione a plataforma Android (cria a pasta android/)
 npx cap add android
 
-# 6. Sincronize o build com o projeto Android
+# 6. Sincronize a configuração com o projeto Android
 npx cap sync android
 
 # 7. Abra o Android Studio
@@ -48,24 +68,61 @@ npx cap open android
 
 ## Após mudanças no código
 
-```bash
-npm run build
-npx cap sync android
-# Volta no Android Studio e clica Build → Build APK(s) de novo
+**Você não precisa fazer nada no APK.** Basta publicar o site no Lovable
+(`Publish` no canto superior direito) — o APK vai carregar a versão nova
+automaticamente na próxima abertura.
+
+Só precisa rebuildar o APK se mudar o `capacitor.config.ts` (ícone, nome,
+appId, URL servidor) ou plugins nativos.
+
+## Trocar a URL que o APK carrega
+
+Edite `capacitor.config.ts`, campo `server.url`. Por padrão está apontando
+para o domínio de produção (`https://maximusmagistral.digital`).
+
+Para usar a URL de preview do Lovable em testes:
+
+```ts
+server: {
+  url: "https://pristine-idea-launch.lovable.app",
+  androidScheme: "https",
+  cleartext: false,
+},
 ```
 
-## Permissões já configuradas
+Depois rode `npx cap sync android` e rebuild no Android Studio.
 
-- ✅ **Internet** (Supabase) — Capacitor adiciona por padrão
-- ✅ **Salvar arquivo Excel** — vai pra pasta `Documents/` do celular via `@capacitor/filesystem`
-- ✅ **Compartilhar** — abre menu nativo (WhatsApp, Drive, email) via `@capacitor/share`
+## Permissões
 
-## Como o Excel funciona no app
+- ✅ **Internet** — Capacitor adiciona por padrão (necessária pra carregar o site)
+- ✅ **Supabase auth** funciona normalmente (cookies persistem na WebView)
 
-- **No navegador**: download direto pelo browser (igual hoje).
-- **No APK**: salva em `Documents/FM09_CHECKLIST_..._EDITAVEL.xlsx` e abre o menu **Compartilhar** pra você mandar pra onde quiser.
+Se precisar de permissões nativas extras (câmera, notificações push, etc.),
+elas precisam ser adicionadas em `android/app/src/main/AndroidManifest.xml`
+**e** instaladas via plugins do Capacitor (`@capacitor/camera`, etc.).
 
 ## APK assinado pra produção (Play Store ou distribuição interna)
 
-No Android Studio: **Build → Generate Signed Bundle / APK** → seguir o wizard pra criar uma keystore.
-Sem assinatura, o APK debug funciona instalado direto, mas não pode ir pra Play Store.
+No Android Studio: **Build → Generate Signed Bundle / APK** → seguir o wizard
+pra criar uma keystore. Sem assinatura, o APK debug funciona instalado direto,
+mas não pode ir pra Play Store.
+
+## Ícone e splash screen
+
+Ícone padrão do Capacitor é genérico. Para personalizar:
+
+```bash
+npm install -D @capacitor/assets
+# coloque um icon.png 1024x1024 e um splash.png 2732x2732 em assets/
+npx capacitor-assets generate --android
+npx cap sync android
+```
+
+## Troubleshooting
+
+- **Tela branca ao abrir o APK**: verifique se a `server.url` está acessível
+  pelo celular (testa abrir o link no Chrome do celular).
+- **"Mixed content" / requests bloqueados**: confirme que a URL é `https://`
+  e que `allowMixedContent: false` está ok.
+- **Login do Supabase não persiste**: o domínio publicado precisa ser o mesmo
+  configurado nas URLs de redirect do Supabase Auth.
