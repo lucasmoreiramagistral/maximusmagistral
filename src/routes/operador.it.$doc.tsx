@@ -150,14 +150,17 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   }, [paginaAtual, totalPaginas, telemetria, identidadePronta]);
 
   // ── telemetria: cache_mode só em mudança real do par (isOnline, fromCache) ──
+  // Aguarda identidade pronta — antes disso a sessão ainda não foi criada
+  // e o evento seria silenciosamente descartado.
   const ultimoModoCacheRef = useRef<string | null>(null);
   useEffect(() => {
     if (totalPaginas <= 0) return;
+    if (!identidadePronta) return;
     const modo = !isOnline ? "offline" : itDoc.fromCache ? "cache" : "online";
     if (ultimoModoCacheRef.current === modo) return;
     ultimoModoCacheRef.current = modo;
     telemetria.trackEvento("cache_mode", { modo_cache: modo });
-  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria]);
+  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria, identidadePronta]);
 
   const paginaInfo = useMemo(() => {
     if (!docData) return null;

@@ -172,6 +172,8 @@ function ItAnalytics() {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
         // Sessões — VIEW efetiva (duracao_efetiva_ms + ativa_agora)
+        // Filtro device_id no servidor quando "apenasRastreaveis" — evita puxar
+        // milhares de sessões legadas sem rastreabilidade pra filtrar no client.
         let qSes = (supabase.from as any)("it_consulta_sessoes_efetivas")
           .select(
             "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,device_id",
@@ -183,8 +185,9 @@ function ItAnalytics() {
           qSes = qSes.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qSes = qSes.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qSes = qSes.eq("turno", filtros.turno);
+        if (filtros.apenasRastreaveis) qSes = qSes.not("device_id", "is", null);
 
-        // Eventos
+        // Eventos — mesma lógica
         let qEv = (supabase.from as any)("it_consulta_eventos")
           .select(
             "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,device_id,metadata_json,created_at",
@@ -196,6 +199,7 @@ function ItAnalytics() {
           qEv = qEv.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qEv = qEv.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qEv = qEv.eq("turno", filtros.turno);
+        if (filtros.apenasRastreaveis) qEv = qEv.not("device_id", "is", null);
 
         // Dificuldade (view)
         let qDif = (supabase.from as any)("it_dificuldade_paginas")
