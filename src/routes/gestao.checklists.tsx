@@ -155,9 +155,31 @@ function ListaChecklists() {
           <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" /> Carregando…
           </div>
+        ) : visao === "verso" ? (
+          folhasVerso.length === 0 ? (
+            <FolhasVazio filtros={filtros} visao="verso" />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {folhasVerso.map((f) => {
+                const versoKey = buildFolhaDiaKey(
+                  f.contexto.data,
+                  f.contexto.linha,
+                  f.contexto.maquina,
+                );
+                return (
+                  <ChecklistDiaResumoCard
+                    key={f.folhaKey}
+                    folha={f}
+                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                    versoResumo={resumosVerso.get(versoKey)}
+                  />
+                );
+              })}
+            </div>
+          )
         ) : visao === "dia" ? (
           folhas.length === 0 ? (
-            <FolhasVazio filtros={filtros} />
+            <FolhasVazio filtros={filtros} visao="dia" />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {folhas.map((f) => {
