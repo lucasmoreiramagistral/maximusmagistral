@@ -17,7 +17,12 @@ import { useAnomaliasRemote, useChecklistsRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
-import { exportarFolhaDiaExcel, exportarTurnoExcel } from "@/lib/checklist/excel-export";
+import {
+  exportarFolhaDiaExcel,
+  exportarFrenteVersoCompletoExcel,
+  exportarTurnoComVersoExcel,
+  exportarTurnoExcel,
+} from "@/lib/checklist/excel-export";
 import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
 import { VersoDiaDetalhe } from "@/components/verso-dia-detalhe";
 import { temVerso } from "@/lib/verso/aplicabilidade";
