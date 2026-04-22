@@ -1063,6 +1063,144 @@ function TabelaSimples({
   );
 }
 
+function GraficoNaoRealizadosPorDia({
+  dados,
+}: {
+  dados: { data: string; total: number }[];
+}) {
+  const serie = useMemo(
+    () => [...dados].sort((a, b) => a.data.localeCompare(b.data)),
+    [dados],
+  );
+  const totalNc = serie.reduce((s, r) => s + r.total, 0);
+  const pico = serie.reduce((max, r) => (r.total > max.total ? r : max), serie[0]);
+  const media = serie.length > 0 ? totalNc / serie.length : 0;
+
+  const formatarData = (iso: string) => {
+    const [, m, d] = iso.split("-");
+    return d && m ? `${d}/${m}` : iso;
+  };
+
+  // Cor por gravidade (relativa ao pico do período)
+  const corPorTotal = (total: number): string => {
+    if (total === 0) return "var(--color-success)";
+    if (pico.total <= 0) return "var(--color-success)";
+    const ratio = total / pico.total;
+    if (ratio <= 0.34) return "var(--color-success)";
+    if (ratio <= 0.67) return "var(--color-warning)";
+    return "var(--color-destructive)";
+  };
+
+  const dadosChart = serie.map((r) => ({
+    dataLabel: formatarData(r.data),
+    total: r.total,
+    cor: corPorTotal(r.total),
+  }));
+
+  // Largura mínima pra caber barras confortáveis e habilitar scroll horizontal se passar
+  const larguraPorBarra = 56;
+  const larguraMin = serie.length * larguraPorBarra + 60;
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3">
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <h4 className="text-sm font-semibold text-foreground">
+          Itens não realizados por dia
+        </h4>
+        <span className="text-xs text-muted-foreground">
+          {serie.length} dia{serie.length > 1 ? "s" : ""} · {totalNc} no total
+        </span>
+      </div>
+      <p className="mb-3 text-xs text-muted-foreground">
+        Cada barra é um dia. Quanto mais alta e mais vermelha, pior. Pico em{" "}
+        <span className="font-medium text-foreground">{formatarData(pico.data)}</span>{" "}
+        ({pico.total}).
+      </p>
+
+      <div className="overflow-x-auto">
+        <div style={{ minWidth: larguraMin, height: 240 }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={dadosChart}
+              margin={{ top: 20, right: 12, bottom: 8, left: 0 }}
+              barCategoryGap={6}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="var(--color-border)"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="dataLabel"
+                stroke="var(--color-muted-foreground)"
+                fontSize={11}
+                tickLine={false}
+                axisLine={{ stroke: "var(--color-border)" }}
+              />
+              <YAxis
+                stroke="var(--color-muted-foreground)"
+                fontSize={11}
+                allowDecimals={false}
+                width={28}
+                tickLine={false}
+                axisLine={false}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--color-muted)", opacity: 0.4 }}
+                contentStyle={{
+                  background: "var(--color-card)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(value: number) => [value, "Itens não realizados"]}
+                labelFormatter={(label: string) => `Dia ${label}`}
+              />
+              {media > 0 && (
+                <ReferenceLine
+                  y={media}
+                  stroke="var(--color-muted-foreground)"
+                  strokeDasharray="4 4"
+                  label={{
+                    value: `média ${media.toFixed(1)}`,
+                    position: "right",
+                    fill: "var(--color-muted-foreground)",
+                    fontSize: 10,
+                  }}
+                />
+              )}
+              <Bar dataKey="total" radius={[6, 6, 0, 0]}>
+                {dadosChart.map((d, i) => (
+                  <Cell key={i} fill={d.cor} />
+                ))}
+                <LabelList
+                  dataKey="total"
+                  position="top"
+                  fill="var(--color-foreground)"
+                  fontSize={11}
+                  fontWeight={600}
+                />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-success" /> Tranquilo
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-warning" /> Atenção
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-destructive" /> Crítico
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function GraficoBarras({
   dados,
   cor,
