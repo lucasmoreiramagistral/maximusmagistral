@@ -17,7 +17,6 @@ import {
 } from "@/lib/operacao/data-operacional";
 import {
   PTP_JANELAS_POR_TURNO,
-  TURNOS_ATIVOS_LIMPEZA,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
@@ -66,17 +65,19 @@ function VersoHome() {
 
   if (loading || !usuario) return <TelaCarregando />;
 
-  const ptpConcluidas = ptp.janelas.filter(
-    (j) => j.statusJanela !== "pendente" && j.statusJanela !== "rascunho",
-  ).length;
-  const limpezaValidados = limpeza.turnos.filter((t) => t.status === "validado").length;
-  const limpezaAguardando = limpeza.turnos.filter(
-    (t) => t.status === "aguardando_validacao",
-  ).length;
-
   const turnoLogado = (turno === "12x36 Dia" || turno === "12x36 Noite"
     ? turno
     : null) as TurnoAtivo | null;
+
+  // PTP: conta só as janelas do turno do operador (6 janelas).
+  const codigosPtpDoTurno = turnoLogado ? PTP_JANELAS_POR_TURNO[turnoLogado] : [];
+  const totalPtpTurno = codigosPtpDoTurno.length;
+  const ptpConcluidasTurno = ptp.janelas.filter(
+    (j) =>
+      codigosPtpDoTurno.includes(j.janelaCodigo) &&
+      j.statusJanela !== "pendente" &&
+      j.statusJanela !== "rascunho",
+  ).length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -114,10 +115,10 @@ function VersoHome() {
             <div>
               <p className="text-xl font-bold text-foreground">PTP Garrafas</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Monitoramento por janelas de horário (12 janelas no dia).
+                Monitoramento por janelas de horário (6 janelas no dia).
               </p>
               <p className="mt-3 text-sm font-semibold text-foreground">
-                {ptpConcluidas}/12 janelas registradas
+                {ptpConcluidasTurno}/{totalPtpTurno || 6} janelas registradas
               </p>
               {ptp.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
@@ -137,13 +138,7 @@ function VersoHome() {
             <div>
               <p className="text-xl font-bold text-foreground">Limpeza Sala de Envase</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Checklist por turno + validação do líder.
-              </p>
-              <p className="mt-3 text-sm font-semibold text-foreground">
-                {limpezaValidados}/{TURNOS_ATIVOS_LIMPEZA.length} turnos validados
-                {limpezaAguardando > 0 && (
-                  <span className="ml-2 text-warning">· {limpezaAguardando} aguardando líder</span>
-                )}
+                Checklist operacional de limpeza da sala de envase L3.
               </p>
               {limpeza.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
