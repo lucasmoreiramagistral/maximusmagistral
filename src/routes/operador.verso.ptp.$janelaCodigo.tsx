@@ -181,7 +181,7 @@ function PtpJanelaDetalhe() {
       toast.error("Assine para concluir esta janela.");
       return;
     }
-    if (jaConcluida && !motivoEdicao.trim()) {
+    if (exigeMotivoEdicao && !motivoEdicao.trim()) {
       toast.error("Informe o motivo da edição.");
       return;
     }
@@ -211,7 +211,7 @@ function PtpJanelaDetalhe() {
         voltarPara="/operador/verso/ptp"
       />
       <main className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-8 md:py-10">
-        {jaConcluida && (
+        {exigeMotivoEdicao && (
           <div className="mb-4 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 text-sm">
             <p className="font-semibold text-foreground">
               Esta janela já estava concluída por {janelaBase.operadorNome ?? "—"}.
