@@ -20,9 +20,7 @@ function resolveBaseUrl(): string {
     "",
   );
   if (explicit) return explicit;
-  const supa = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/+$/, "");
-  if (supa) return `${supa}/storage/v1/object/public/${BUCKET}`;
-  return "";
+  return "https://jlmzujqkaoauzacouqgj.supabase.co/storage/v1/object/public/instrucoes-trabalho";
 }
 
 const baseUrl = resolveBaseUrl();

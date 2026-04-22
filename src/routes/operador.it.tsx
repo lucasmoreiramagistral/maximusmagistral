@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { BookOpen, Droplets, Settings2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -19,7 +19,10 @@ export const Route = createFileRoute("/operador/it")({
 
 function OperadorItIndex() {
   const { usuario, loading } = useGuard("operador");
+  const location = useLocation();
+
   if (loading || !usuario) return <TelaCarregando />;
+  if (location.pathname !== "/operador/it") return <Outlet />;
 
   return (
     <div className="min-h-screen bg-background">
