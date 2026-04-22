@@ -28,7 +28,7 @@ export const Route = createFileRoute("/gestao/checklists")({
   component: ListaChecklists,
 });
 
-type Visao = "momento" | "dia";
+type Visao = "momento" | "dia" | "verso";
 
 function ListaChecklists() {
   const navigate = useNavigate();
