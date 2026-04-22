@@ -7,6 +7,7 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { ChecklistDiaResumoCard } from "@/components/checklist-dia-detalhe";
+import { VersoResumoCard } from "@/components/verso-resumo-card";
 import {
   filtrarChecklists,
   filtrarFolhas,
@@ -167,11 +168,11 @@ function ListaChecklists() {
                   f.contexto.maquina,
                 );
                 return (
-                  <ChecklistDiaResumoCard
+                  <VersoResumoCard
                     key={f.folhaKey}
                     folha={f}
                     href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                    versoResumo={resumosVerso.get(versoKey)}
+                    resumo={resumosVerso.get(versoKey)}
                   />
                 );
               })}
