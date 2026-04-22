@@ -41,7 +41,7 @@ function OperadorHome() {
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
         <div className="mb-8">
           <p className="text-sm text-muted-foreground md:text-base">Bem-vindo,</p>
-          <h2 className="text-2xl font-bold text-foreground md:text-3xl">{usuario.nome}</h2>
+          <h2 className="text-2xl font-bold text-foreground md:text-3xl">Operador</h2>
         </div>
 
         {rascunho && (
