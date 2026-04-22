@@ -12,8 +12,10 @@ import {
   filtrarFolhas,
   filtrosAtivos,
   getFiltros,
+  setFiltros,
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
+import type { EstadoVersoFiltro } from "@/lib/checklist/filtros";
 import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
