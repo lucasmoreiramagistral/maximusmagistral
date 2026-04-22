@@ -913,13 +913,30 @@ function ItAnalytics() {
                     <ul className="space-y-1.5">
                       {segPorOperador.map((o) => (
                         <li
-                          key={o.operador}
-                          className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-sm"
+                          key={o.canonico}
+                          className="rounded-md border border-border bg-card px-3 py-2 text-sm"
                         >
-                          <span>{o.operador}</span>
-                          <span className="font-semibold text-primary">
-                            {o.count}
-                          </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2 font-medium">
+                              {o.canonico}
+                              {o.qtdDevices > 1 && (
+                                <span className="rounded-full border border-warning/50 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
+                                  ⚠ {o.qtdDevices} devices
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-semibold text-primary">
+                              {o.count}
+                            </span>
+                          </div>
+                          {o.variantes.length > 0 && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              também digitado como:{" "}
+                              {o.variantes
+                                .map((v) => `“${v}”`)
+                                .join(", ")}
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>
