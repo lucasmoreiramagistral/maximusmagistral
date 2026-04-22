@@ -3,6 +3,7 @@ import { BookOpen, Droplets, Settings2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
+import { useItDocument } from "@/hooks/use-it-document";
 
 export const Route = createFileRoute("/operador/it")({
   head: () => ({
@@ -14,15 +15,21 @@ export const Route = createFileRoute("/operador/it")({
       },
     ],
   }),
-  component: OperadorItIndex,
+  component: OperadorItLayout,
 });
+
+function OperadorItLayout() {
+  const location = useLocation();
+  if (location.pathname !== "/operador/it") return <Outlet />;
+  return <OperadorItIndex />;
+}
 
 function OperadorItIndex() {
   const { usuario, loading } = useGuard("operador");
-  const location = useLocation();
+  // Prewarm do manifest enquanto o operador escolhe a IT
+  useItDocument();
 
   if (loading || !usuario) return <TelaCarregando />;
-  if (location.pathname !== "/operador/it") return <Outlet />;
 
   return (
     <div className="min-h-screen bg-background">
