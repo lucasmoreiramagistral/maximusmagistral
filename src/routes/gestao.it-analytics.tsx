@@ -563,6 +563,37 @@ function ItAnalytics() {
               ]}
             />
           </CardContent>
+          <CardContent className="border-t pt-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <Label
+                  htmlFor="apenas-rastreaveis"
+                  className="text-sm font-medium cursor-pointer"
+                >
+                  Apenas sessões rastreáveis
+                </Label>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Esconde sessões antigas sem identidade confirmada (anteriores
+                  à blindagem). Recomendado para KPIs limpos.
+                  {sessoesLegadas > 0 && (
+                    <>
+                      {" "}
+                      <span className="font-medium text-warning-foreground">
+                        {sessoesLegadas} sessão(ões) legada(s) no período.
+                      </span>
+                    </>
+                  )}
+                </p>
+              </div>
+              <Switch
+                id="apenas-rastreaveis"
+                checked={filtros.apenasRastreaveis}
+                onCheckedChange={(v) =>
+                  setFiltros((f) => ({ ...f, apenasRastreaveis: v }))
+                }
+              />
+            </div>
+          </CardContent>
         </Card>
 
         {/* ⚠ Alertas de identidade — sempre no topo quando houver */}
