@@ -41,6 +41,11 @@ export const Route = createFileRoute("/operador/contexto")({
 });
 
 const STORAGE_CTX = "fm-checklist:contexto-pendente";
+const STORAGE_NOME_PREFIX = "fm-checklist:operador-nome:";
+
+function nomeStorageKey(userId: string | undefined | null) {
+  return userId ? `${STORAGE_NOME_PREFIX}${userId}` : null;
+}
 
 function ContextoPage() {
   const { usuario, loading } = useGuard("operador");
