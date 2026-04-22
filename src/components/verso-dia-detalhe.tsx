@@ -345,7 +345,7 @@ function PtpRow({
       <td className="px-3 py-2">
         {janela.assinaturaOperador?.imagem ? (
           <img
-            src={janela.assinaturaOperador.imagem}
+            src={janela.assinaturaOperador.dataUrl}
             alt="Assinatura do operador"
             className="h-8 w-auto rounded border border-border bg-white object-contain"
           />
@@ -480,7 +480,7 @@ function LimpezaCard({
           </p>
           {dado.assinaturaOperador?.imagem ? (
             <img
-              src={dado.assinaturaOperador.imagem}
+              src={dado.assinaturaOperador.dataUrl}
               alt="Assinatura do operador"
               className="mt-1 h-10 w-auto rounded border border-border bg-white object-contain"
             />
@@ -498,7 +498,7 @@ function LimpezaCard({
           <p className="font-medium text-foreground">{dado.liderNome || "—"}</p>
           {dado.assinaturaLider?.imagem ? (
             <img
-              src={dado.assinaturaLider.imagem}
+              src={dado.assinaturaLider.dataUrl}
               alt="Assinatura do líder"
               className="mt-1 h-10 w-auto rounded border border-border bg-white object-contain"
             />
