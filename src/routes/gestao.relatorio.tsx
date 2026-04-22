@@ -1172,3 +1172,70 @@ function EstadoVazio() {
     </div>
   );
 }
+
+// ──────────────── Verso ────────────────
+
+const SITUACAO_LABEL: Record<SituacaoVerso, string> = {
+  completo: "Completo",
+  ptp_pendente: "PTP pendente",
+  limpeza_pendente: "Limpeza pendente",
+  verso_incompleto: "Verso incompleto",
+  frente_sem_verso: "Frente sem verso",
+};
+
+const LIMP_LABEL: Record<string, string> = {
+  pendente: "Pendente",
+  rascunho: "Rascunho",
+  aguardando_validacao: "Aguardando líder",
+  validado: "Validado",
+  ausente: "Não iniciada",
+};
+
+function TabelaAderenciaVerso({ linhas }: { linhas: LinhaAderencia[] }) {
+  return (
+    <TabelaSimples
+      titulo="Aderência por turno da frente"
+      colunas={["Data", "Turno", "Equipe", "PTP", "Limpeza", "Situação"]}
+      linhas={linhas.map((r) => [
+        r.dataOperacao,
+        r.turno,
+        r.equipe,
+        `${r.ptpRealizadas}/${r.ptpEsperadas}`,
+        LIMP_LABEL[r.limpezaStatus] ?? r.limpezaStatus,
+        SITUACAO_LABEL[r.situacao],
+      ])}
+    />
+  );
+}
+
+class VersoErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error("[VersoErrorBoundary]", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <section className="mb-6 rounded-2xl border border-border bg-card p-4 shadow-sm md:p-6">
+          <h3 className="mb-2 text-base font-bold text-foreground md:text-lg">
+            Verso da folha — PTP e Limpeza
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar os dados do verso.
+          </p>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
+
