@@ -115,6 +115,6 @@ describe("useItTelemetria — bypass MAGISTRAL", () => {
       await new Promise((r) => setTimeout(r, 50));
     });
 
-    expect(window.sessionStorage.getItem("it-telemetria:sessao:it002")).toBeNull();
+    expect(window.sessionStorage.getItem("it-telemetria:sessao:operacao")).toBeNull();
   });
 });
