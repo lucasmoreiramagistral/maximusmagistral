@@ -12,10 +12,20 @@ const CACHE_TS_KEY = "it-manifest-cache-ts";
 
 type Status = "idle" | "loading" | "ready" | "error";
 
-const baseUrl = (import.meta.env.VITE_IT_STORAGE_BASE_URL as string | undefined)?.replace(
-  /\/+$/,
-  "",
-) ?? "";
+const BUCKET = "instrucoes-trabalho";
+
+function resolveBaseUrl(): string {
+  const explicit = (import.meta.env.VITE_IT_STORAGE_BASE_URL as string | undefined)?.replace(
+    /\/+$/,
+    "",
+  );
+  if (explicit) return explicit;
+  const supa = (import.meta.env.VITE_SUPABASE_URL as string | undefined)?.replace(/\/+$/, "");
+  if (supa) return `${supa}/storage/v1/object/public/${BUCKET}`;
+  return "";
+}
+
+const baseUrl = resolveBaseUrl();
 
 function readCache(): ManifestRoot | null {
   if (typeof window === "undefined") return null;
