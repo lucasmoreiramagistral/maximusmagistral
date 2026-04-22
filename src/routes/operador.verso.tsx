@@ -148,6 +148,9 @@ function VersoHome() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Checklist operacional de limpeza da sala de envase L3.
               </p>
+              <p className="mt-3 text-sm font-semibold text-foreground">
+                {itensLimpezaRespondidos}/{totalItensLimpeza} registradas
+              </p>
               {limpeza.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
                   ⚠ Conflito de versão detectado — recarregue.
