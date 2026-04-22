@@ -130,6 +130,8 @@ function ListaChecklists() {
           </div>
         </div>
 
+        {visao === "dia" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
+
         {erro && (
           <p className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive">
             {erro}
@@ -141,9 +143,7 @@ function ListaChecklists() {
           </div>
         ) : visao === "dia" ? (
           folhas.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-              Nenhum checklist disponível
-            </p>
+            <FolhasVazio filtros={filtros} />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {folhas.map((f) => {
