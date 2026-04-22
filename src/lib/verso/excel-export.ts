@@ -346,7 +346,11 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl);
+      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.85,
+        alturaFracao: 0.7,
+      });
     }
   });
   ws.getRow(LINHA_VISTO).height = 36;
