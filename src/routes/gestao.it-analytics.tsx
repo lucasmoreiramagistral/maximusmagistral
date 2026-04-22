@@ -285,7 +285,8 @@ function ItAnalytics() {
       ["zoom_in", "zoom_out", "zoom_reset"].includes(e.tipo_evento),
     ).length;
     const retries = eventos.filter((e) => e.tipo_evento === "image_retry").length;
-    return { sessoesCount, consultas, buscas, zooms, retries };
+    const emConsultaAgora = sessoes.filter((s) => s.ativa_agora === true).length;
+    return { sessoesCount, consultas, buscas, zooms, retries, emConsultaAgora };
   }, [sessoes, eventos]);
 
   const aberturasPorDoc = useMemo(() => {
@@ -370,17 +371,57 @@ function ItAnalytics() {
       .sort((a, b) => b.count - a.count);
   }, [sessoes]);
 
+  // Agrupamento por nome canônico (LUCAS, LUCAS MOREIRA, etc.)
+  // Sub-linha mostra variantes brutas digitadas. Badge se multi-device.
   const segPorOperador = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of sessoes) {
-      const k = s.operador_nome ?? "—";
-      map.set(k, (map.get(k) ?? 0) + 1);
+    interface Acc {
+      canonico: string;
+      variantes: Set<string>;
+      devices: Set<string>;
+      count: number;
     }
-    return Array.from(map.entries())
-      .map(([operador, count]) => ({ operador, count }))
+    const map = new Map<string, Acc>();
+    for (const s of sessoes) {
+      const can = s.operador_nome_canonico ?? s.operador_nome ?? "—";
+      const cur = map.get(can);
+      if (cur) {
+        cur.count++;
+        if (s.operador_nome) cur.variantes.add(s.operador_nome);
+        if (s.device_id) cur.devices.add(s.device_id);
+      } else {
+        map.set(can, {
+          canonico: can,
+          variantes: new Set(s.operador_nome ? [s.operador_nome] : []),
+          devices: new Set(s.device_id ? [s.device_id] : []),
+          count: 1,
+        });
+      }
+    }
+    return Array.from(map.values())
+      .map((a) => ({
+        canonico: a.canonico,
+        variantes: Array.from(a.variantes).filter(
+          (v) => v.toUpperCase() !== a.canonico,
+        ),
+        qtdDevices: a.devices.size,
+        count: a.count,
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
   }, [sessoes]);
+
+  // Trocas de operador nas últimas 24h (client + servidor)
+  const trocasOperador = useMemo(() => {
+    const corteMs = Date.now() - 24 * 60 * 60 * 1000;
+    return eventos
+      .filter(
+        (e) =>
+          (e.tipo_evento === "identidade_trocada" ||
+            e.tipo_evento === "identidade_trocada_servidor") &&
+          Date.parse(e.created_at) >= corteMs,
+      )
+      .slice(0, 30);
+  }, [eventos]);
 
   const equipesUnicas = useMemo(() => {
     const set = new Set<string>();
