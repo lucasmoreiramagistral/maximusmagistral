@@ -146,18 +146,16 @@ function ItAnalytics() {
   const [sessoes, setSessoes] = useState<SessaoRow[]>([]);
   const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
+  const [alertas, setAlertas] = useState<AlertaRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
-  // ref pra cancelar fetch antigo se chegar realtime no meio
   const fetchAbortRef = useRef<{ cancelled: boolean } | null>(null);
 
-  // Fetch unificado — silent=true não mostra spinner (usado em refetches realtime)
   const carregarDados = useCallback(
     async (silent = false) => {
       if (!usuario) return;
-      // cancela fetch anterior em voo
       if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
       const guard = { cancelled: false };
       fetchAbortRef.current = guard;
@@ -169,10 +167,10 @@ function ItAnalytics() {
       try {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
-        // Sessões
-        let qSes = (supabase.from as any)("it_consulta_sessoes")
+        // Sessões — VIEW efetiva (duracao_efetiva_ms + ativa_agora)
+        let qSes = (supabase.from as any)("it_consulta_sessoes_efetivas")
           .select(
-            "id,documento,duracao_total_ms,iniciado_em,equipe,turno,operador_nome",
+            "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,device_id",
           )
           .gte("iniciado_em", dataInicio)
           .order("iniciado_em", { ascending: false })
@@ -185,7 +183,7 @@ function ItAnalytics() {
         // Eventos
         let qEv = (supabase.from as any)("it_consulta_eventos")
           .select(
-            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,created_at",
+            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,device_id,metadata_json,created_at",
           )
           .gte("created_at", dataInicio)
           .order("created_at", { ascending: false })
@@ -203,10 +201,16 @@ function ItAnalytics() {
         if (filtros.documento !== "todos")
           qDif = qDif.eq("documento", filtros.documento);
 
-        const [sesRes, evRes, difRes] = await Promise.allSettled([
+        // Alertas de identidade (view)
+        const qAlertas = (supabase.from as any)("it_alertas_identidade")
+          .select("*")
+          .limit(100);
+
+        const [sesRes, evRes, difRes, alertRes] = await Promise.allSettled([
           qSes,
           qEv,
           qDif,
+          qAlertas,
         ]);
 
         if (guard.cancelled) return;
@@ -240,6 +244,12 @@ function ItAnalytics() {
           setErroDificuldade(difRes.value.error.message);
         } else {
           setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
+        }
+
+        if (alertRes.status === "fulfilled" && !alertRes.value.error) {
+          setAlertas((alertRes.value.data as AlertaRow[]) ?? []);
+        } else {
+          setAlertas([]);
         }
 
         setUltimaAtualizacao(new Date());
