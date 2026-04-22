@@ -127,8 +127,14 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
-  const { identidade, modal: modalIdentidade, pronto: identidadePronta } =
-    useExigirIdentidadeIt();
+  const docKey: "it002" | "it005" = slug === "operacao" ? "it002" : "it005";
+  const {
+    identidade,
+    modal: modalIdentidade,
+    pronto: identidadePronta,
+    semTreinamento,
+    verificandoAta,
+  } = useExigirIdentidadeIt(docKey);
   const telemetria = useItTelemetria({ slug, identidade });
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
@@ -193,12 +199,17 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
   // Gate de identidade: bloqueia o viewer até o operador se identificar
   if (!identidadePronta) {
+    if (identidade && semTreinamento && !verificandoAta) {
+      return <SemTreinamentoBloqueio nome={identidade.nomeCompleto} tituloIt={tituloIt} />;
+    }
     return (
       <div className="min-h-screen bg-background">
         <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <p className="text-center text-sm text-muted-foreground">
-            Aguardando identificação do operador...
+            {verificandoAta
+              ? "Verificando treinamento..."
+              : "Aguardando identificação do operador..."}
           </p>
         </div>
         {modalIdentidade}
