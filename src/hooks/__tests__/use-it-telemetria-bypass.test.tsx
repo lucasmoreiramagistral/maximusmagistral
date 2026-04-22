@@ -52,7 +52,7 @@ describe("useItTelemetria — bypass MAGISTRAL", () => {
   it("MAGISTRAL: NÃO cria sessão nem dispara eventos no banco", async () => {
     const { result } = renderHook(() =>
       useItTelemetria({
-        slug: "it002",
+        slug: "operacao",
         identidade: {
           nomeCompleto: "Magistral",
           nomeCanonico: "MAGISTRAL",
@@ -78,7 +78,7 @@ describe("useItTelemetria — bypass MAGISTRAL", () => {
   it("operador normal: cria sessão e emite eventos normalmente", async () => {
     const { result } = renderHook(() =>
       useItTelemetria({
-        slug: "it002",
+        slug: "operacao",
         identidade: {
           nomeCompleto: "Lucas Moreira",
           nomeCanonico: "LUCAS MOREIRA",
@@ -102,7 +102,7 @@ describe("useItTelemetria — bypass MAGISTRAL", () => {
   it("MAGISTRAL: não escreve sessão no sessionStorage (sem rastro local)", async () => {
     renderHook(() =>
       useItTelemetria({
-        slug: "it002",
+        slug: "operacao",
         identidade: {
           nomeCompleto: "Magistral",
           nomeCanonico: "MAGISTRAL",
