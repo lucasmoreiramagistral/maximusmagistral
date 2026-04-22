@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
   AlertCircle,
+  AlertTriangle,
+  ArrowRightLeft,
   BookOpen,
   Calendar,
   ChevronDown,
@@ -64,6 +66,9 @@ interface EventoRow {
   equipe: string | null;
   turno: string | null;
   operador_nome: string | null;
+  operador_nome_canonico: string | null;
+  device_id: string | null;
+  metadata_json: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -71,10 +76,15 @@ interface SessaoRow {
   id: string;
   documento: "it002" | "it005";
   duracao_total_ms: number | null;
+  duracao_efetiva_ms: number | null;
   iniciado_em: string;
+  ultimo_evento_em: string | null;
+  ativa_agora: boolean | null;
   equipe: string | null;
   turno: string | null;
   operador_nome: string | null;
+  operador_nome_canonico: string | null;
+  device_id: string | null;
 }
 
 interface DificuldadeRow {
@@ -87,6 +97,12 @@ interface DificuldadeRow {
   retries: number;
   buscas_que_levaram: number;
   score: number;
+}
+
+interface AlertaRow {
+  tipo: "multi_device" | "trocas_rapidas";
+  chave: string;
+  detalhes: Record<string, unknown>;
 }
 
 const DOC_LABEL: Record<"it002" | "it005", string> = {
@@ -132,18 +148,16 @@ function ItAnalytics() {
   const [sessoes, setSessoes] = useState<SessaoRow[]>([]);
   const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
+  const [alertas, setAlertas] = useState<AlertaRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
-  // ref pra cancelar fetch antigo se chegar realtime no meio
   const fetchAbortRef = useRef<{ cancelled: boolean } | null>(null);
 
-  // Fetch unificado — silent=true não mostra spinner (usado em refetches realtime)
   const carregarDados = useCallback(
     async (silent = false) => {
       if (!usuario) return;
-      // cancela fetch anterior em voo
       if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
       const guard = { cancelled: false };
       fetchAbortRef.current = guard;
@@ -155,10 +169,10 @@ function ItAnalytics() {
       try {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
-        // Sessões
-        let qSes = (supabase.from as any)("it_consulta_sessoes")
+        // Sessões — VIEW efetiva (duracao_efetiva_ms + ativa_agora)
+        let qSes = (supabase.from as any)("it_consulta_sessoes_efetivas")
           .select(
-            "id,documento,duracao_total_ms,iniciado_em,equipe,turno,operador_nome",
+            "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,device_id",
           )
           .gte("iniciado_em", dataInicio)
           .order("iniciado_em", { ascending: false })
@@ -171,7 +185,7 @@ function ItAnalytics() {
         // Eventos
         let qEv = (supabase.from as any)("it_consulta_eventos")
           .select(
-            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,created_at",
+            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,device_id,metadata_json,created_at",
           )
           .gte("created_at", dataInicio)
           .order("created_at", { ascending: false })
@@ -189,10 +203,16 @@ function ItAnalytics() {
         if (filtros.documento !== "todos")
           qDif = qDif.eq("documento", filtros.documento);
 
-        const [sesRes, evRes, difRes] = await Promise.allSettled([
+        // Alertas de identidade (view)
+        const qAlertas = (supabase.from as any)("it_alertas_identidade")
+          .select("*")
+          .limit(100);
+
+        const [sesRes, evRes, difRes, alertRes] = await Promise.allSettled([
           qSes,
           qEv,
           qDif,
+          qAlertas,
         ]);
 
         if (guard.cancelled) return;
@@ -228,6 +248,12 @@ function ItAnalytics() {
           setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
         }
 
+        if (alertRes.status === "fulfilled" && !alertRes.value.error) {
+          setAlertas((alertRes.value.data as AlertaRow[]) ?? []);
+        } else {
+          setAlertas([]);
+        }
+
         setUltimaAtualizacao(new Date());
       } catch (e) {
         if (guard.cancelled) return;
@@ -261,7 +287,8 @@ function ItAnalytics() {
       ["zoom_in", "zoom_out", "zoom_reset"].includes(e.tipo_evento),
     ).length;
     const retries = eventos.filter((e) => e.tipo_evento === "image_retry").length;
-    return { sessoesCount, consultas, buscas, zooms, retries };
+    const emConsultaAgora = sessoes.filter((s) => s.ativa_agora === true).length;
+    return { sessoesCount, consultas, buscas, zooms, retries, emConsultaAgora };
   }, [sessoes, eventos]);
 
   const aberturasPorDoc = useMemo(() => {
@@ -346,17 +373,57 @@ function ItAnalytics() {
       .sort((a, b) => b.count - a.count);
   }, [sessoes]);
 
+  // Agrupamento por nome canônico (LUCAS, LUCAS MOREIRA, etc.)
+  // Sub-linha mostra variantes brutas digitadas. Badge se multi-device.
   const segPorOperador = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const s of sessoes) {
-      const k = s.operador_nome ?? "—";
-      map.set(k, (map.get(k) ?? 0) + 1);
+    interface Acc {
+      canonico: string;
+      variantes: Set<string>;
+      devices: Set<string>;
+      count: number;
     }
-    return Array.from(map.entries())
-      .map(([operador, count]) => ({ operador, count }))
+    const map = new Map<string, Acc>();
+    for (const s of sessoes) {
+      const can = s.operador_nome_canonico ?? s.operador_nome ?? "—";
+      const cur = map.get(can);
+      if (cur) {
+        cur.count++;
+        if (s.operador_nome) cur.variantes.add(s.operador_nome);
+        if (s.device_id) cur.devices.add(s.device_id);
+      } else {
+        map.set(can, {
+          canonico: can,
+          variantes: new Set(s.operador_nome ? [s.operador_nome] : []),
+          devices: new Set(s.device_id ? [s.device_id] : []),
+          count: 1,
+        });
+      }
+    }
+    return Array.from(map.values())
+      .map((a) => ({
+        canonico: a.canonico,
+        variantes: Array.from(a.variantes).filter(
+          (v) => v.toUpperCase() !== a.canonico,
+        ),
+        qtdDevices: a.devices.size,
+        count: a.count,
+      }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
   }, [sessoes]);
+
+  // Trocas de operador nas últimas 24h (client + servidor)
+  const trocasOperador = useMemo(() => {
+    const corteMs = Date.now() - 24 * 60 * 60 * 1000;
+    return eventos
+      .filter(
+        (e) =>
+          (e.tipo_evento === "identidade_trocada" ||
+            e.tipo_evento === "identidade_trocada_servidor") &&
+          Date.parse(e.created_at) >= corteMs,
+      )
+      .slice(0, 30);
+  }, [eventos]);
 
   const equipesUnicas = useMemo(() => {
     const set = new Set<string>();
@@ -471,6 +538,57 @@ function ItAnalytics() {
           </CardContent>
         </Card>
 
+        {/* ⚠ Alertas de identidade — sempre no topo quando houver */}
+        {alertas.length > 0 && (
+          <Card className="mb-6 border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Alertas de identidade ({alertas.length})
+              </CardTitle>
+              <CardDescription>
+                Sinais que merecem atenção da coordenação. Cada alerta é
+                auditável.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {alertas.map((a, i) => (
+                  <li
+                    key={`${a.tipo}-${a.chave}-${i}`}
+                    className="flex items-start gap-3 rounded-md border border-destructive/30 bg-card px-3 py-2 text-sm"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    <div className="flex-1">
+                      {a.tipo === "multi_device" ? (
+                        <p>
+                          <strong>{a.chave}</strong> aparece em{" "}
+                          <strong>
+                            {(a.detalhes?.qtd_devices as number) ?? "?"} devices
+                          </strong>{" "}
+                          ativos ao mesmo tempo.
+                        </p>
+                      ) : (
+                        <p>
+                          Device{" "}
+                          <code className="rounded bg-muted px-1 font-mono text-xs">
+                            {a.chave.slice(0, 8)}…
+                          </code>{" "}
+                          teve{" "}
+                          <strong>
+                            {(a.detalhes?.trocas_1h as number) ?? "?"} trocas
+                          </strong>{" "}
+                          de operador na última hora.
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {erro && (
           <Card className="mb-6 border-destructive/40">
             <CardContent className="flex items-start gap-3 p-4">
@@ -492,7 +610,12 @@ function ItAnalytics() {
         ) : (
           <>
             {/* KPIs */}
-            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+              <KpiCard
+                titulo="Em consulta agora"
+                valor={kpis.emConsultaAgora}
+                destaque={kpis.emConsultaAgora > 0 ? "success" : undefined}
+              />
               <KpiCard titulo="Sessões" valor={kpis.sessoesCount} />
               <KpiCard titulo="Consultas (page views)" valor={kpis.consultas} />
               <KpiCard titulo="Buscas no índice" valor={kpis.buscas} />
@@ -848,19 +971,91 @@ function ItAnalytics() {
                     <ul className="space-y-1.5">
                       {segPorOperador.map((o) => (
                         <li
-                          key={o.operador}
-                          className="flex items-center justify-between rounded-md border border-border bg-card px-3 py-2 text-sm"
+                          key={o.canonico}
+                          className="rounded-md border border-border bg-card px-3 py-2 text-sm"
                         >
-                          <span>{o.operador}</span>
-                          <span className="font-semibold text-primary">
-                            {o.count}
-                          </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="flex items-center gap-2 font-medium">
+                              {o.canonico}
+                              {o.qtdDevices > 1 && (
+                                <span className="rounded-full border border-warning/50 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
+                                  ⚠ {o.qtdDevices} devices
+                                </span>
+                              )}
+                            </span>
+                            <span className="font-semibold text-primary">
+                              {o.count}
+                            </span>
+                          </div>
+                          {o.variantes.length > 0 && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              também digitado como:{" "}
+                              {o.variantes
+                                .map((v) => `“${v}”`)
+                                .join(", ")}
+                            </p>
+                          )}
                         </li>
                       ))}
                     </ul>
                   )}
                 </CardContent>
               )}
+            </Card>
+
+            {/* Trocas de operador (24h) */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Trocas de operador (24h)
+                </CardTitle>
+                <CardDescription>
+                  Trilha auditável: cliente (otimista) + servidor (garantido por trigger).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {trocasOperador.length === 0 ? (
+                  <SemDados />
+                ) : (
+                  <ul className="space-y-1.5">
+                    {trocasOperador.map((t) => {
+                      const meta = (t.metadata_json ?? {}) as Record<string, unknown>;
+                      const anterior = (meta.anterior_canonico as string) ?? "—";
+                      const novo =
+                        (meta.novo_canonico as string) ??
+                        t.operador_nome_canonico ??
+                        t.operador_nome ??
+                        "—";
+                      const data = new Date(t.created_at);
+                      return (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                        >
+                          <div className="flex flex-1 flex-col gap-0.5">
+                            <span>
+                              <span className="text-muted-foreground">{anterior}</span>{" "}
+                              → <strong>{novo}</strong>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {data.toLocaleString("pt-BR")} · device{" "}
+                              <code className="font-mono">
+                                {t.device_id?.slice(0, 8) ?? "—"}…
+                              </code>
+                              {t.tipo_evento === "identidade_trocada_servidor" && (
+                                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
+                                  servidor
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
             </Card>
           </>
         )}
@@ -911,14 +1106,16 @@ function KpiCard({
 }: {
   titulo: string;
   valor: number;
-  destaque?: "warning" | "destructive";
+  destaque?: "warning" | "destructive" | "success";
 }) {
   const cls =
     destaque === "destructive"
       ? "text-destructive"
       : destaque === "warning"
         ? "text-warning-foreground"
-        : "text-primary";
+        : destaque === "success"
+          ? "text-success"
+          : "text-primary";
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

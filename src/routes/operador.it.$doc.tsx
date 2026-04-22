@@ -36,6 +36,7 @@ import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { useItDocument } from "@/hooks/use-it-document";
 import { useItTelemetria } from "@/hooks/use-it-telemetria";
+import { useExigirIdentidadeIt } from "@/hooks/use-exigir-identidade-it";
 import { criarDebouncerBusca } from "@/lib/it/telemetria";
 import {
   IT_DOC_TITULO,
@@ -126,7 +127,9 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
-  const telemetria = useItTelemetria(slug);
+  const { identidade, modal: modalIdentidade, pronto: identidadePronta } =
+    useExigirIdentidadeIt();
+  const telemetria = useItTelemetria({ slug, identidade });
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
 
@@ -142,8 +145,9 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   // ── telemetria: page_view a cada mudança de página, com manifest pronto ──
   useEffect(() => {
     if (totalPaginas <= 0) return;
+    if (!identidadePronta) return;
     telemetria.trackPageView(paginaAtual);
-  }, [paginaAtual, totalPaginas, telemetria]);
+  }, [paginaAtual, totalPaginas, telemetria, identidadePronta]);
 
   // ── telemetria: cache_mode só em mudança real do par (isOnline, fromCache) ──
   const ultimoModoCacheRef = useRef<string | null>(null);
@@ -183,6 +187,21 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   }, [docData, paginaAtual, itDoc]);
 
   if (loading || !usuario) return <TelaCarregando />;
+
+  // Gate de identidade: bloqueia o viewer até o operador se identificar
+  if (!identidadePronta) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
+        <div className="flex min-h-[60vh] items-center justify-center px-4">
+          <p className="text-center text-sm text-muted-foreground">
+            Aguardando identificação do operador...
+          </p>
+        </div>
+        {modalIdentidade}
+      </div>
+    );
+  }
 
   // Estado de carregamento do manifest
   if (itDoc.status === "loading" || itDoc.status === "idle") {
