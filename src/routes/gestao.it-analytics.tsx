@@ -320,17 +320,17 @@ function ItAnalytics() {
 
   const aberturasPorDoc = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of sessoes) {
+    for (const s of sessoesFiltradas) {
       map.set(s.documento, (map.get(s.documento) ?? 0) + 1);
     }
     return Array.from(map.entries())
       .map(([documento, count]) => ({ documento, count }))
       .sort((a, b) => b.count - a.count);
-  }, [sessoes]);
+  }, [sessoesFiltradas]);
 
   const paginasMaisVistas = useMemo(() => {
     const map = new Map<string, { documento: string; pagina: number; count: number }>();
-    for (const e of eventos) {
+    for (const e of eventosFiltrados) {
       if (e.tipo_evento !== "page_view" || e.pagina == null) continue;
       const k = `${e.documento}#${e.pagina}`;
       const cur = map.get(k);
@@ -338,14 +338,14 @@ function ItAnalytics() {
       else map.set(k, { documento: e.documento, pagina: e.pagina, count: 1 });
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const passosMaisClicados = useMemo(() => {
     const map = new Map<
       string,
       { documento: string; label: string; pagina: number; count: number }
     >();
-    for (const e of eventos) {
+    for (const e of eventosFiltrados) {
       if (
         e.tipo_evento !== "index_click" &&
         e.tipo_evento !== "index_search_result_click"
@@ -364,11 +364,11 @@ function ItAnalytics() {
         });
     }
     return Array.from(map.values()).sort((a, b) => b.count - a.count).slice(0, 10);
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const termosMaisBuscados = useMemo(() => {
     const map = new Map<string, number>();
-    for (const e of eventos) {
+    for (const e of eventosFiltrados) {
       if (e.tipo_evento !== "index_search" || !e.termo_busca) continue;
       map.set(e.termo_busca, (map.get(e.termo_busca) ?? 0) + 1);
     }
@@ -376,29 +376,29 @@ function ItAnalytics() {
       .map(([termo, count]) => ({ termo, count }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 15);
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const segPorEquipe = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of sessoes) {
+    for (const s of sessoesFiltradas) {
       const k = s.equipe ?? "—";
       map.set(k, (map.get(k) ?? 0) + 1);
     }
     return Array.from(map.entries())
       .map(([equipe, count]) => ({ equipe, count }))
       .sort((a, b) => b.count - a.count);
-  }, [sessoes]);
+  }, [sessoesFiltradas]);
 
   const segPorTurno = useMemo(() => {
     const map = new Map<string, number>();
-    for (const s of sessoes) {
+    for (const s of sessoesFiltradas) {
       const k = s.turno ?? "—";
       map.set(k, (map.get(k) ?? 0) + 1);
     }
     return Array.from(map.entries())
       .map(([turno, count]) => ({ turno, count }))
       .sort((a, b) => b.count - a.count);
-  }, [sessoes]);
+  }, [sessoesFiltradas]);
 
   // Agrupamento por nome canônico (LUCAS, LUCAS MOREIRA, etc.)
   // Sub-linha mostra variantes brutas digitadas. Badge se multi-device.
@@ -410,7 +410,7 @@ function ItAnalytics() {
       count: number;
     }
     const map = new Map<string, Acc>();
-    for (const s of sessoes) {
+    for (const s of sessoesFiltradas) {
       const can = s.operador_nome_canonico ?? s.operador_nome ?? "—";
       const cur = map.get(can);
       if (cur) {
@@ -437,12 +437,12 @@ function ItAnalytics() {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 20);
-  }, [sessoes]);
+  }, [sessoesFiltradas]);
 
   // Trocas de operador nas últimas 24h (client + servidor)
   const trocasOperador = useMemo(() => {
     const corteMs = Date.now() - 24 * 60 * 60 * 1000;
-    return eventos
+    return eventosFiltrados
       .filter(
         (e) =>
           (e.tipo_evento === "identidade_trocada" ||
@@ -450,7 +450,7 @@ function ItAnalytics() {
           Date.parse(e.created_at) >= corteMs,
       )
       .slice(0, 30);
-  }, [eventos]);
+  }, [eventosFiltrados]);
 
   const equipesUnicas = useMemo(() => {
     const set = new Set<string>();
