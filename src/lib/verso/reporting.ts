@@ -1,0 +1,525 @@
+import type { Checklist, Turno } from "@/lib/checklist/types";
+import {
+  LIMPEZA_ITENS_DEF,
+  PTP_ITENS,
+  PTP_JANELAS,
+  PTP_JANELAS_POR_TURNO,
+} from "./constants";
+import type {
+  LimpezaItem,
+  LimpezaTurno,
+  LimpezaTurnoStatus,
+  PtpJanela,
+  PtpJanelaStatus,
+} from "./types";
+
+// ─── Tipos públicos ──────────────────────────────────────────────────
+
+export interface RefFrente {
+  /** YYYY-MM-DD */
+  dataOperacao: string;
+  /** "12x36 Dia" | "12x36 Noite" — apenas turnos com PTP/Limpeza definidos */
+  turno: "12x36 Dia" | "12x36 Noite";
+  equipe: string;
+  linha: string;
+  maquina: string;
+}
+
+export type SituacaoVerso =
+  | "completo"
+  | "ptp_pendente"
+  | "limpeza_pendente"
+  | "verso_incompleto"
+  | "frente_sem_verso";
+
+export interface LinhaAderencia {
+  dataOperacao: string;
+  turno: "12x36 Dia" | "12x36 Noite";
+  equipe: string;
+  ptpEsperadas: number;
+  ptpRealizadas: number;
+  ptpPendentes: number;
+  ptpComOcorrencia: number;
+  ptpNaoRodou: number;
+  limpezaStatus: LimpezaTurnoStatus | "ausente";
+  situacao: SituacaoVerso;
+}
+
+export interface ResumoVersoRelatorio {
+  turnosFrente: number;
+  turnosVersoCompleto: number;
+  taxaAderencia: number; // 0..100
+  ptpEsperadas: number;
+  ptpRegistradas: number;
+  ptpPendentes: number;
+  ptpComOcorrencia: number;
+  ptpNaoRodou: number;
+  limpezasEsperadas: number;
+  limpezasValidadas: number;
+  limpezasAguardandoLider: number;
+  limpezasPendentesOuRascunho: number;
+}
+
+export interface DiagnosticoPtp {
+  porStatus: { chave: string; total: number }[];
+  topItens: {
+    codigo: string;
+    nome: string;
+    marcacoes: number;
+    ocorrencias: number; // marcações × 2
+    label: string; // "X marcações (2X ocorrências)"
+  }[];
+  porJanela: { chave: string; total: number; rotulo: string }[];
+  comObservacao: {
+    dataOperacao: string;
+    turno: "12x36 Dia" | "12x36 Noite";
+    janelaCodigo: string;
+    observacao: string;
+  }[];
+}
+
+export interface DiagnosticoLimpeza {
+  porStatus: { chave: string; total: number }[];
+  topItensNaoRealizados: {
+    codigo: number;
+    descricao: string;
+    total: number;
+  }[];
+  taxaValidacaoLider: number; // 0..100
+  serieDiariaNaoRealizados: { data: string; total: number }[];
+}
+
+export interface AlertaVerso {
+  texto: string;
+  destaque: "destructive" | "warning" | "info";
+}
+
+export interface ForaDoRecorte {
+  ptp: PtpJanela[];
+  limpeza: LimpezaTurno[];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+const TURNOS_VERSO: ReadonlyArray<"12x36 Dia" | "12x36 Noite"> = [
+  "12x36 Dia",
+  "12x36 Noite",
+];
+
+function isTurnoVerso(turno: Turno): turno is "12x36 Dia" | "12x36 Noite" {
+  return turno === "12x36 Dia" || turno === "12x36 Noite";
+}
+
+export function derivarTurnoDaJanela(
+  janelaCodigo: string,
+): "12x36 Dia" | "12x36 Noite" | null {
+  if (PTP_JANELAS_POR_TURNO["12x36 Dia"].includes(janelaCodigo)) return "12x36 Dia";
+  if (PTP_JANELAS_POR_TURNO["12x36 Noite"].includes(janelaCodigo)) return "12x36 Noite";
+  return null;
+}
+
+function chaveRef(data: string, turno: string): string {
+  return `${data}__${turno}`;
+}
+
+// ─── Construção da referência documental da frente ───────────────────
+
+export function construirReferenciaFrente(
+  checklistsFiltrados: Checklist[],
+): RefFrente[] {
+  const map = new Map<string, RefFrente>();
+  for (const c of checklistsFiltrados) {
+    const turno = c.contexto.turno;
+    if (!isTurnoVerso(turno)) continue; // 3º Turno não tem verso definido
+    const data = c.contexto.data;
+    const key = chaveRef(data, turno);
+    if (!map.has(key)) {
+      map.set(key, {
+        dataOperacao: data,
+        turno,
+        equipe: c.contexto.equipe,
+        linha: c.contexto.linha,
+        maquina: c.contexto.maquina,
+      });
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.dataOperacao !== b.dataOperacao)
+      return a.dataOperacao.localeCompare(b.dataOperacao);
+    return a.turno.localeCompare(b.turno);
+  });
+}
+
+// ─── Cruzamento frente × verso ───────────────────────────────────────
+
+function avaliarSituacao(
+  ptpEsperadas: number,
+  ptpConcluidas: number,
+  limpezaStatus: LimpezaTurnoStatus | "ausente",
+): SituacaoVerso {
+  const ptpOk = ptpConcluidas >= ptpEsperadas;
+  const limpOk = limpezaStatus === "validado";
+  if (ptpOk && limpOk) return "completo";
+  if (!ptpOk && limpOk) return "ptp_pendente";
+  if (ptpOk && !limpOk) return "limpeza_pendente";
+  return "verso_incompleto";
+}
+
+function ptpConcluidaStatus(s: PtpJanelaStatus): boolean {
+  return s !== "pendente" && s !== "rascunho";
+}
+
+export function cruzarFrenteVerso(
+  ref: RefFrente[],
+  ptp: PtpJanela[],
+  limpeza: LimpezaTurno[],
+): LinhaAderencia[] {
+  // Indexa PTP por (data, turno-derivado)
+  const ptpPorChave = new Map<string, PtpJanela[]>();
+  for (const j of ptp) {
+    const t = derivarTurnoDaJanela(j.janelaCodigo);
+    if (!t) continue;
+    const k = chaveRef(j.dataOperacao, t);
+    const arr = ptpPorChave.get(k) ?? [];
+    arr.push(j);
+    ptpPorChave.set(k, arr);
+  }
+  // Indexa limpeza por (data, turno)
+  const limpPorChave = new Map<string, LimpezaTurno>();
+  for (const l of limpeza) {
+    if (!isTurnoVerso(l.turno)) continue;
+    limpPorChave.set(chaveRef(l.dataOperacao, l.turno), l);
+  }
+
+  return ref.map<LinhaAderencia>((r) => {
+    const k = chaveRef(r.dataOperacao, r.turno);
+    const ptpDoTurno = ptpPorChave.get(k) ?? [];
+    const ptpEsperadas = PTP_JANELAS_POR_TURNO[r.turno].length;
+    const ptpRealizadas = ptpDoTurno.filter((j) => ptpConcluidaStatus(j.statusJanela))
+      .length;
+    const ptpPendentes = ptpEsperadas - ptpRealizadas;
+    const ptpComOcorrencia = ptpDoTurno.filter(
+      (j) => j.statusJanela === "houve_ocorrencia",
+    ).length;
+    const ptpNaoRodou = ptpDoTurno.filter((j) => j.statusJanela === "nao_rodou").length;
+
+    const limp = limpPorChave.get(k);
+    const limpezaStatus: LimpezaTurnoStatus | "ausente" = limp ? limp.status : "ausente";
+
+    return {
+      dataOperacao: r.dataOperacao,
+      turno: r.turno,
+      equipe: r.equipe,
+      ptpEsperadas,
+      ptpRealizadas,
+      ptpPendentes: Math.max(0, ptpPendentes),
+      ptpComOcorrencia,
+      ptpNaoRodou,
+      limpezaStatus,
+      situacao: avaliarSituacao(ptpEsperadas, ptpRealizadas, limpezaStatus),
+    };
+  });
+}
+
+// ─── Resumo (12 KPIs) ────────────────────────────────────────────────
+
+export function calcularResumoVersoRelatorio(
+  aderencia: LinhaAderencia[],
+): ResumoVersoRelatorio {
+  const turnosFrente = aderencia.length;
+  const turnosVersoCompleto = aderencia.filter((a) => a.situacao === "completo").length;
+  const taxaAderencia =
+    turnosFrente === 0 ? 0 : Math.round((turnosVersoCompleto / turnosFrente) * 100);
+
+  const ptpEsperadas = aderencia.reduce((s, a) => s + a.ptpEsperadas, 0);
+  const ptpRegistradas = aderencia.reduce((s, a) => s + a.ptpRealizadas, 0);
+  const ptpPendentes = aderencia.reduce((s, a) => s + a.ptpPendentes, 0);
+  const ptpComOcorrencia = aderencia.reduce((s, a) => s + a.ptpComOcorrencia, 0);
+  const ptpNaoRodou = aderencia.reduce((s, a) => s + a.ptpNaoRodou, 0);
+
+  const limpezasEsperadas = turnosFrente; // 1 limpeza por turno da frente
+  const limpezasValidadas = aderencia.filter((a) => a.limpezaStatus === "validado")
+    .length;
+  const limpezasAguardandoLider = aderencia.filter(
+    (a) => a.limpezaStatus === "aguardando_validacao",
+  ).length;
+  const limpezasPendentesOuRascunho = aderencia.filter(
+    (a) =>
+      a.limpezaStatus === "pendente" ||
+      a.limpezaStatus === "rascunho" ||
+      a.limpezaStatus === "ausente",
+  ).length;
+
+  return {
+    turnosFrente,
+    turnosVersoCompleto,
+    taxaAderencia,
+    ptpEsperadas,
+    ptpRegistradas,
+    ptpPendentes,
+    ptpComOcorrencia,
+    ptpNaoRodou,
+    limpezasEsperadas,
+    limpezasValidadas,
+    limpezasAguardandoLider,
+    limpezasPendentesOuRascunho,
+  };
+}
+
+// ─── Diagnóstico PTP ─────────────────────────────────────────────────
+
+const LABEL_PTP: Record<PtpJanelaStatus, string> = {
+  pendente: "Pendente",
+  rascunho: "Rascunho",
+  sem_ocorrencia: "Sem ocorrência",
+  houve_ocorrencia: "Houve ocorrência",
+  nao_rodou: "Não rodou",
+};
+
+export function calcularDiagnosticoPtp(
+  ptpDoRecorte: PtpJanela[],
+): DiagnosticoPtp {
+  // Por status
+  const statusMap = new Map<PtpJanelaStatus, number>();
+  for (const j of ptpDoRecorte)
+    statusMap.set(j.statusJanela, (statusMap.get(j.statusJanela) ?? 0) + 1);
+  const porStatus = (Object.keys(LABEL_PTP) as PtpJanelaStatus[])
+    .map((s) => ({ chave: LABEL_PTP[s], total: statusMap.get(s) ?? 0 }))
+    .filter((r) => r.total > 0);
+
+  // Top itens (marcações + ocorrências = ×2)
+  const itensMap = new Map<string, number>();
+  for (const j of ptpDoRecorte) {
+    if (j.statusJanela !== "houve_ocorrencia") continue;
+    for (const it of j.itens) {
+      itensMap.set(it.codigo, (itensMap.get(it.codigo) ?? 0) + (it.quantidade ?? 0));
+    }
+  }
+  const topItens = PTP_ITENS.map((def) => {
+    const marcacoes = itensMap.get(def.codigo) ?? 0;
+    const ocorrencias = marcacoes * 2;
+    return {
+      codigo: def.codigo,
+      nome: def.nome,
+      marcacoes,
+      ocorrencias,
+      label: `${marcacoes} marcações (${ocorrencias} ocorrências)`,
+    };
+  })
+    .filter((r) => r.marcacoes > 0)
+    .sort((a, b) => b.marcacoes - a.marcacoes);
+
+  // Por janela J01..J12 — só conta janelas com ocorrência
+  const porJanelaMap = new Map<string, number>();
+  for (const j of ptpDoRecorte) {
+    if (j.statusJanela !== "houve_ocorrencia") continue;
+    const totalMarc = j.itens.reduce((s, it) => s + (it.quantidade ?? 0), 0);
+    porJanelaMap.set(j.janelaCodigo, (porJanelaMap.get(j.janelaCodigo) ?? 0) + totalMarc);
+  }
+  const porJanela = PTP_JANELAS.map((def) => ({
+    chave: def.codigo,
+    total: porJanelaMap.get(def.codigo) ?? 0,
+    rotulo: def.rotulo,
+  })).filter((r) => r.total > 0);
+
+  // Janelas com observação preenchida
+  const comObservacao = ptpDoRecorte
+    .filter((j) => j.observacao && j.observacao.trim().length > 0)
+    .map((j) => {
+      const t = derivarTurnoDaJanela(j.janelaCodigo);
+      return {
+        dataOperacao: j.dataOperacao,
+        turno: (t ?? "12x36 Dia") as "12x36 Dia" | "12x36 Noite",
+        janelaCodigo: j.janelaCodigo,
+        observacao: (j.observacao ?? "").trim(),
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.dataOperacao.localeCompare(b.dataOperacao) ||
+        a.janelaCodigo.localeCompare(b.janelaCodigo),
+    );
+
+  return { porStatus, topItens, porJanela, comObservacao };
+}
+
+// ─── Diagnóstico Limpeza ─────────────────────────────────────────────
+
+const LABEL_LIMP: Record<LimpezaTurnoStatus, string> = {
+  pendente: "Pendente",
+  rascunho: "Rascunho",
+  aguardando_validacao: "Aguardando líder",
+  validado: "Validado",
+};
+
+export function calcularDiagnosticoLimpeza(
+  limpezaDoRecorte: LimpezaTurno[],
+  totalEsperadasParaTaxa: number,
+): DiagnosticoLimpeza {
+  const statusMap = new Map<LimpezaTurnoStatus, number>();
+  for (const t of limpezaDoRecorte)
+    statusMap.set(t.status, (statusMap.get(t.status) ?? 0) + 1);
+  const porStatus = (Object.keys(LABEL_LIMP) as LimpezaTurnoStatus[])
+    .map((s) => ({ chave: LABEL_LIMP[s], total: statusMap.get(s) ?? 0 }))
+    .filter((r) => r.total > 0);
+
+  // Top itens não realizados
+  const itensMap = new Map<number, number>();
+  for (const t of limpezaDoRecorte) {
+    for (const it of t.itens as LimpezaItem[]) {
+      if (it.status === "nao_realizado")
+        itensMap.set(it.codigo, (itensMap.get(it.codigo) ?? 0) + 1);
+    }
+  }
+  const topItensNaoRealizados = LIMPEZA_ITENS_DEF.map((def) => ({
+    codigo: def.codigo,
+    descricao: def.descricao,
+    total: itensMap.get(def.codigo) ?? 0,
+  }))
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+
+  const validadas = limpezaDoRecorte.filter((t) => t.status === "validado").length;
+  const taxaValidacaoLider =
+    totalEsperadasParaTaxa === 0
+      ? 0
+      : Math.round((validadas / totalEsperadasParaTaxa) * 100);
+
+  // Série diária — total de itens não realizados por dia
+  const serieMap = new Map<string, number>();
+  for (const t of limpezaDoRecorte) {
+    const totalNR = (t.itens as LimpezaItem[]).filter(
+      (it) => it.status === "nao_realizado",
+    ).length;
+    if (totalNR === 0) continue;
+    serieMap.set(t.dataOperacao, (serieMap.get(t.dataOperacao) ?? 0) + totalNR);
+  }
+  const serieDiariaNaoRealizados = Array.from(serieMap.entries())
+    .map(([data, total]) => ({ data, total }))
+    .sort((a, b) => a.data.localeCompare(b.data));
+
+  return { porStatus, topItensNaoRealizados, taxaValidacaoLider, serieDiariaNaoRealizados };
+}
+
+// ─── Filtragem do recorte (apenas registros cuja chave (data,turno) está em ref) ─
+
+export function filtrarPtpDoRecorte(
+  ref: RefFrente[],
+  ptp: PtpJanela[],
+): PtpJanela[] {
+  const set = new Set(ref.map((r) => chaveRef(r.dataOperacao, r.turno)));
+  return ptp.filter((j) => {
+    const t = derivarTurnoDaJanela(j.janelaCodigo);
+    if (!t) return false;
+    return set.has(chaveRef(j.dataOperacao, t));
+  });
+}
+
+export function filtrarLimpezaDoRecorte(
+  ref: RefFrente[],
+  limpeza: LimpezaTurno[],
+): LimpezaTurno[] {
+  const set = new Set(ref.map((r) => chaveRef(r.dataOperacao, r.turno)));
+  return limpeza.filter(
+    (l) => isTurnoVerso(l.turno) && set.has(chaveRef(l.dataOperacao, l.turno)),
+  );
+}
+
+export function registrosVersoForaDoRecorte(
+  ref: RefFrente[],
+  ptp: PtpJanela[],
+  limpeza: LimpezaTurno[],
+): ForaDoRecorte {
+  const set = new Set(ref.map((r) => chaveRef(r.dataOperacao, r.turno)));
+  const ptpFora = ptp.filter((j) => {
+    const t = derivarTurnoDaJanela(j.janelaCodigo);
+    if (!t) return true;
+    return !set.has(chaveRef(j.dataOperacao, t));
+  });
+  const limpFora = limpeza.filter(
+    (l) => !isTurnoVerso(l.turno) || !set.has(chaveRef(l.dataOperacao, l.turno)),
+  );
+  return { ptp: ptpFora, limpeza: limpFora };
+}
+
+// ─── Alertas operacionais ────────────────────────────────────────────
+
+export function calcularAlertasVerso(args: {
+  aderencia: LinhaAderencia[];
+  resumo: ResumoVersoRelatorio;
+  diagPtp: DiagnosticoPtp;
+  diagLimp: DiagnosticoLimpeza;
+}): AlertaVerso[] {
+  const { aderencia, resumo, diagPtp, diagLimp } = args;
+  const alertas: AlertaVerso[] = [];
+
+  const limpezaNaoValidadaComFrente = aderencia.filter(
+    (a) => a.limpezaStatus !== "validado" && a.limpezaStatus !== "ausente",
+  ).length;
+  if (limpezaNaoValidadaComFrente > 0) {
+    alertas.push({
+      texto: `${limpezaNaoValidadaComFrente} turno(s) com checklist concluído e limpeza não validada pelo líder.`,
+      destaque: limpezaNaoValidadaComFrente >= 3 ? "destructive" : "warning",
+    });
+  }
+
+  const ptpIncompletos = aderencia.filter(
+    (a) => a.ptpRealizadas < a.ptpEsperadas,
+  ).length;
+  if (ptpIncompletos > 0) {
+    alertas.push({
+      texto: `${ptpIncompletos} turno(s) com PTP incompleto (faltam janelas finalizadas).`,
+      destaque: ptpIncompletos >= 3 ? "destructive" : "warning",
+    });
+  }
+
+  if (resumo.ptpPendentes > 0) {
+    alertas.push({
+      texto: `${resumo.ptpPendentes} janela(s) PTP pendentes/rascunho no período.`,
+      destaque: "warning",
+    });
+  }
+
+  const topPtp = diagPtp.topItens[0];
+  if (topPtp && topPtp.marcacoes > 0) {
+    alertas.push({
+      texto: `Item PTP recorrente: ${topPtp.nome} — ${topPtp.label}.`,
+      destaque: "info",
+    });
+  }
+
+  const topLimp = diagLimp.topItensNaoRealizados[0];
+  if (topLimp) {
+    alertas.push({
+      texto: `Item de limpeza mais negligenciado: "${topLimp.descricao}" (${topLimp.total} ocorrência(s) de não realizado).`,
+      destaque: "warning",
+    });
+  }
+
+  const aguardandoLider = aderencia.filter(
+    (a) => a.limpezaStatus === "aguardando_validacao",
+  ).length;
+  if (aguardandoLider >= 3) {
+    alertas.push({
+      texto: `${aguardandoLider} limpeza(s) aguardando validação do líder.`,
+      destaque: "destructive",
+    });
+  }
+
+  const semVerso = aderencia.filter(
+    (a) =>
+      a.ptpRealizadas === 0 && (a.limpezaStatus === "ausente" || a.limpezaStatus === "pendente"),
+  ).length;
+  if (semVerso > 0) {
+    alertas.push({
+      texto: `${semVerso} turno(s) com frente registrada e nenhum verso iniciado.`,
+      destaque: semVerso >= 3 ? "destructive" : "warning",
+    });
+  }
+
+  return alertas;
+}
+
+// ─── Re-export útil ──────────────────────────────────────────────────
+export const TURNOS_VERSO_LISTA = TURNOS_VERSO;
