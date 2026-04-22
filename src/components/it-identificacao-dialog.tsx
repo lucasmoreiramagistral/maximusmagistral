@@ -206,6 +206,8 @@ function ModoCompleto({
 
   const valido = useMemo(() => {
     const limpo = nome.trim().replace(/\s+/g, " ");
+    // Bypass master: aceita "MAGISTRAL" como palavra única
+    if (isIdentidadeBypass(canonizarNomeOperador(limpo))) return true;
     return REGEX_NOME_COMPLETO.test(limpo);
   }, [nome]);
 
@@ -226,6 +228,8 @@ function ModoCompleto({
     if (!tocou) return null;
     const limpo = nome.trim();
     if (!limpo) return "Digite seu nome e sobrenome";
+    // Bypass: não exibe erro
+    if (isIdentidadeBypass(canonizarNomeOperador(limpo))) return null;
     if (!/[\p{L}\p{M}\s'’-]+/u.test(limpo))
       return "Use apenas letras";
     if (!REGEX_NOME_COMPLETO.test(limpo.replace(/\s+/g, " ")))
