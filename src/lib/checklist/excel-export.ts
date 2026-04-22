@@ -563,7 +563,7 @@ function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
 
 function nomeArquivo(
   folha: FolhaChecklistDia,
-  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo" | "verso-apenas",
 ): string {
   const data = folha.contexto.data;
   const equipe = sanitizarArquivo(folha.contexto.equipe);
@@ -573,6 +573,9 @@ function nomeArquivo(
   }
   if (modo === "frente-verso-completo") {
     return `FM09_FRENTE_VERSO_COMPLETO_L3_${data}_${equipe}.xlsx`;
+  }
+  if (modo === "verso-apenas") {
+    return `FM09_VERSO_PTP_LIMPEZA_L3_${data}_${equipe}.xlsx`;
   }
   const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   return `FM09_CHECKLIST_OPERACIONAL_L3_${data}_${turno}_${equipe}_EDITAVEL.xlsx`;
@@ -773,4 +776,21 @@ export async function exportarFrenteVersoCompletoExcel(
   removerProtecoes(wb);
   const buf = await wb.xlsx.writeBuffer();
   baixarBlob(buf as ArrayBuffer, nomeArquivo(folhaAtual, "frente-verso-completo"));
+}
+
+/** Exporta APENAS o verso (PTP + Limpeza) em um arquivo standalone — sem
+ *  a aba ENCHEDORA 3 da frente. Usa um workbook novo, sem o template FM09. */
+export async function exportarVersoApenasExcel(
+  folha: FolhaChecklistDia,
+): Promise<void> {
+  const wb = new ExcelJS.Workbook();
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
+  gerarVersoWorksheet(wb, {
+    dataOperacao: folha.contexto.data,
+    ptpJanelas,
+    limpezaTurnos,
+  });
+  removerProtecoes(wb);
+  const buf = await wb.xlsx.writeBuffer();
+  baixarBlob(buf as ArrayBuffer, nomeArquivo(folha, "verso-apenas"));
 }

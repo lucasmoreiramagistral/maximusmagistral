@@ -113,6 +113,7 @@ function inserirImagem(
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
+  opts: { centralizar?: boolean; larguraFracao?: number; alturaFracao?: number } = {},
 ): void {
   const buf = dataUrlParaArrayBuffer(dataUrl);
   if (!buf) return;
@@ -125,6 +126,28 @@ function inserirImagem(
   const r1 = +m1[2];
   const c2 = colLetraParaNum(m2[1]);
   const r2 = +m2[2];
+  const totalCols = c2 - c1 + 1;
+  const totalRows = r2 - r1 + 1;
+
+  if (opts.centralizar) {
+    // Calcula um sub-range centralizado dentro do range fornecido,
+    // ocupando "larguraFracao" do bloco horizontal e "alturaFracao" do vertical.
+    const lf = opts.larguraFracao ?? 0.6;
+    const af = opts.alturaFracao ?? 0.85;
+    const padX = (1 - lf) / 2;
+    const padY = (1 - af) / 2;
+    const tlCol = c1 - 1 + totalCols * padX;
+    const brCol = c1 - 1 + totalCols * (padX + lf);
+    const tlRow = r1 - 1 + totalRows * padY;
+    const brRow = r1 - 1 + totalRows * (padY + af);
+    ws.addImage(id, {
+      tl: { col: tlCol, row: tlRow },
+      br: { col: brCol, row: brRow },
+      editAs: "oneCell",
+    } as unknown as Parameters<typeof ws.addImage>[1]);
+    return;
+  }
+
   ws.addImage(id, {
     tl: { col: c1 - 1 + 0.1, row: r1 - 1 + 0.15 },
     br: { col: c2 - 1 + (c2 - c1 + 1) - 0.1, row: r2 - 1 + (r2 - r1 + 1) - 0.1 },
@@ -323,7 +346,11 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl);
+      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.85,
+        alturaFracao: 0.7,
+      });
     }
   });
   ws.getRow(LINHA_VISTO).height = 36;
@@ -444,7 +471,11 @@ export function gerarVersoWorksheet(
       cellMeio.value = "_____________________________";
     }
     if (lt?.assinaturaLider?.dataUrl) {
-      inserirImagem(wb, ws, `${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`, lt.assinaturaLider.dataUrl);
+      inserirImagem(wb, ws, `${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`, lt.assinaturaLider.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.55,
+        alturaFracao: 0.7,
+      });
     }
     // Base: legenda
     ws.mergeCells(`${colA}${rowTopo + 2}:${colB}${rowTopo + 2}`);
@@ -466,7 +497,11 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.font = { size: 8 };
     if (lt?.assinaturaOperador?.dataUrl) {
-      inserirImagem(wb, ws, `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`, lt.assinaturaOperador.dataUrl);
+      inserirImagem(wb, ws, `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`, lt.assinaturaOperador.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.85,
+        alturaFracao: 0.85,
+      });
     }
   });
 

@@ -20,8 +20,7 @@ import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import {
   exportarFolhaDiaExcel,
   exportarFrenteVersoCompletoExcel,
-  exportarTurnoComVersoExcel,
-  exportarTurnoExcel,
+  exportarVersoApenasExcel,
 } from "@/lib/checklist/excel-export";
 import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
 import { VersoDiaDetalhe } from "@/components/verso-dia-detalhe";
@@ -40,7 +39,7 @@ function VisualizarDiaPage() {
   const { data: anomalias, loading: loadingA } = useAnomaliasRemote({ realtime: true });
   const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState<
-    "turno" | "dia" | "turno-verso" | "frente-verso-completo" | null
+    "frente" | "verso" | "frente-verso" | null
   >(null);
 
   const todasFolhas = useMemo(
@@ -61,18 +60,14 @@ function VisualizarDiaPage() {
 
   if (loading || loadingC || loadingA || !usuario) return <TelaCarregando />;
 
-  async function handleExport(
-    modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
-  ) {
+  async function handleExport(modo: "frente" | "verso" | "frente-verso") {
     if (!folha) return;
     setExporting(modo);
     try {
-      if (modo === "turno") {
-        await exportarTurnoExcel(folha, anomalias);
-      } else if (modo === "dia") {
+      if (modo === "frente") {
         await exportarFolhaDiaExcel(folha, todasFolhas, anomalias);
-      } else if (modo === "turno-verso") {
-        await exportarTurnoComVersoExcel(folha, anomalias);
+      } else if (modo === "verso") {
+        await exportarVersoApenasExcel(folha);
       } else {
         await exportarFrenteVersoCompletoExcel(folha, todasFolhas, anomalias);
       }
@@ -150,64 +145,43 @@ function VisualizarDiaPage() {
           </DialogHeader>
           <div className="grid gap-3 py-2">
             <Button
-              onClick={() => handleExport("turno")}
+              onClick={() => handleExport("frente")}
               disabled={!!exporting}
               className="justify-start"
             >
-              {exporting === "turno" ? (
+              {exporting === "frente" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
               )}
-              Exportar turno ({folha?.contexto.turno ?? "-"})
+              Exportar Checklist (Frente)
             </Button>
             <Button
               variant="outline"
-              onClick={() => handleExport("dia")}
+              onClick={() => handleExport("verso")}
               disabled={!!exporting}
               className="justify-start"
             >
-              {exporting === "dia" ? (
+              {exporting === "verso" ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <FileSpreadsheet className="mr-2 h-4 w-4" />
               )}
-              Exportar folha do dia (3 turnos consolidados)
+              Exportar Verso (PTP + Limpeza)
             </Button>
-            {folha && temVerso(folha) && (
-              <>
-                <div className="my-1 border-t border-border" />
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Frente + Verso (PTP + Limpeza)
-                </p>
-                <Button
-                  variant="secondary"
-                  onClick={() => handleExport("turno-verso")}
-                  disabled={!!exporting}
-                  className="justify-start"
-                >
-                  {exporting === "turno-verso" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  )}
-                  Exportar Turno ({folha.contexto.turno}) — frente + verso
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => handleExport("frente-verso-completo")}
-                  disabled={!!exporting}
-                  className="justify-start"
-                >
-                  {exporting === "frente-verso-completo" ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                  )}
-                  Exportar Frente e Verso completo (todos os turnos)
-                </Button>
-              </>
-            )}
+            <Button
+              variant="secondary"
+              onClick={() => handleExport("frente-verso")}
+              disabled={!!exporting}
+              className="justify-start"
+            >
+              {exporting === "frente-verso" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+              )}
+              Exportar Frente + Verso (mesmo arquivo)
+            </Button>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setExportOpen(false)} disabled={!!exporting}>
