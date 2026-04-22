@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock, Lock } from "lucide-react";
+import { CheckCircle2, Clock } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -105,62 +105,13 @@ function LimpezaPage() {
           </div>
         )}
         <p className="mb-3 text-sm text-muted-foreground">
-          Selecione seu turno para preencher os 21 itens. A validação final do
-          líder é feita na tela inicial do verso da folha.
+          Preencha os 21 itens do seu turno. A validação final do líder é feita
+          na tela inicial do verso da folha.
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {TURNOS_ATIVOS_LIMPEZA.map((tn) => {
+          {TURNOS_ATIVOS_LIMPEZA.filter((tn) => tn === turnoLogado).map((tn) => {
             const t = turnos.find((x) => x.turno === tn);
-            const ehDoOperador = tn === turnoLogado;
-
-            // Card bloqueado (turno do colega) — não-clicável.
-            if (!ehDoOperador) {
-              return (
-                <div
-                  key={tn}
-                  aria-disabled="true"
-                  className="cursor-not-allowed rounded-2xl border-2 border-dashed border-border bg-muted/40 p-5 text-left opacity-70"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-lg font-bold text-foreground">{tn}</p>
-                      <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
-                        <Lock className="h-3 w-3" /> Acesso restrito ao operador
-                        do turno {tn}
-                      </p>
-                    </div>
-                    {t && <StatusBadge status={t.status} />}
-                  </div>
-                  <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                    {t?.operadorNome ? (
-                      <p>
-                        Operador:{" "}
-                        <span className="font-medium text-foreground">
-                          {t.operadorNome}
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="italic">Ainda não preenchido</p>
-                    )}
-                    {t?.liderNome && (
-                      <p>
-                        Líder:{" "}
-                        <span className="font-medium text-foreground">
-                          {t.liderNome}
-                        </span>
-                      </p>
-                    )}
-                    {t?.updatedAt && (
-                      <p className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {formatarDataHora(t.updatedAt)}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              );
-            }
-
             return (
               <button
                 key={tn}
@@ -203,6 +154,11 @@ function LimpezaPage() {
               </button>
             );
           })}
+          {!turnoLogado && (
+            <div className="col-span-full rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+              Seu usuário não tem turno definido. Fale com o administrador.
+            </div>
+          )}
         </div>
       </main>
     </div>
