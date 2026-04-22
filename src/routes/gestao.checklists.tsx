@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useAnomaliasRemote, useChecklistsRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
+import { useVersosDosDiasRemote } from "@/hooks/use-versos-dos-dias";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import {
   getFiltros,
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
+import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import { Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
@@ -60,9 +63,18 @@ function ListaChecklists() {
     () => filtrarChecklists(checklists, filtros, anomalias),
     [checklists, filtros, anomalias],
   );
+  const todasFolhas = useMemo(
+    () => buildFolhasAgrupadas(checklists, anomalias),
+    [checklists, anomalias],
+  );
+  const folhaDiaKeys = useMemo(
+    () => extrairFolhasDiaKeysComVerso(todasFolhas),
+    [todasFolhas],
+  );
+  const { resumos: resumosVerso } = useVersosDosDiasRemote(folhaDiaKeys);
   const folhas = useMemo(
-    () => filtrarFolhas(buildFolhasAgrupadas(checklists, anomalias), filtros, anomalias),
-    [checklists, anomalias, filtros],
+    () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
+    [todasFolhas, anomalias, filtros, resumosVerso],
   );
 
   if (loadingAuth || !usuario) return <TelaCarregando />;
@@ -132,13 +144,21 @@ function ListaChecklists() {
             </p>
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {folhas.map((f) => (
-                <ChecklistDiaResumoCard
-                  key={f.folhaKey}
-                  folha={f}
-                  href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                />
-              ))}
+              {folhas.map((f) => {
+                const versoKey = buildFolhaDiaKey(
+                  f.contexto.data,
+                  f.contexto.linha,
+                  f.contexto.maquina,
+                );
+                return (
+                  <ChecklistDiaResumoCard
+                    key={f.folhaKey}
+                    folha={f}
+                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                    versoResumo={resumosVerso.get(versoKey)}
+                  />
+                );
+              })}
             </div>
           )
         ) : lista.length === 0 ? (
