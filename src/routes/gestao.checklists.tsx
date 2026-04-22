@@ -270,7 +270,6 @@ function ListaChecklists() {
 
 const CHIPS: Array<{ label: string; valor: EstadoVersoFiltro | undefined }> = [
   { label: "Todos", valor: undefined },
-  { label: "Com verso", valor: "com_verso" },
   { label: "Pendente", valor: "pendente" },
   { label: "Ocorrências", valor: "ocorrencias" },
   { label: "Validado", valor: "validado" },
@@ -308,7 +307,13 @@ function ChipsFiltroVerso({ estadoAtual }: { estadoAtual: EstadoVersoFiltro | un
   );
 }
 
-function FolhasVazio({ filtros }: { filtros: Filtros }) {
+function FolhasVazio({
+  filtros,
+  visao,
+}: {
+  filtros: Filtros;
+  visao: "dia" | "verso";
+}) {
   const versoAtivo = !!filtros.estadoVerso;
   const outrosAtivos = filtrosAtivos({ ...filtros, estadoVerso: undefined });
 
@@ -318,6 +323,55 @@ function FolhasVazio({ filtros }: { filtros: Filtros }) {
   }
   function limparTudo() {
     setFiltros({});
+  }
+
+  if (visao === "verso") {
+    if (versoAtivo && outrosAtivos) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Nenhuma folha de Linha 3 corresponde aos filtros aplicados.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={limparVerso}>
+              Limpar filtro de verso
+            </Button>
+            <Button variant="outline" size="sm" onClick={limparTudo}>
+              Limpar todos os filtros
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    if (versoAtivo) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Nenhuma folha de Linha 3 com este estado.
+          </p>
+          <Button variant="outline" size="sm" onClick={limparVerso}>
+            Limpar filtro de verso
+          </Button>
+        </div>
+      );
+    }
+    if (outrosAtivos) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Filtros atuais não retornam folhas de Linha 3.
+          </p>
+          <Button variant="outline" size="sm" onClick={limparTudo}>
+            Limpar todos os filtros
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
+        Nenhuma folha de Linha 3 disponível.
+      </p>
+    );
   }
 
   if (versoAtivo && outrosAtivos) {
