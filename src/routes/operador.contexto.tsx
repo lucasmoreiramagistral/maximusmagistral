@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
@@ -46,6 +47,7 @@ function ContextoPage() {
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
+  const [nomeOperador, setNomeOperador] = useState("");
 
   // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
   const turno = usuario?.turnoPadrao ?? null;
@@ -63,6 +65,11 @@ function ContextoPage() {
       );
       return;
     }
+    const nomeLimpo = nomeOperador.trim();
+    if (!nomeLimpo) {
+      setErro("Digite seu nome no Operador responsável");
+      return;
+    }
     const ctx: ContextoChecklist = {
       data: calcularDataFolha(equipe, turno),
       turno,
@@ -71,7 +78,7 @@ function ContextoPage() {
       maquina: "Enchedora 3",
       area: "Envase",
       equipamento: "Enchedora Zegla 50V",
-      operadorResponsavel: usuario.nome,
+      operadorResponsavel: nomeLimpo,
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
@@ -112,9 +119,23 @@ function ContextoPage() {
             </div>
 
             <div className="md:col-span-2">
-              <CampoFixo titulo="Operador responsável" valor={usuario.nome} />
+              <Label htmlFor="operador-nome" className="text-base">
+                Operador responsável
+              </Label>
+              <Input
+                id="operador-nome"
+                value={nomeOperador}
+                onChange={(e) => {
+                  setNomeOperador(e.target.value);
+                  if (erro) setErro("");
+                }}
+                placeholder="Digite seu nome completo"
+                maxLength={100}
+                autoComplete="name"
+                className="mt-1.5 h-12 text-base font-semibold"
+              />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Identificado automaticamente pela sua conta. Você assinará digitalmente ao final do checklist do dia.
+                Obrigatório. Usado pela gestão industrial para controle de dados — sua assinatura digital ao final do dia confirma a autoria do checklist.
               </p>
             </div>
           </div>
