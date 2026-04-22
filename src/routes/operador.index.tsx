@@ -224,7 +224,6 @@ function OperadorHome() {
             icon={<Play className="h-8 w-8" />}
             titulo="Novo checklist"
             descricao="Iniciar um novo checklist operacional"
-            destaque
             badge={checklistOk ? "Concluído" : undefined}
           />
           <BotaoAcao
@@ -270,7 +269,6 @@ function BotaoAcao({
   icon,
   titulo,
   descricao,
-  destaque,
   badge,
 }: {
   to?: string;
@@ -278,12 +276,10 @@ function BotaoAcao({
   icon: React.ReactNode;
   titulo: string;
   descricao: string;
-  destaque?: boolean;
   badge?: string;
 }) {
-  const className = destaque
-    ? "group relative flex flex-col gap-3 rounded-2xl border-2 border-primary bg-primary p-6 text-left text-primary-foreground shadow-sm transition-all hover:shadow-md md:p-7"
-    : "group relative flex flex-col gap-3 rounded-2xl border-2 border-border bg-card p-6 text-left text-foreground shadow-sm transition-all hover:border-primary/50 hover:shadow-md md:p-7";
+  const className =
+    "group relative flex flex-col gap-3 rounded-2xl border-2 border-border bg-card p-6 text-left text-foreground shadow-sm transition-all hover:border-primary/50 hover:shadow-md active:bg-primary active:text-primary-foreground active:border-primary md:p-7";
 
   const inner = (
     <>
@@ -293,24 +289,12 @@ function BotaoAcao({
           {badge}
         </span>
       )}
-      <div
-        className={
-          destaque
-            ? "flex h-14 w-14 items-center justify-center rounded-xl bg-primary-foreground/15"
-            : "flex h-14 w-14 items-center justify-center rounded-xl bg-primary-soft text-primary"
-        }
-      >
+      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary-soft text-primary group-active:bg-primary-foreground/15 group-active:text-primary-foreground">
         {icon}
       </div>
       <div>
         <p className="text-xl font-bold">{titulo}</p>
-        <p
-          className={
-            destaque
-              ? "mt-1 text-sm text-primary-foreground/80"
-              : "mt-1 text-sm text-muted-foreground"
-          }
-        >
+        <p className="mt-1 text-sm text-muted-foreground group-active:text-primary-foreground/80">
           {descricao}
         </p>
       </div>
