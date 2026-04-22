@@ -75,6 +75,48 @@ export const versoStorage = {
   },
 };
 
+/**
+ * ID **determinístico** baseado no prefixo lógico do registro.
+ *
+ * IMPORTANTE: dois clientes diferentes (ex.: operador A e B abrindo a mesma
+ * janela ao mesmo tempo, possivelmente offline) DEVEM gerar o MESMO id, senão
+ * o upsert por `id` no Postgres cria registros duplicados para a mesma
+ * (folha_dia_key, janela_codigo) ou (folha_dia_key, turno).
+ *
+ * Implementação: UUID v5-like a partir de SHA-1 estável do prefixo, encaixado
+ * no formato uuid (8-4-4-4-12) que o Postgres aceita como PK uuid.
+ *
+ * Para o PTP, chamar com prefix = `ptp-${dataOperacao}-${codigoJanela}` (já feito
+ * em createPtpJanelasPadrao). Para limpeza, prefix = `limp-${dataOperacao}-${turno}`.
+ * Esses dois identificam unicamente o registro do dia no domínio do verso.
+ */
 export function genVersoId(prefix: string): string {
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  // FNV-1a 64-bit em duas metades para gerar 32 hex chars determinísticos.
+  // Não é criptográfico — não precisa ser. Precisa só ser ESTÁVEL e ÚNICO no domínio.
+  let h1 = 0xcbf29ce4;
+  let h2 = 0x84222325;
+  for (let i = 0; i < prefix.length; i++) {
+    const c = prefix.charCodeAt(i);
+    h1 ^= c;
+    h1 = Math.imul(h1, 0x01000193) >>> 0;
+    h2 ^= c;
+    h2 = Math.imul(h2, 0x01000193) >>> 0;
+  }
+  // Mistura adicional para descorrelacionar h1/h2.
+  h1 = Math.imul(h1 ^ (h2 >>> 13), 0x85ebca6b) >>> 0;
+  h2 = Math.imul(h2 ^ (h1 >>> 16), 0xc2b2ae35) >>> 0;
+  const a = h1.toString(16).padStart(8, "0");
+  const b = h2.toString(16).padStart(8, "0");
+  // Repete pra fechar 32 hex chars
+  let h3 = Math.imul(h1 ^ 0x9e3779b9, 0x85ebca6b) >>> 0;
+  let h4 = Math.imul(h2 ^ 0x9e3779b9, 0xc2b2ae35) >>> 0;
+  h3 = (h3 ^ (h3 >>> 16)) >>> 0;
+  h4 = (h4 ^ (h4 >>> 16)) >>> 0;
+  const c = h3.toString(16).padStart(8, "0");
+  const d = h4.toString(16).padStart(8, "0");
+  // Formato uuid 8-4-4-4-12; força versão 5 e variante RFC.
+  const seg3 = "5" + b.slice(0, 3); // versão 5
+  const seg4Int = (parseInt(c.slice(0, 4), 16) & 0x3fff) | 0x8000; // variante 10xx
+  const seg4 = seg4Int.toString(16).padStart(4, "0");
+  return `${a}-${b.slice(4)}-${seg3}-${seg4}-${c.slice(4)}${d}`;
 }

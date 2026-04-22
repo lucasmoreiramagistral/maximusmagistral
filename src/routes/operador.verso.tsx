@@ -86,6 +86,15 @@ function VersoHome() {
   const totalItensLimpeza = limpezaTurnoOperador?.itens.length ?? 21;
   const itensLimpezaRespondidos =
     limpezaTurnoOperador?.itens.filter((i) => i.status !== null).length ?? 0;
+  const limpezaStatusLabel = limpezaTurnoOperador
+    ? limpezaTurnoOperador.status === "validado"
+      ? "Validado pelo líder"
+      : limpezaTurnoOperador.status === "aguardando_validacao"
+        ? "Aguardando líder"
+        : limpezaTurnoOperador.status === "rascunho"
+          ? "Em rascunho"
+          : "Pendente"
+    : "Pendente";
 
   return (
     <div className="min-h-screen bg-background">
@@ -150,6 +159,9 @@ function VersoHome() {
               </p>
               <p className="mt-3 text-sm font-semibold text-foreground">
                 {itensLimpezaRespondidos}/{totalItensLimpeza} registradas
+              </p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                Status: <span className="text-foreground">{limpezaStatusLabel}</span>
               </p>
               {limpeza.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
