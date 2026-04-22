@@ -59,6 +59,15 @@ export function criarItensPtpVazios(): PtpItem[] {
 // mas não é exposto na UI atualmente.
 export const TURNOS_ATIVOS_LIMPEZA: Turno[] = ["12x36 Dia", "12x36 Noite"];
 
+// ─── Mapeamento PTP → turno ──────────────────────────────────────────
+// Conforme planilha oficial:
+// - 12x36 Dia    → J01..J06 (06:00 → 18:00)
+// - 12x36 Noite  → J07..J12 (18:00 → 06:00 do dia seguinte)
+export const PTP_JANELAS_POR_TURNO: Record<"12x36 Dia" | "12x36 Noite", string[]> = {
+  "12x36 Dia": ["J01", "J02", "J03", "J04", "J05", "J06"],
+  "12x36 Noite": ["J07", "J08", "J09", "J10", "J11", "J12"],
+};
+
 // ─── Limpeza — 21 itens (texto OFICIAL) ──────────────────────────────
 export const LIMPEZA_ITENS_DEF: Omit<LimpezaItem, "status">[] = [
   {
