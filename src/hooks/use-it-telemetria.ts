@@ -178,7 +178,9 @@ export function useItTelemetria(
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
-        if (!contextoRef.current.user_id) return;
+        // NÃO descarta mais por falta de user_id — eventos de operador identificado
+        // pelo gate (com device_id) são auditáveis mesmo se auth.getUser() ainda
+        // não respondeu. Telemetria nunca deve perder eventos válidos.
         const evento: EventoIt = {
           sessao_id: sessao.id,
           documento: sessao.documento,
