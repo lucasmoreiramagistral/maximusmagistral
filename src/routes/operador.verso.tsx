@@ -160,6 +160,9 @@ function VersoHome() {
               <p className="mt-3 text-sm font-semibold text-foreground">
                 {itensLimpezaRespondidos}/{totalItensLimpeza} registradas
               </p>
+              <p className="mt-1 text-xs font-medium text-muted-foreground">
+                Status: <span className="text-foreground">{limpezaStatusLabel}</span>
+              </p>
               {limpeza.conflito && (
                 <p className="mt-1 text-xs font-semibold text-destructive">
                   ⚠ Conflito de versão detectado — recarregue.
