@@ -30,6 +30,7 @@ import type { ItDocSlug } from "@/lib/it/types";
 import {
   INATIVIDADE_LEVE_MS,
   JANELA_LEVE_MS,
+  isIdentidadeBypass,
   registrarUltimoHeartbeat,
   type IdentidadeConfirmada,
 } from "@/lib/it/identidade";
