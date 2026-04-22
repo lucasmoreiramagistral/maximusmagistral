@@ -113,6 +113,7 @@ function inserirImagem(
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
+  opts: { centralizar?: boolean; larguraFracao?: number; alturaFracao?: number } = {},
 ): void {
   const buf = dataUrlParaArrayBuffer(dataUrl);
   if (!buf) return;
@@ -125,6 +126,28 @@ function inserirImagem(
   const r1 = +m1[2];
   const c2 = colLetraParaNum(m2[1]);
   const r2 = +m2[2];
+  const totalCols = c2 - c1 + 1;
+  const totalRows = r2 - r1 + 1;
+
+  if (opts.centralizar) {
+    // Calcula um sub-range centralizado dentro do range fornecido,
+    // ocupando "larguraFracao" do bloco horizontal e "alturaFracao" do vertical.
+    const lf = opts.larguraFracao ?? 0.6;
+    const af = opts.alturaFracao ?? 0.85;
+    const padX = (1 - lf) / 2;
+    const padY = (1 - af) / 2;
+    const tlCol = c1 - 1 + totalCols * padX;
+    const brCol = c1 - 1 + totalCols * (padX + lf);
+    const tlRow = r1 - 1 + totalRows * padY;
+    const brRow = r1 - 1 + totalRows * (padY + af);
+    ws.addImage(id, {
+      tl: { col: tlCol, row: tlRow },
+      br: { col: brCol, row: brRow },
+      editAs: "oneCell",
+    } as unknown as Parameters<typeof ws.addImage>[1]);
+    return;
+  }
+
   ws.addImage(id, {
     tl: { col: c1 - 1 + 0.1, row: r1 - 1 + 0.15 },
     br: { col: c2 - 1 + (c2 - c1 + 1) - 0.1, row: r2 - 1 + (r2 - r1 + 1) - 0.1 },
