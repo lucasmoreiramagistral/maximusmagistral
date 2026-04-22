@@ -1,85 +1,50 @@
 
 
-# Ajustes no Verso da Folha — bugs e fluxo do líder
+## Banner "Turno Concluído com Sucesso" na home do operador
 
-## 1. Bug do "Motivo da edição" piscando no PTP
+Quando o operador finalizar **as 3 tarefas obrigatórias do turno** — Checklist operacional (com assinaturas), PTP Garrafas (6/6 janelas) e Limpeza Sala de Envase (21/21 itens + validação do líder) — a home `/operador` exibirá um banner de destaque celebrando a conclusão.
 
-**Arquivo:** `src/routes/operador.verso.ptp.$janelaCodigo.tsx`
+### Critérios de "tudo concluído" (do turno do operador logado)
 
-**Causa:** o estado `jaConcluida` é recalculado em todo render a partir de `janelaBase.statusJanela`. Quando você clica em **Concluir janela**, o `salvarJanela` atualiza o estado local da janela para `sem_ocorrencia`/`houve_ocorrencia`/`nao_rodou` antes do `navigate`, fazendo o bloco "Motivo da edição *" aparecer por uma fração de segundo. Em alguns casos (principalmente offline ou quando a navegação demora), isso também faz a próxima validação `if (jaConcluida && !motivoEdicao.trim())` disparar erroneamente.
+1. **Checklist operacional**: existir, na folha do dia (data + turno + equipe + linha + máquina), pelo menos um checklist `concluido` em cada um dos 3 momentos (`Início / retomada de processo`, `Setup / longas paradas / PCM`, `Pós-setup`) **com `assinaturaOperador` e `assinaturaLider` preenchidas no Pós-setup**.
+2. **PTP Garrafas**: 6/6 janelas do turno do operador com `statusJanela` diferente de `pendente`/`rascunho`.
+3. **Limpeza Sala de Envase**: turno do operador com `status === "validado"` (que já implica 21/21 itens respondidos + assinatura do líder).
 
-**Correção:**
-- Travar o cálculo de `jaConcluida` em uma `useRef`/`useState` que só é definido **uma vez no mount** da janela (snapshot inicial). Edições subsequentes da mesma sessão continuam usando esse snapshot.
-- Após `Concluir janela` com sucesso, navegar **imediatamente** sem disparar re-render do bloco condicional.
-- Resultado: motivo só aparece quando o operador abre uma janela que **já estava concluída antes de carregar a tela** — exatamente o que você pediu.
+### Visual do banner
 
-## 2. Mover "Validação do Líder" para `/operador/verso`
+Aparece **acima** da grade de botões (substituindo visualmente o card de "checklist em andamento" quando tudo estiver pronto), com estilo de sucesso:
 
-**Arquivos afetados:**
-- `src/routes/operador.verso.tsx` — adicionar 3ª seção "Validação do Líder" abaixo dos 2 cards
-- `src/routes/operador.verso.limpeza.tsx` — **remover** os blocos de validação do líder (botão "Iniciar validação", formulário de nome+assinatura, mensagem "Validado por...")
-- `src/lib/verso/types.ts` — (não muda) já tem `liderNome` e `assinaturaLider` por turno
+- Fundo verde suave (`bg-success/10`, borda `border-success/40`).
+- Ícone grande `CheckCircle2` à esquerda.
+- Texto principal: **"Turno concluído com sucesso!"**
+- Subtítulo: *"Você concluiu o checklist operacional, o PTP Garrafas e a limpeza da sala de envase deste turno. Bom descanso!"*
+- Lista compacta de confirmações (3 linhas com check verde):
+  - ✓ Checklist operacional assinado (operador + líder)
+  - ✓ PTP Garrafas — 6/6 janelas registradas
+  - ✓ Limpeza Sala de Envase — turno validado pelo líder
+- Pequena tag com data/turno: *"Turno 12x36 Dia · 22/04/2026"*.
 
-**Comportamento da nova seção na home do verso:**
+Quando o banner aparece, o card amarelo de "checklist em andamento" fica oculto (não faz sentido com tudo concluído).
 
-```text
-┌─────────────────────────────────────────────────────┐
-│  Validação do Líder                                  │
-├─────────────────────────────────────────────────────┤
-│  Pré-requisitos:                                     │
-│   ✓ 12/12 janelas do PTP registradas                │
-│   ✗ Limpeza 12x36 Dia (aguardando conclusão)        │
-│   ✓ Limpeza 12x36 Noite concluída                   │
-│                                                      │
-│  [Bloqueado]  ou  [Validar como líder]              │
-└─────────────────────────────────────────────────────┘
-```
+### Arquivos a alterar
 
-**Regras de liberação (todas precisam estar verdadeiras):**
-- Todas as 12 janelas do PTP com `statusJanela ∈ {sem_ocorrencia, houve_ocorrencia, nao_rodou}` (não `pendente`/`rascunho`)
-- Todos os turnos ativos da limpeza (`12x36 Dia` + `12x36 Noite`) com `status = aguardando_validacao` ou `validado`
+**`src/routes/operador.index.tsx`** (única alteração)
+- Importar `usePtpJanelas`, `useLimpezaTurnos`, `calcularDataOperacional`, `buildFolhaDiaKey`, `buildFolhaKey`, `VERSO_CONTEXTO_FIXO`, `PTP_JANELAS_POR_TURNO`, `MOMENTOS_CHECKLIST`, `CheckCircle2`.
+- Carregar dados:
+  - `data = calcularDataOperacional(equipe, turno)` e `folhaDiaKey = buildFolhaDiaKey(...)` (mesmo padrão de `operador.verso.tsx`).
+  - `ptp = usePtpJanelas(folhaDiaKey, data)` e `limpeza = useLimpezaTurnos(folhaDiaKey, data)`.
+  - `checklists = storage.getChecklists()` filtrados por `folhaKey` correspondente ao contexto do dia.
+- Calcular flags:
+  - `ptpOk` = `6/6` para o `turnoLogado`.
+  - `limpezaOk` = `limpezaTurnoOperador?.status === "validado"`.
+  - `checklistOk` = existir um checklist concluído para cada um dos 3 momentos no `folhaKey` do dia, **e** o checklist do momento `Pós-setup` ter `assinaturaOperador` e `assinaturaLider` preenchidas.
+  - `tudoConcluido = ptpOk && limpezaOk && checklistOk`.
+- Renderizar o banner verde quando `tudoConcluido === true` e ocultar o card amarelo de rascunho nesse caso.
 
-Enquanto não atender, mostra checklist visual dos pendentes (claro pro operador saber o que falta) e o botão fica `disabled`.
+### Notas técnicas
 
-**Quando libera:**
-- Botão "Validar como líder" abre um painel com:
-  - Resumo: quantas janelas/turnos serão validados
-  - Campo "Nome do líder *" pré-preenchido com nome do profile logado, editável
-  - `SignaturePad` única
-  - Botões "Cancelar" e "Confirmar validação"
-- Ao confirmar: aplica `status = validado` + `liderNome` + `assinaturaLider` + `liderAssinouEm` em **todos os turnos da limpeza ativos** (chamadas `salvarTurno` em série, com auditoria via `insertLimpezaEdicao`).
-- O PTP **não muda de estrutura** — não há "validação do líder" no PTP no banco; o líder valida o conjunto da folha através da limpeza, que é onde a tabela já tem essas colunas.
-
-**Estado já validado:** se ambos os turnos da limpeza já estão `validado`, mostrar bloco verde "✓ Folha validada por {liderNome} em {data/hora}" no lugar do botão.
-
-## 3. Bloquear acesso cruzado de turnos na limpeza
-
-**Arquivo:** `src/routes/operador.verso.limpeza.tsx`
-
-**Regra:** o operador logado em `12x36 Dia` **não consegue abrir** o card de `12x36 Noite` (e vice-versa). O card aparece visível (para visualização do status) mas com cadeado e não-clicável.
-
-**Implementação:**
-- Comparar `tn === turnoLogado` antes de permitir o `setTurnoSelecionado(tn)`.
-- Se `tn !== turnoLogado`: card vira `<div>` (sem onClick), opacidade reduzida, ícone de cadeado e texto "Acesso restrito ao operador do turno {tn}".
-- Card do próprio turno mantém destaque visual atual ("Seu turno").
-- Proteção também no `if (turnoSelecionado)` no início do componente: se de algum jeito for setado um turno diferente do logado, redirecionar de volta.
-
-## 4. Detalhes técnicos
-
-| Item | Onde | O que muda |
-|---|---|---|
-| Snapshot de `jaConcluida` | `operador.verso.ptp.$janelaCodigo.tsx` | `useState(() => statusInicial !== 'pendente' && !== 'rascunho')` capturado uma vez |
-| Remover validação do líder do turno | `operador.verso.limpeza.tsx` | Apagar blocos: "Validação do Líder", "Iniciar validação", formulário do líder, "Validado por..." |
-| Bloqueio cruzado de turno | `operador.verso.limpeza.tsx` | Comparação com `turnoLogado` no map dos cards |
-| Nova seção "Validação do Líder" | `operador.verso.tsx` | Componente `BlocoValidacaoLider` interno com derivações de `ptp.janelas` e `limpeza.turnos` |
-| Reaproveitar `salvarTurno` | `operador.verso.tsx` | Loop em `TURNOS_ATIVOS_LIMPEZA` aplicando `assinaturaLider` em cada um |
-
-Nada de migration neste passo — usa as colunas `lider_nome`/`assinatura_lider`/`lider_assinou_em` que já existem em `limpeza_turnos`.
-
-## 5. Fora de escopo (não vou mexer)
-
-- Banco/migrations
-- Checklist FM09 (frente)
-- Gestão e relatório
-- Hooks `usePtpJanelas` / `useLimpezaTurnos` (a lógica de conflito já está OK desde o último ajuste)
+- Reusa hooks já existentes — nenhum schema novo, nenhuma migration.
+- A leitura de checklists usa `storage.getChecklists()` (cache local já populado pelo fluxo de conclusão) filtrando por `folhaKey === buildFolhaKey(contextoDoDia)`. Não depende de chamada de rede adicional.
+- O contador de pendências do header (3 → 0) **não é alterado aqui** — mantém o comportamento atual de fila offline. O banner é o indicador "humano" de turno concluído.
+- Se o turno do operador for `3º Turno` (sem janelas PTP/limpeza por turno mapeadas), o banner não é exibido (fallback seguro: `turnoLogado` precisa ser `12x36 Dia` ou `12x36 Noite`).
 
