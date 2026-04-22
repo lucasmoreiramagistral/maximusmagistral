@@ -86,6 +86,15 @@ function VersoHome() {
   const totalItensLimpeza = limpezaTurnoOperador?.itens.length ?? 21;
   const itensLimpezaRespondidos =
     limpezaTurnoOperador?.itens.filter((i) => i.status !== null).length ?? 0;
+  const limpezaStatusLabel = limpezaTurnoOperador
+    ? limpezaTurnoOperador.status === "validado"
+      ? "Validado pelo líder"
+      : limpezaTurnoOperador.status === "aguardando_validacao"
+        ? "Aguardando líder"
+        : limpezaTurnoOperador.status === "rascunho"
+          ? "Em rascunho"
+          : "Pendente"
+    : "Pendente";
 
   return (
     <div className="min-h-screen bg-background">
