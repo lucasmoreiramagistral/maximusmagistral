@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ClipboardList, AlertTriangle, Filter, FileBarChart2, Loader2 } from "lucide-react";
+import { ClipboardList, AlertTriangle, Filter, FileBarChart2, Loader2, BookOpen } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { useChecklistsRemote, useAnomaliasRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
@@ -59,7 +59,7 @@ function GestaoHome() {
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           <BotaoLink
             to="/gestao/checklists"
             icon={<ClipboardList className="h-8 w-8" />}
@@ -84,6 +84,12 @@ function GestaoHome() {
             icon={<FileBarChart2 className="h-8 w-8" />}
             titulo="Gerar Relatório"
             descricao="Consolidar checklist, anomalias, tratativas e recorrências da Linha 3"
+          />
+          <BotaoLink
+            to="/gestao/it-analytics"
+            icon={<BookOpen className="h-8 w-8" />}
+            titulo="Inteligência das ITs"
+            descricao="Uso das instruções · pontos para reforço de treinamento"
           />
         </div>
 

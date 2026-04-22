@@ -19,6 +19,11 @@ import type {
   PtpEdicaoPayload,
   PtpJanela,
 } from "@/lib/verso/types";
+import {
+  insertItEvento,
+  updateItSessaoFechamento,
+} from "@/lib/it/supabase-analytics";
+import type { EventoIt } from "@/lib/it/telemetria";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FONTE ÚNICA DE VERDADE (singleton) para status de conexão + fila offline.
@@ -34,7 +39,9 @@ export type FilaItemTipo =
   | "checklist"
   | "anomalia"
   | "ptp_janela"
-  | "limpeza_turno";
+  | "limpeza_turno"
+  | "it_evento"
+  | "it_sessao_close";
 
 export interface FilaItem {
   id: string;
@@ -241,6 +248,15 @@ const store = {
           console.error("[fila] insertLimpezaEdicao falhou:", e);
         }
       }
+    } else if (item.tipo === "it_evento") {
+      const evento = item.payload as EventoIt;
+      await insertItEvento(evento);
+    } else if (item.tipo === "it_sessao_close") {
+      const { sessao_id, duracao_total_ms } = item.payload as {
+        sessao_id: string;
+        duracao_total_ms: number;
+      };
+      await updateItSessaoFechamento(sessao_id, duracao_total_ms);
     }
   },
 

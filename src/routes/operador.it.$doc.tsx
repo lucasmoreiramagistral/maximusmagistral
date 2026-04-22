@@ -35,6 +35,8 @@ import {
 import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { useItDocument } from "@/hooks/use-it-document";
+import { useItTelemetria } from "@/hooks/use-it-telemetria";
+import { criarDebouncerBusca } from "@/lib/it/telemetria";
 import {
   IT_DOC_TITULO,
   type IndiceEntry,
@@ -124,6 +126,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
+  const telemetria = useItTelemetria(slug);
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
 
@@ -135,6 +138,22 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   useEffect(() => {
     setPaginaAtual(1);
   }, [slug]);
+
+  // ── telemetria: page_view a cada mudança de página, com manifest pronto ──
+  useEffect(() => {
+    if (totalPaginas <= 0) return;
+    telemetria.trackPageView(paginaAtual);
+  }, [paginaAtual, totalPaginas, telemetria]);
+
+  // ── telemetria: cache_mode só em mudança real do par (isOnline, fromCache) ──
+  const ultimoModoCacheRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (totalPaginas <= 0) return;
+    const modo = !isOnline ? "offline" : itDoc.fromCache ? "cache" : "online";
+    if (ultimoModoCacheRef.current === modo) return;
+    ultimoModoCacheRef.current = modo;
+    telemetria.trackEvento("cache_mode", { modo_cache: modo });
+  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria]);
 
   const paginaInfo = useMemo(() => {
     if (!docData) return null;
@@ -285,7 +304,19 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             {labelTopo}
           </div>
 
-          <Sheet open={indiceOpen} onOpenChange={setIndiceOpen}>
+          <Sheet
+            open={indiceOpen}
+            onOpenChange={(open) => {
+              setIndiceOpen(open);
+              if (open) {
+                try {
+                  telemetria.trackEvento("index_open");
+                } catch {
+                  /* ignore */
+                }
+              }
+            }}
+          >
             <SheetTrigger asChild>
               <Button variant="outline" size="sm" className="min-h-[40px] gap-2">
                 <List className="h-4 w-4" />
@@ -304,6 +335,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
                 paginaAtual={paginaAtual}
                 onSelect={irPara}
                 aberto={indiceOpen}
+                telemetria={telemetria}
               />
             </SheetContent>
           </Sheet>
@@ -342,6 +374,8 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             key={`${slug}-${paginaInfo.pagina}`}
             url={itDoc.getImageUrl(paginaInfo.arquivo)}
             alt={`${tituloIt} — página ${paginaInfo.pagina}`}
+            paginaNumero={paginaInfo.pagina}
+            telemetria={telemetria}
           />
         ) : (
           <div className="flex h-full min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
@@ -378,15 +412,47 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
 type ImagemStatus = "loading" | "ready" | "error";
 
-function PaginaImagem({ url, alt }: { url: string; alt: string }) {
+function PaginaImagem({
+  url,
+  alt,
+  paginaNumero,
+  telemetria,
+}: {
+  url: string;
+  alt: string;
+  paginaNumero: number;
+  telemetria: ReturnType<typeof useItTelemetria>;
+}) {
   const [imagemStatus, setImagemStatus] = useState<ImagemStatus>("loading");
   const [tentativa, setTentativa] = useState(0);
 
   const srcEfetivo = tentativa === 0 ? url : `${url}?r=${tentativa}`;
 
   const tentarNovamente = () => {
+    try {
+      telemetria.trackEvento("image_retry", { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
     setImagemStatus("loading");
     setTentativa((t) => t + 1);
+  };
+
+  const onErrorImg = () => {
+    try {
+      telemetria.trackEvento("image_error", { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
+    setImagemStatus("error");
+  };
+
+  const safeTrack = (tipo: "zoom_in" | "zoom_out" | "zoom_reset") => {
+    try {
+      telemetria.trackEvento(tipo, { pagina: paginaNumero });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -433,7 +499,7 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                 alt={alt}
                 loading="eager"
                 onLoad={() => setImagemStatus("ready")}
-                onError={() => setImagemStatus("error")}
+                onError={onErrorImg}
                 className={cn(
                   "max-h-full max-w-full object-contain select-none transition-opacity",
                   imagemStatus === "error" && "opacity-0",
@@ -448,7 +514,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => zoomIn()}
+                  onClick={() => {
+                    safeTrack("zoom_in");
+                    zoomIn();
+                  }}
                   aria-label="Aumentar zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
@@ -458,7 +527,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => zoomOut()}
+                  onClick={() => {
+                    safeTrack("zoom_out");
+                    zoomOut();
+                  }}
                   aria-label="Diminuir zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
@@ -468,7 +540,10 @@ function PaginaImagem({ url, alt }: { url: string; alt: string }) {
                   type="button"
                   size="icon"
                   variant="secondary"
-                  onClick={() => resetTransform()}
+                  onClick={() => {
+                    safeTrack("zoom_reset");
+                    resetTransform();
+                  }}
                   aria-label="Resetar zoom"
                   className="pointer-events-auto h-12 w-12 shadow-md"
                 >
@@ -496,11 +571,13 @@ function PainelIndice({
   paginaAtual,
   onSelect,
   aberto,
+  telemetria,
 }: {
   indice: IndiceEntry[];
   paginaAtual: number;
   onSelect: (pag: number) => void;
   aberto: boolean;
+  telemetria: ReturnType<typeof useItTelemetria>;
 }) {
   const [filtro, setFiltro] = useState("");
   const itemAtivoRef = useRef<HTMLLIElement | null>(null);
@@ -535,8 +612,54 @@ function PainelIndice({
     });
   }, [indice, filtroAtivo, filtroNorm]);
 
+  // Telemetria: index_search com debounce + sanitização
+  const debouncerRef = useRef(criarDebouncerBusca(600));
+  useEffect(() => {
+    if (!aberto) return;
+    if (!filtroAtivo) return;
+    const qtd = entradasFiltradas.filter((e) => e.tipo !== "secao").length;
+    debouncerRef.current.agendar(filtro, qtd, (termo, quantidade) => {
+      try {
+        telemetria.trackEvento("index_search", {
+          termo_busca: termo,
+          quantidade_resultados: quantidade,
+        });
+      } catch {
+        /* ignore */
+      }
+    });
+  }, [filtro, filtroAtivo, aberto, entradasFiltradas, telemetria]);
+
+  // Reset do debouncer ao fechar
+  useEffect(() => {
+    if (!aberto) {
+      debouncerRef.current.cancelar();
+      debouncerRef.current.reset();
+    }
+  }, [aberto]);
+
   const semResultados = filtroAtivo && entradasFiltradas.length === 0;
   let primeiroAtivoEntregue = false;
+
+  const handleSelect = (entry: IndiceEntry) => {
+    try {
+      const tipoEvento = filtroAtivo
+        ? "index_search_result_click"
+        : "index_click";
+      telemetria.trackEvento(tipoEvento, {
+        pagina_destino: entry.pagina,
+        tipo_entrada: entry.tipo,
+        label: entry.label,
+        numero: entry.numero != null ? String(entry.numero) : null,
+        termo_busca: filtroAtivo
+          ? (filtro.trim().toLowerCase().slice(0, 100) || null)
+          : null,
+      });
+    } catch {
+      /* ignore */
+    }
+    onSelect(entry.pagina);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -580,7 +703,7 @@ function PainelIndice({
               >
                 <button
                   type="button"
-                  onClick={() => onSelect(entry.pagina)}
+                  onClick={() => handleSelect(entry)}
                   className={cn(
                     "flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left text-sm transition-colors hover:bg-muted",
                     ativo &&
