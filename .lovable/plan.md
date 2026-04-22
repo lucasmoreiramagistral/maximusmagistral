@@ -1,87 +1,156 @@
 
 
-# Plano final blindado v2 — Chips de Verso no /gestao/checklists
+# Plano final v4 — Visão "Verso" + filtro 100% coerente
 
-Revisão profunda da v1. Encontrei **4 furos novos** + 1 melhoria de UX. Corrigidos abaixo. O resto do plano v1 segue válido.
+## Princípio único de coerência
 
-## Furos novos encontrados
+**A visão "Verso" é uma lente sobre Linha 3 / Enchedora 3.** Os chips de estado **só** filtram dentro dessa lente. Tudo que mexe em verso (chips, Select de `/gestao/filtros`, badge "Filtros aplicados", contador, estado vazio) responde à mesma fonte de verdade: `filtros.estadoVerso`.
 
-### Furo A — Componente local recebe `filtros` mas isso causa stale closure
-Se `ChipsFiltroVerso` recebe `filtros` por prop e chama `setFiltros({ ...filtros, estadoVerso: novo })`, está OK porque o pai re-renderiza após `fm-storage-update`. **Mas** se o usuário clica dois chips muito rápido (antes do listener disparar setState), a segunda chamada usa `filtros` antigo da prop — e ainda assim funciona, porque `estadoVerso` é o único campo mudando e o spread preserva o resto. **Sem furo real, mas vou usar `getFiltros()` dentro do handler pra garantir leitura fresca do storage.**
+## Fonte de verdade única
 
-### Furo B — Listener `fm-storage-update` filtra por `key`
-Linha 56-65 de `gestao.checklists.tsx` (presumido): listener checa `event.detail?.key === FILTROS_KEY` antes de re-ler. `setFiltros` em `lib/checklist/filtros.ts` (linha 42) dispara com `detail: { key: KEY }` onde `KEY === FILTROS_KEY`. **Bate. Sem furo.** Confirmar na implementação.
+```text
+filtros.estadoVerso ∈ { undefined | "com_verso" | "pendente" | "ocorrencias" | "validado" }
+                            ↓
+        ┌───────────────────┼────────────────────┐
+        ↓                   ↓                    ↓
+  Chips visão Verso    Select /gestao/filtros   filtrarFolhas()
+  (Todos/Pen/Oco/Val)  (5 opções incl. com_verso) (lógica aplicada)
+        ↓                   ↓                    ↓
+        └───────────→ localStorage ←────────────┘
+                  + evento fm-storage-update
+                  → todos os listeners re-leem
+```
 
-### Furo C — `temVerso` precisa de `folha.contexto` populado
-O filtro `com_verso` em `filtrarFolhas` chama `temVerso(folha)`. Se alguma folha vier com contexto incompleto (linha undefined), pode quebrar. Verifiquei `aplicabilidade.ts` — função já trata `linha === "Linha 3"` defensivamente. **Sem furo.**
+## Contrato de cada visão
 
-### Furo D — Estado vazio: distinguir 3 cenários, não 2
-Cenários quando `folhas.length === 0`:
-1. `estadoVerso` ativo + outros filtros ativos → "Nenhuma folha corresponde aos filtros aplicados" + 2 botões (Limpar verso / Limpar todos)
-2. Só `estadoVerso` ativo → "Nenhuma folha corresponde ao filtro de verso" + botão "Limpar filtro de verso"
-3. Só outros filtros ou nenhum filtro → mensagem atual genérica
-**Plano v1 só cobria cenário 2. Corrigir.**
+| Visão | Lista base | Aplica `temVerso`? | Aplica `estadoVerso`? | Mostra chips? |
+|---|---|---|---|---|
+| Checklist do dia | `filtrarFolhas(todasFolhas, filtros)` | Não (apenas se `estadoVerso` ativo via `filtrarFolhas`) | Sim (se setado) | Não |
+| Por momento | `filtrarChecklists(...)` | N/A (não é folha) | Sim (se setado, via `filtrarChecklists`) | Não |
+| **Verso** | `filtrarFolhas(...).filter(temVerso)` | **Sim, sempre** | Sim (se setado) | **Sim** |
 
-### Melhoria UX — Indicador visual de "Linha 3 only"
-O label "Verso (Linha 3):" já indica escopo, mas quando o gestor está com filtro de equipe/turno que **exclui Linha 3**, clicar num chip vai zerar a lista. Adicionar um aviso sutil quando isso ocorrer: badge `text-xs text-amber-600` "Filtros atuais não incluem Linha 3".
+**Regra crítica:** na visão Verso, `temVerso` é aplicado **sempre**, mesmo se `estadoVerso === undefined`. Garante que "Todos" significa "todas folhas Linha 3", não "todas as linhas".
 
-Detecção: se `filtros.estadoVerso` ativo E `folhas.filter(temVerso).length === 0` no resultado **antes** do filtro de verso. Custo: 1 reduce. Benefício: evita "lista vazia misteriosa".
-
-**Decisão:** implementar versão simples — se resultado final é vazio E `estadoVerso` ativo, a mensagem de cenário 2 já cobre. Pular esta melhoria pra manter plano enxuto. Documentar como TODO futuro.
-
-## Plano final (v2)
+## Mudanças técnicas
 
 **1 arquivo editado:** `src/routes/gestao.checklists.tsx`
 
-### Mudanças
+### 1. Tipo e import
 
-1. **Import:** adicionar `setFiltros` ao import existente de `@/lib/checklist/filtros`.
-2. **Componente local `ChipsFiltroVerso`** (~50 linhas, inline no arquivo):
-   - Recebe `estadoAtual: EstadoVersoFiltro | undefined`.
-   - Renderiza label + 5 chips (`button` com `aria-pressed`).
-   - Handler usa `getFiltros()` pra garantir leitura fresca, depois `setFiltros({ ...atual, estadoVerso: novo })`.
-   - Container: `flex flex-wrap items-center gap-2 mb-4 rounded-lg border border-border bg-muted/30 px-3 py-2`.
-3. **Render condicional:** `{visao === "dia" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}` entre a barra de ações e o bloco de erro.
-4. **Estado vazio melhorado** — substituir bloco genérico por lógica de 3 cenários:
-   - Cenário 1 (`estadoVerso` + outros filtros): mensagem + 2 botões inline.
-   - Cenário 2 (só `estadoVerso`): mensagem específica + botão "Limpar filtro de verso".
-   - Cenário 3 (default): mensagem atual.
+```ts
+type Visao = "momento" | "dia" | "verso";
+import { temVerso } from "@/lib/verso/aplicabilidade"; // já importado via extrairFolhasDiaKeysComVerso? confirmar e reusar
+import { ClipboardCheck, Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
+```
 
-### Mapeamento chip → valor (idêntico ao Select de `/gestao/filtros`)
+### 2. Toggle bar (3 botões)
 
-| Chip | filtros.estadoVerso |
+Adiciona `[Verso]` com ícone `ClipboardCheck` no mesmo padrão visual dos outros 2 toggles. Em viewport 743px, `flex-wrap` existente quebra graciosamente.
+
+### 3. Lista derivada por visão
+
+```ts
+const folhasVerso = useMemo(
+  () => folhas.filter(temVerso),
+  [folhas]
+);
+```
+
+`folhas` já vem de `filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso)` — então `estadoVerso` já foi aplicado. `folhasVerso` apenas restringe a Linha 3.
+
+### 4. Chips: condição `visao === "verso"` (não `"dia"`)
+
+Remover chip "Com verso" do array. Restam **4 chips**:
+
+| Chip | `estadoVerso` |
 |---|---|
 | Todos | `undefined` |
-| Com verso | `"com_verso"` |
 | Pendente | `"pendente"` |
 | Ocorrências | `"ocorrencias"` |
 | Validado | `"validado"` |
 
-### Estilo
+Justificativa: na visão Verso, "Todos" já significa "todas Linha 3" (via `temVerso`), tornando "Com verso" redundante. O valor `"com_verso"` permanece no tipo e no Select para compatibilidade — se o usuário setou via Select, a visão Verso aplica normalmente, mas nenhum chip destaca (esperado).
 
-- Chip ativo: `bg-primary text-primary-foreground`
-- Chip inativo: `bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40`
-- `h-8 px-3 rounded-md text-xs font-semibold`
-- `aria-pressed`, `focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1`
+### 5. Render do conteúdo
 
-## Critérios de aceitação (10)
+```ts
+visao === "verso"
+  ? folhasVerso.length === 0
+    ? <FolhasVazio filtros={filtros} visao="verso" />
+    : <Grid>{folhasVerso.map(card)}</Grid>
+  : visao === "dia"
+    ? folhas.length === 0
+      ? <FolhasVazio filtros={filtros} visao="dia" />
+      : <Grid>{folhas.map(card)}</Grid>
+    : <TabelaMomento lista={lista} />
+```
 
-1. Em 743px, chips ficam em 1–2 linhas, sem overflow horizontal.
-2. Sem `estadoVerso` ativo, "Todos" aparece destacado (default visível).
-3. Clicar "Ocorrências" → lista filtra para Linha 3 com `saude === "atencao"`.
-4. Aplicar chip aqui → abrir `/gestao/filtros` → Select reflete o mesmo valor.
-5. Aplicar Select em `/gestao/filtros` → voltar → chip correspondente está ativo.
-6. Visão "Por momento" oculta a barra de chips.
-7. Chips são mutuamente exclusivos (radio behavior). "Todos" é o reset.
-8. Lista vazia + só `estadoVerso` ativo → mensagem específica + botão "Limpar filtro de verso".
-9. Lista vazia + `estadoVerso` + outros filtros → mensagem + 2 botões (Limpar verso / Limpar todos).
-10. Badge "Filtros aplicados" continua refletindo `filtrosAtivos()` (já considera `estadoVerso`).
+### 6. Contador no header
+
+```ts
+const totalLabel =
+  visao === "verso"
+    ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
+    : visao === "dia"
+      ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
+      : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
+```
+
+### 7. Estado vazio com prop `visao`
+
+`FolhasVazio` recebe `visao: "dia" | "verso"`. 4 cenários combinados:
+
+| Visão | `estadoVerso` ativo | Outros filtros ativos | Mensagem | Botões |
+|---|---|---|---|---|
+| dia | sim | sim | "Nenhuma folha corresponde aos filtros" | Limpar verso / Limpar todos |
+| dia | sim | não | "Nenhuma folha corresponde ao filtro de verso" | Limpar filtro de verso |
+| dia | não | qualquer | "Nenhum checklist disponível" | — |
+| verso | sim | sim | "Nenhuma folha de Linha 3 corresponde aos filtros" | Limpar verso / Limpar todos |
+| verso | sim | não | "Nenhuma folha de Linha 3 com este estado" | Limpar filtro de verso |
+| verso | não | sim | "Filtros atuais não retornam folhas de Linha 3" | Limpar todos os filtros |
+| verso | não | não | "Nenhuma folha de Linha 3 disponível" | — |
+
+### 8. Sincronia bidirecional (já garantida, mas explicitada)
+
+- Chip clicado → `setFiltros({...getFiltros(), estadoVerso: novo})` → grava em `localStorage` → dispara `fm-storage-update` → listener da página re-lê.
+- Select em `/gestao/filtros` muda → mesmo fluxo → ao voltar pra `/gestao/checklists`, chip correspondente está ativo (ou nenhum se valor é `"com_verso"`).
+- Trocar visão **não** modifica `filtros` (visão é state local volátil; filtro é persistido).
+- Badge "Filtros aplicados" usa `filtrosAtivos(filtros)` que já considera `estadoVerso` — funciona em qualquer visão.
+
+## Critérios de aceitação (zero furos — 14)
+
+1. Barra mostra 3 toggles + Filtros, sem overflow horizontal em 743px (quebra de linha aceita via `flex-wrap`).
+2. Visão "Verso" lista **só** Linha 3 / Enchedora 3, mesmo com chip "Todos" ativo.
+3. Visão "Checklist do dia" mostra todas as linhas e **não** exibe a barra de chips.
+4. Visão "Por momento" mostra tabela linear e **não** exibe a barra de chips.
+5. Chips de estado aparecem **apenas** quando `visao === "verso"`.
+6. Sem `estadoVerso` ativo na visão Verso, "Todos" aparece destacado.
+7. Clicar "Pendente" na visão Verso filtra para Linha 3 com PTP/Limpeza pendentes.
+8. Trocar de visão **não** modifica `filtros.estadoVerso` (chip ativo persiste ao voltar).
+9. Aplicar Select "Verso (Linha 3)" em `/gestao/filtros` com valor `pendente`/`ocorrencias`/`validado` → voltar → chip correspondente está destacado na visão Verso.
+10. Aplicar Select com valor `com_verso` → visão Verso filtra normalmente, mas nenhum chip destaca (comportamento documentado, não bug).
+11. Contador no header mostra `"X folha(s) de Linha 3"` na visão Verso, `"X folha(s) do dia"` na visão Dia, `"X registro(s)"` na visão Momento.
+12. Estado vazio mostra mensagem + botões coerentes com cada um dos 7 cenários da tabela acima.
+13. Badge "Filtros aplicados" no botão Filtros reflete `filtrosAtivos()` em qualquer visão (não muda comportamento).
+14. Ícone `ClipboardCheck` usado no toggle Verso (já disponível em `lucide-react`, sem dependência nova).
+
+## Pontos blindados (verificações que zeraram furos)
+
+- **`temVerso` aplicado sempre na visão Verso** (não só quando chip ativo) → garante que "Todos" não vaza outras linhas.
+- **Chip "Com verso" removido**, mas valor `"com_verso"` mantido no tipo/Select → compatibilidade com `localStorage` antigo e com Select completo.
+- **Trocar visão não toca em `filtros`** → estado de UI volátil separado de filtro persistido (sem efeitos colaterais cruzados).
+- **Estado vazio cobre 7 cenários combinatórios** (visão × estadoVerso × outros filtros) → nunca cai em mensagem genérica errada.
+- **Contador específico por visão** → header sempre coerente com o que está renderizado.
+- **Sincronia via `fm-storage-update`** já existe e funciona — só aproveitamos.
+- **Hook `useVersosDosDiasRemote(folhaDiaKeys)`** continua recebendo todas as keys de `todasFolhas` (não filtradas) → resumos disponíveis tanto na visão Dia quanto Verso, sem refetch.
 
 ## O que NÃO faço
 
-- ❌ Mexer em `lib/checklist/filtros.ts`, `gestao.filtros.tsx`, hooks ou componentes de verso.
-- ❌ Criar arquivo separado pro componente (~50 linhas, melhor inline no consumidor único).
-- ❌ Aviso "Filtros atuais não incluem Linha 3" (cenário 2 já cobre via mensagem).
-- ❌ Contadores nos chips (custo de reduces extras, ganho marginal).
-- ❌ Persistir preferência separada (`setFiltros` já vai pro storage).
+- ❌ Criar componente "card rico" novo com barra de progresso PTP detalhada (reaproveita `ChecklistDiaResumoCard` que já mostra badges via `versoResumo` — card rico fica como TODO).
+- ❌ Criar rota `/gestao/verso` (visão é state interno, consistente com toggles existentes).
+- ❌ Persistir visão escolhida em localStorage (volátil, igual aos outros toggles do app).
+- ❌ Mexer em `lib/checklist/filtros.ts`, `gestao.filtros.tsx`, hooks de verso ou componentes de card.
+- ❌ Remover `"com_verso"` do tipo `EstadoVersoFiltro` (compatibilidade).
+- ❌ Auto-aplicar `com_verso` ao entrar na visão Verso (visão é lente, não filtro — não polui storage).
+- ❌ Refatorar a sincronia `fm-storage-update` (já funciona).
 
