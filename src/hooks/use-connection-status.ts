@@ -148,14 +148,13 @@ const store = {
     if (!navigator.onLine) return false;
     try {
       const url = import.meta.env.VITE_SUPABASE_URL;
+      const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       if (!url) return navigator.onLine;
       const res = await fetch(`${url}/rest/v1/`, {
         method: "HEAD",
+        headers: apikey ? { apikey } : undefined,
         signal: AbortSignal.timeout(5000),
       });
-      // erro de rede (fetch throws) → offline
-      // 5xx → servidor indisponível → offline
-      // qualquer outra resposta → servidor acessível
       return res.status < 500;
     } catch {
       return false;
@@ -165,6 +164,10 @@ const store = {
   async checkNow(): Promise<boolean> {
     const ok = await this.checkBackend();
     this.setOnline(ok);
+    // se está online e tem pendências, drena a fila imediatamente
+    if (ok && this.state.pendingCount > 0 && !this.state.sincronizando) {
+      void this.sincronizar();
+    }
     return ok;
   },
 
