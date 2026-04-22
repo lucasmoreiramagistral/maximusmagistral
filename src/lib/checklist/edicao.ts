@@ -92,15 +92,17 @@ export function dentroDaJanelaEdicao(checklist: Checklist): boolean {
 
 export interface PermissaoEdicao {
   permitido: boolean;
-  motivo?: "outra_conta" | "fora_horario" | "nao_concluido";
+  motivo?: "outra_conta" | "fora_horario" | "nao_concluido" | "assinado";
   mensagem?: string;
 }
 
 /**
  * Verifica se o usuário logado pode editar este checklist.
  * Regras:
+ *  - precisa estar concluído
  *  - precisa ser a MESMA conta operacional (operadorLogin)
  *  - precisa estar dentro da janela de horário do turno da folha
+ *  - NÃO pode estar assinado por operador + líder (fechamento do dia)
  */
 export function permissaoEdicaoChecklist(
   checklist: Checklist,
@@ -119,6 +121,16 @@ export function permissaoEdicaoChecklist(
       motivo: "outra_conta",
       mensagem:
         "Este checklist foi preenchido por outra conta operacional e não pode ser alterado neste acesso.",
+    };
+  }
+  // Bloqueio definitivo: se ambas as assinaturas (operador e líder) já foram coletadas
+  // no fechamento do dia, o checklist está finalizado e não pode mais ser alterado.
+  if (checklist.assinaturaOperador?.dataUrl && checklist.assinaturaLider?.dataUrl) {
+    return {
+      permitido: false,
+      motivo: "assinado",
+      mensagem:
+        "Checklist finalizado e assinado pelo operador e pelo líder. Não pode mais ser alterado.",
     };
   }
   if (!dentroDaJanelaEdicao(checklist)) {

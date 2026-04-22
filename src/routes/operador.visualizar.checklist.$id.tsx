@@ -89,6 +89,11 @@ function VisualizarChecklist() {
                 Edição bloqueada. O horário deste turno já encerrou.
               </p>
             )}
+            {permissao && !permissao.permitido && permissao.motivo === "assinado" && (
+              <p className="mb-4 rounded-md border border-success/40 bg-success-soft px-3 py-2 text-sm font-medium text-success">
+                ✓ Checklist finalizado e assinado pelo operador e pelo líder. Não pode mais ser alterado.
+              </p>
+            )}
             <ChecklistDetalhe checklist={checklist} anomaliasVinculadas={vinculadas} />
           </>
         ) : (
