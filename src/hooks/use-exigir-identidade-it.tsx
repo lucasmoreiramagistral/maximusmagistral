@@ -20,6 +20,7 @@ import {
 import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
 import {
   decidirModoIdentidade,
+  isIdentidadeBypass,
   lerIdentidadeDevice,
   obterOuCriarDeviceId,
   salvarIdentidadeDevice,
