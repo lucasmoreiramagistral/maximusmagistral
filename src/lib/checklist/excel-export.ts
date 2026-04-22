@@ -563,7 +563,7 @@ function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
 
 function nomeArquivo(
   folha: FolhaChecklistDia,
-  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo" | "verso-apenas",
 ): string {
   const data = folha.contexto.data;
   const equipe = sanitizarArquivo(folha.contexto.equipe);
@@ -573,6 +573,9 @@ function nomeArquivo(
   }
   if (modo === "frente-verso-completo") {
     return `FM09_FRENTE_VERSO_COMPLETO_L3_${data}_${equipe}.xlsx`;
+  }
+  if (modo === "verso-apenas") {
+    return `FM09_VERSO_PTP_LIMPEZA_L3_${data}_${equipe}.xlsx`;
   }
   const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   return `FM09_CHECKLIST_OPERACIONAL_L3_${data}_${turno}_${equipe}_EDITAVEL.xlsx`;
