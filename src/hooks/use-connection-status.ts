@@ -290,7 +290,7 @@ const store = {
             ultimoErro: msg,
           };
           writeFila(fila);
-          this.state = { ...this.state, fila: [...fila], pendingCount: fila.length };
+          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
           this.emit();
           if (isConflito) {
             // não retenta automaticamente, alerta o usuário
