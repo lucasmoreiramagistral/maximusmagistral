@@ -1,156 +1,132 @@
 
 
-# Plano final v4 — Visão "Verso" + filtro 100% coerente
+# Plano — Verso (PTP + Limpeza) no Relatório da Gestão (revisado)
 
-## Princípio único de coerência
+GPT validou a direção geral e adicionou 5 correções críticas que mudam a arquitetura do plano anterior. Incorporo todas.
 
-**A visão "Verso" é uma lente sobre Linha 3 / Enchedora 3.** Os chips de estado **só** filtram dentro dessa lente. Tudo que mexe em verso (chips, Select de `/gestao/filtros`, badge "Filtros aplicados", contador, estado vazio) responde à mesma fonte de verdade: `filtros.estadoVerso`.
+## Diferenças vs. plano anterior
 
-## Fonte de verdade única
+| Tema | Plano antigo | Plano novo (correto) |
+|---|---|---|
+| Denominador de aderência | "dias com qualquer registro" | **Turnos da frente deduplicados** (data_operacao + turno) |
+| Chave de join frente×verso | `folhaDiaKey` | **`data_operacao + turno`** (folhaDiaKey não tem turno) |
+| Filtro PTP por turno | `.eq("turno", ...)` na SQL | Buscar por período, **derivar turno em memória** via `PTP_JANELAS_POR_TURNO` (J01–J06=Dia, J07–J12=Noite) |
+| Semântica PTP | `quantidade` = ocorrência | **`quantidade` = marcações; ocorrências = quantidade × 2** (mostrar ambos) |
+| Hook reutilizado | `useVersosDosDiasRemote` (1 dia) | **Novo `use-verso-relatorio.ts`** (intervalo) — `fetchPtpJanelas`/`fetchLimpezaTurnos` atuais são por `folha_dia_key` único |
+
+## Arquitetura
 
 ```text
-filtros.estadoVerso ∈ { undefined | "com_verso" | "pendente" | "ocorrencias" | "validado" }
-                            ↓
-        ┌───────────────────┼────────────────────┐
-        ↓                   ↓                    ↓
-  Chips visão Verso    Select /gestao/filtros   filtrarFolhas()
-  (Todos/Pen/Oco/Val)  (5 opções incl. com_verso) (lógica aplicada)
-        ↓                   ↓                    ↓
-        └───────────→ localStorage ←────────────┘
-                  + evento fm-storage-update
-                  → todos os listeners re-leem
+src/hooks/use-verso-relatorio.ts        ← NOVO  (queries por período)
+src/lib/verso/reporting.ts              ← NOVO  (agregações puras)
+src/routes/gestao.relatorio.tsx         ← EDIT  (5 blocos novos no fim)
 ```
 
-## Contrato de cada visão
+### 1. `src/hooks/use-verso-relatorio.ts`
 
-| Visão | Lista base | Aplica `temVerso`? | Aplica `estadoVerso`? | Mostra chips? |
-|---|---|---|---|---|
-| Checklist do dia | `filtrarFolhas(todasFolhas, filtros)` | Não (apenas se `estadoVerso` ativo via `filtrarFolhas`) | Sim (se setado) | Não |
-| Por momento | `filtrarChecklists(...)` | N/A (não é folha) | Sim (se setado, via `filtrarChecklists`) | Não |
-| **Verso** | `filtrarFolhas(...).filter(temVerso)` | **Sim, sempre** | Sim (se setado) | **Sim** |
-
-**Regra crítica:** na visão Verso, `temVerso` é aplicado **sempre**, mesmo se `estadoVerso === undefined`. Garante que "Todos" significa "todas folhas Linha 3", não "todas as linhas".
-
-## Mudanças técnicas
-
-**1 arquivo editado:** `src/routes/gestao.checklists.tsx`
-
-### 1. Tipo e import
-
-```ts
-type Visao = "momento" | "dia" | "verso";
-import { temVerso } from "@/lib/verso/aplicabilidade"; // já importado via extrairFolhasDiaKeysComVerso? confirmar e reusar
-import { ClipboardCheck, Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
+```text
+useVersoRelatorioRemote(dataInicio, dataFim) → {
+  ptp: PtpJanela[],        // todas do período, sem filtro de turno
+  limpeza: LimpezaTurno[], // todas do período
+  loading, error, refetch
+}
 ```
 
-### 2. Toggle bar (3 botões)
+- 2 queries paralelas em `ptp_janelas` e `limpeza_turnos` com `.from(... as never)`, `.gte/.lte("data_operacao", ...)`, `.order("data_operacao")`.
+- Mappers: `ptpJanelaFromRow` / `limpezaTurnoFromRow` (já existem).
+- Sem realtime. Refetch on `visibilitychange` (debounced), igual hooks remotos atuais.
+- Erro isolado no `error` — não quebra render do relatório.
 
-Adiciona `[Verso]` com ícone `ClipboardCheck` no mesmo padrão visual dos outros 2 toggles. Em viewport 743px, `flex-wrap` existente quebra graciosamente.
+### 2. `src/lib/verso/reporting.ts` (puro, sem React)
 
-### 3. Lista derivada por visão
+Funções principais:
 
-```ts
-const folhasVerso = useMemo(
-  () => folhas.filter(temVerso),
-  [folhas]
-);
+```text
+construirReferenciaFrente(checklistsFiltrados)
+  → Set<{ dataOperacao, turno, equipe?, linha?, maquina? }>
+  // dedup por data_operacao + turno
+
+derivarTurnoDaJanela(janelaCodigo): Turno
+  // usa PTP_JANELAS_POR_TURNO de constants.ts
+
+cruzarFrenteVerso(referenciaFrente, ptp, limpeza)
+  → LinhaAderencia[]
+  // por turno: { data, turno, equipe, frenteOk, ptpEsperadas[], 
+  //              ptpRealizadas[], limpezaStatus, situacao }
+  // situacao: 'completo' | 'ptp_pendente' | 'limpeza_pendente' 
+  //         | 'verso_incompleto' | 'frente_sem_verso'
+
+calcularResumoVerso(ref, ptp, limpeza) → ResumoVerso
+  // 12 KPIs do Bloco 1
+
+calcularDiagnosticoPtp(ptp, ref) → DiagnosticoPtp
+  // distribuição status; top itens com marcações + ocorrências(×2);
+  // distribuição J01..J12; janelas com observação
+
+calcularDiagnosticoLimpeza(limpeza, ref) → DiagnosticoLimpeza
+  // distribuição status turnos; top itens nao_realizado;
+  // taxa validação líder; série diária de não realizados
+
+calcularAlertasVerso(...) → AlertaOperacional[]
+
+registrosVersoForaDoRecorte(ref, ptp, limpeza) → { ptp[], limpeza[] }
+  // diagnóstico separado, NÃO entra no denominador
 ```
 
-`folhas` já vem de `filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso)` — então `estadoVerso` já foi aplicado. `folhasVerso` apenas restringe a Linha 3.
+Regras travadas no código:
+- PTP: status concluída ≠ `pendente` e ≠ `rascunho`.
+- Limpeza: completa só se `status === "validado"`.
+- Top item PTP exibe `"X marcações (2X ocorrências)"`.
+- Apenas estado atual; **nunca** ler `ptp_janelas_edicoes` / `limpeza_turnos_edicoes`.
 
-### 4. Chips: condição `visao === "verso"` (não `"dia"`)
+### 3. `src/routes/gestao.relatorio.tsx` — 5 blocos novos
 
-Remover chip "Com verso" do array. Restam **4 chips**:
+Inseridos após o Bloco 7 atual, dentro de um `<ErrorBoundary>` próprio do verso (falha do verso não derruba relatório):
 
-| Chip | `estadoVerso` |
-|---|---|
-| Todos | `undefined` |
-| Pendente | `"pendente"` |
-| Ocorrências | `"ocorrencias"` |
-| Validado | `"validado"` |
-
-Justificativa: na visão Verso, "Todos" já significa "todas Linha 3" (via `temVerso`), tornando "Com verso" redundante. O valor `"com_verso"` permanece no tipo e no Select para compatibilidade — se o usuário setou via Select, a visão Verso aplica normalmente, mas nenhum chip destaca (esperado).
-
-### 5. Render do conteúdo
-
-```ts
-visao === "verso"
-  ? folhasVerso.length === 0
-    ? <FolhasVazio filtros={filtros} visao="verso" />
-    : <Grid>{folhasVerso.map(card)}</Grid>
-  : visao === "dia"
-    ? folhas.length === 0
-      ? <FolhasVazio filtros={filtros} visao="dia" />
-      : <Grid>{folhas.map(card)}</Grid>
-    : <TabelaMomento lista={lista} />
+```text
+Bloco 8  · Verso da folha — Resumo                    (12 KPIs)
+Bloco 9  · Aderência documental Frente × Verso        (tabela por turno)
+Bloco 10 · Diagnóstico PTP                            (status, top itens, J01..J12, observações)
+Bloco 11 · Diagnóstico Limpeza                        (status, top não-realizados, validação líder, série)
+Bloco 12 · Alertas operacionais do verso              (lista curta, linguagem operacional)
 ```
 
-### 6. Contador no header
+Visibilidade: blocos só renderizam se `referenciaFrente.size > 0`. Se zero → estado vazio único: "Sem turnos da frente no recorte para avaliar verso."
 
-```ts
-const totalLabel =
-  visao === "verso"
-    ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
-    : visao === "dia"
-      ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
-      : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
+Aviso discreto quando filtros incompatíveis (`statusAnomalia`, `criticidade`, `categoria`, `momento`, `equipamentoAfetado`) estiverem ativos: *"Indicadores do verso seguem data/turno/equipe da frente e não variam por filtros específicos de anomalias."*
+
+Quando `error` do hook do verso → renderizar apenas: *"Não foi possível carregar os dados do verso."* nos blocos 8–12, mantendo blocos 1–7 intactos.
+
+## Lógica de cruzamento (passo a passo)
+
+```text
+1. checklistsFiltrados (já existe no relatório)
+2. referenciaFrente = dedup por (data_operacao, turno)
+3. para cada turno de referência:
+     janelasEsperadas = PTP_JANELAS_POR_TURNO[turno]   // 6 janelas
+     ptpDoTurno = ptp.filter(j => 
+        j.dataOperacao === ref.data && 
+        derivarTurnoDaJanela(j.janelaCodigo) === ref.turno)
+     limpezaDoTurno = limpeza.find(l =>
+        l.dataOperacao === ref.data && l.turno === ref.turno)
+     situacao = avaliar(janelasEsperadas, ptpDoTurno, limpezaDoTurno)
+4. registros de PTP/limpeza cuja chave (data, turno) ∉ referenciaFrente
+   → vão para "fora do recorte documental" (diagnóstico, não KPI)
 ```
 
-### 7. Estado vazio com prop `visao`
+## SQL necessária
 
-`FolhasVazio` recebe `visao: "dia" | "verso"`. 4 cenários combinados:
+**Nenhuma.** Tabelas e RLS atuais já cobrem. Mappers e constantes (`PTP_JANELAS_POR_TURNO`) já existem.
 
-| Visão | `estadoVerso` ativo | Outros filtros ativos | Mensagem | Botões |
-|---|---|---|---|---|
-| dia | sim | sim | "Nenhuma folha corresponde aos filtros" | Limpar verso / Limpar todos |
-| dia | sim | não | "Nenhuma folha corresponde ao filtro de verso" | Limpar filtro de verso |
-| dia | não | qualquer | "Nenhum checklist disponível" | — |
-| verso | sim | sim | "Nenhuma folha de Linha 3 corresponde aos filtros" | Limpar verso / Limpar todos |
-| verso | sim | não | "Nenhuma folha de Linha 3 com este estado" | Limpar filtro de verso |
-| verso | não | sim | "Filtros atuais não retornam folhas de Linha 3" | Limpar todos os filtros |
-| verso | não | não | "Nenhuma folha de Linha 3 disponível" | — |
+## Critérios de aceitação (do prompt do GPT)
 
-### 8. Sincronia bidirecional (já garantida, mas explicitada)
-
-- Chip clicado → `setFiltros({...getFiltros(), estadoVerso: novo})` → grava em `localStorage` → dispara `fm-storage-update` → listener da página re-lê.
-- Select em `/gestao/filtros` muda → mesmo fluxo → ao voltar pra `/gestao/checklists`, chip correspondente está ativo (ou nenhum se valor é `"com_verso"`).
-- Trocar visão **não** modifica `filtros` (visão é state local volátil; filtro é persistido).
-- Badge "Filtros aplicados" usa `filtrosAtivos(filtros)` que já considera `estadoVerso` — funciona em qualquer visão.
-
-## Critérios de aceitação (zero furos — 14)
-
-1. Barra mostra 3 toggles + Filtros, sem overflow horizontal em 743px (quebra de linha aceita via `flex-wrap`).
-2. Visão "Verso" lista **só** Linha 3 / Enchedora 3, mesmo com chip "Todos" ativo.
-3. Visão "Checklist do dia" mostra todas as linhas e **não** exibe a barra de chips.
-4. Visão "Por momento" mostra tabela linear e **não** exibe a barra de chips.
-5. Chips de estado aparecem **apenas** quando `visao === "verso"`.
-6. Sem `estadoVerso` ativo na visão Verso, "Todos" aparece destacado.
-7. Clicar "Pendente" na visão Verso filtra para Linha 3 com PTP/Limpeza pendentes.
-8. Trocar de visão **não** modifica `filtros.estadoVerso` (chip ativo persiste ao voltar).
-9. Aplicar Select "Verso (Linha 3)" em `/gestao/filtros` com valor `pendente`/`ocorrencias`/`validado` → voltar → chip correspondente está destacado na visão Verso.
-10. Aplicar Select com valor `com_verso` → visão Verso filtra normalmente, mas nenhum chip destaca (comportamento documentado, não bug).
-11. Contador no header mostra `"X folha(s) de Linha 3"` na visão Verso, `"X folha(s) do dia"` na visão Dia, `"X registro(s)"` na visão Momento.
-12. Estado vazio mostra mensagem + botões coerentes com cada um dos 7 cenários da tabela acima.
-13. Badge "Filtros aplicados" no botão Filtros reflete `filtrosAtivos()` em qualquer visão (não muda comportamento).
-14. Ícone `ClipboardCheck` usado no toggle Verso (já disponível em `lucide-react`, sem dependência nova).
-
-## Pontos blindados (verificações que zeraram furos)
-
-- **`temVerso` aplicado sempre na visão Verso** (não só quando chip ativo) → garante que "Todos" não vaza outras linhas.
-- **Chip "Com verso" removido**, mas valor `"com_verso"` mantido no tipo/Select → compatibilidade com `localStorage` antigo e com Select completo.
-- **Trocar visão não toca em `filtros`** → estado de UI volátil separado de filtro persistido (sem efeitos colaterais cruzados).
-- **Estado vazio cobre 7 cenários combinatórios** (visão × estadoVerso × outros filtros) → nunca cai em mensagem genérica errada.
-- **Contador específico por visão** → header sempre coerente com o que está renderizado.
-- **Sincronia via `fm-storage-update`** já existe e funciona — só aproveitamos.
-- **Hook `useVersosDosDiasRemote(folhaDiaKeys)`** continua recebendo todas as keys de `todasFolhas` (não filtradas) → resumos disponíveis tanto na visão Dia quanto Verso, sem refetch.
-
-## O que NÃO faço
-
-- ❌ Criar componente "card rico" novo com barra de progresso PTP detalhada (reaproveita `ChecklistDiaResumoCard` que já mostra badges via `versoResumo` — card rico fica como TODO).
-- ❌ Criar rota `/gestao/verso` (visão é state interno, consistente com toggles existentes).
-- ❌ Persistir visão escolhida em localStorage (volátil, igual aos outros toggles do app).
-- ❌ Mexer em `lib/checklist/filtros.ts`, `gestao.filtros.tsx`, hooks de verso ou componentes de card.
-- ❌ Remover `"com_verso"` do tipo `EstadoVersoFiltro` (compatibilidade).
-- ❌ Auto-aplicar `com_verso` ao entrar na visão Verso (visão é lente, não filtro — não polui storage).
-- ❌ Refatorar a sincronia `fm-storage-update` (já funciona).
+1. ✅ Relatório atual continua funcionando (blocos 1–7 intocados).
+2. ✅ Verso entra como blocos adicionais isolados em error boundary.
+3. ✅ Denominador = turnos da frente deduplicados.
+4. ✅ PTP exibe marcações + ocorrências (×2).
+5. ✅ Aderência calculada por turno da frente.
+6. ✅ Gestão vê: completo/incompleto, PTP por status, limpeza por status, top itens.
+7. ✅ Filtros incompatíveis não distorcem (aviso discreto).
+8. ✅ Falha do verso não derruba relatório (error boundary local).
+9. ✅ Sem mudanças em operador / auditoria / Excel / visualizar dia.
 
