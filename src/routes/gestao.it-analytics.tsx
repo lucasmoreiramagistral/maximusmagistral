@@ -234,8 +234,7 @@ function ItAnalytics() {
         if (evRes.value.error) throw evRes.value.error;
 
         setSessoes((sesRes.value.data as SessaoRow[]) ?? []);
-        const eventosCarregados = (evRes.value.data as EventoRow[]) ?? [];
-        setEventos(eventosCarregados);
+        setEventos((evRes.value.data as EventoRow[]) ?? []);
 
         if (difRes.status === "rejected") {
           setDificuldade([]);
