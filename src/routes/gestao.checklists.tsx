@@ -144,7 +144,7 @@ function ListaChecklists() {
           </div>
         </div>
 
-        {visao === "dia" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
+        {visao === "verso" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
 
         {erro && (
           <p className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive">
