@@ -127,8 +127,14 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
-  const { identidade, modal: modalIdentidade, pronto: identidadePronta } =
-    useExigirIdentidadeIt();
+  const docKey: "it002" | "it005" = slug === "operacao" ? "it002" : "it005";
+  const {
+    identidade,
+    modal: modalIdentidade,
+    pronto: identidadePronta,
+    semTreinamento,
+    verificandoAta,
+  } = useExigirIdentidadeIt(docKey);
   const telemetria = useItTelemetria({ slug, identidade });
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
@@ -193,12 +199,17 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
   // Gate de identidade: bloqueia o viewer até o operador se identificar
   if (!identidadePronta) {
+    if (identidade && semTreinamento && !verificandoAta) {
+      return <SemTreinamentoBloqueio nome={identidade.nomeCompleto} tituloIt={tituloIt} />;
+    }
     return (
       <div className="min-h-screen bg-background">
         <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <p className="text-center text-sm text-muted-foreground">
-            Aguardando identificação do operador...
+            {verificandoAta
+              ? "Verificando treinamento..."
+              : "Aguardando identificação do operador..."}
           </p>
         </div>
         {modalIdentidade}
@@ -747,6 +758,65 @@ function PainelIndice({
           })}
         </ul>
       )}
+    </div>
+  );
+}
+
+function SemTreinamentoBloqueio({
+  nome,
+  tituloIt,
+}: {
+  nome: string;
+  tituloIt: string;
+}) {
+  return (
+    <div className="min-h-screen bg-background">
+      <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
+      <main className="mx-auto flex min-h-[70vh] w-full max-w-xl items-center px-4 py-8">
+        <div className="w-full rounded-2xl border-2 border-warning/40 bg-card p-6 text-center md:p-8">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-warning/15">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-8 w-8 text-warning-foreground"
+            >
+              <path d="M12 9v4" />
+              <path d="M12 17h.01" />
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-foreground md:text-2xl">
+            Acesso bloqueado
+          </h2>
+          <p className="mt-2 text-sm text-muted-foreground md:text-base">
+            <strong className="text-foreground">{nome}</strong>, você ainda não
+            tem ata de treinamento cadastrada para esta IT.
+          </p>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Para liberar o acesso, cadastre a Ata de Treinamento na Função com a
+            assinatura do instrutor que te ensinou.
+          </p>
+          <div className="mt-6 flex flex-col gap-2">
+            <a
+              href="/operador/it/ata"
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-base font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98]"
+            >
+              Cadastrar Ata de Treinamento
+            </a>
+            <a
+              href="/operador/it"
+              className="inline-flex h-11 items-center justify-center rounded-xl border-2 border-border bg-background px-5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+            >
+              Voltar
+            </a>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
