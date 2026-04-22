@@ -39,7 +39,9 @@ function VisualizarDiaPage() {
   const { data: checklists, loading: loadingC } = useChecklistsRemote({ realtime: true });
   const { data: anomalias, loading: loadingA } = useAnomaliasRemote({ realtime: true });
   const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState<"turno" | "dia" | null>(null);
+  const [exporting, setExporting] = useState<
+    "turno" | "dia" | "turno-verso" | "frente-verso-completo" | null
+  >(null);
 
   const todasFolhas = useMemo(
     () => buildFolhasAgrupadas(checklists, anomalias),
