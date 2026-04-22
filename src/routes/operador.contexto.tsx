@@ -96,6 +96,13 @@ function ContextoPage() {
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
+      const nomeKey = nomeStorageKey(usuario.userId);
+      if (nomeKey) {
+        window.localStorage.setItem(nomeKey, nomeLimpo);
+        window.dispatchEvent(
+          new CustomEvent("fm-storage-update", { detail: { key: nomeKey } }),
+        );
+      }
     }
     storage.clearRascunho();
     navigate({ to: "/operador/momento" });
