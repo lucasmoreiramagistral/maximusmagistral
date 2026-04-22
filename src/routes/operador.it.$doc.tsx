@@ -315,7 +315,7 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
             className={cn(
               "flex items-center justify-center gap-1.5 px-3 py-1 text-[11px] font-medium",
               mostrarOffline
-                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                ? "bg-destructive/10 text-destructive"
                 : "bg-muted/60 text-muted-foreground",
             )}
             role="status"
