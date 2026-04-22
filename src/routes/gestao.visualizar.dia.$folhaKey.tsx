@@ -19,6 +19,8 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import { exportarFolhaDiaExcel, exportarTurnoExcel } from "@/lib/checklist/excel-export";
 import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
+import { VersoDiaDetalhe } from "@/components/verso-dia-detalhe";
+import { temVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 export const Route = createFileRoute("/gestao/visualizar/dia/$folhaKey")({
@@ -96,6 +98,18 @@ function VisualizarDiaPage() {
               anomalias={anomalias}
               onExportar={() => setExportOpen(true)}
             />
+            {temVerso(folha) && (
+              <div className="mt-6">
+                <VersoDiaDetalhe
+                  folhaDiaKey={buildFolhaDiaKey(
+                    folha.contexto.data,
+                    folha.contexto.linha,
+                    folha.contexto.maquina,
+                  )}
+                  dataOperacao={folha.contexto.data}
+                />
+              </div>
+            )}
             <div className="mt-6">
               <ObservacoesVersoConsolidado
                 folhaDiaKey={buildFolhaDiaKey(

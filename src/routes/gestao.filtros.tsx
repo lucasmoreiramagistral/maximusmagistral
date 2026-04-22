@@ -15,7 +15,7 @@ import {
 import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { getFiltros, setFiltros } from "@/lib/checklist/filtros";
-import type { Filtros } from "@/lib/checklist/filtros";
+import type { EstadoVersoFiltro, Filtros } from "@/lib/checklist/filtros";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type {
   CategoriaAnomalia,
@@ -347,7 +347,7 @@ function FiltrosPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="md:col-span-2">
+              <div>
                 <Label className="text-base">Equipamento afetado</Label>
                 <Select
                   value={f.equipamentoAfetado ?? ""}
@@ -367,6 +367,40 @@ function FiltrosPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label className="text-base">Estado do verso (Linha 3)</Label>
+                <Select
+                  value={f.estadoVerso ?? ""}
+                  onValueChange={(v) =>
+                    atualizar({
+                      ...f,
+                      estadoVerso:
+                        v === "_todos" ? undefined : (v as EstadoVersoFiltro),
+                    })
+                  }
+                >
+                  <SelectTrigger className="mt-1.5 h-12 w-full text-base">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_todos">Todos</SelectItem>
+                    <SelectItem value="com_verso">
+                      Apenas folhas com verso (Linha 3)
+                    </SelectItem>
+                    <SelectItem value="pendente">Verso pendente</SelectItem>
+                    <SelectItem value="ocorrencias">
+                      Verso com ocorrências
+                    </SelectItem>
+                    <SelectItem value="validado">
+                      Verso 100% validado
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Inclui PTP Garrafas + Limpeza Sala de Envase. Folhas de outras
+                  linhas/máquinas são ignoradas por este filtro.
+                </p>
               </div>
             </div>
           </Section>
