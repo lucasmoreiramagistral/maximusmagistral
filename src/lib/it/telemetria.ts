@@ -19,7 +19,13 @@ export type TipoEventoIt =
   | "zoom_reset"
   | "image_retry"
   | "image_error"
-  | "cache_mode";
+  | "cache_mode"
+  | "identidade_declarada"
+  | "identidade_confirmada"
+  | "identidade_trocada"
+  | "identidade_trocada_servidor"
+  | "identidade_expirada"
+  | "heartbeat";
 
 export type ModoCacheIt = "online" | "cache" | "offline";
 
