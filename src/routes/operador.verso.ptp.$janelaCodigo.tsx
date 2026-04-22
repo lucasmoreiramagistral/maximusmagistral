@@ -1,6 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Minus, Plus } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -82,17 +81,34 @@ function PtpJanelaDetalhe() {
   const jaConcluida =
     janelaBase.statusJanela !== "pendente" && janelaBase.statusJanela !== "rascunho";
 
-  const ajustar = (codigo: string, delta: number) => {
+  /**
+   * Define a quantidade de marcações de um item (0..6).
+   * Cada marcação representa 2 ocorrências da anomalia, conforme padrão
+   * oficial da folha física do PTP (6 quadradinhos por item, valendo 2 cada).
+   */
+  const setMarcacoes = (codigo: string, novaQtd: number) => {
     if (naoRodou) return;
+    const qtd = Math.max(0, Math.min(6, novaQtd));
     setItens((prev) =>
       recalcularStatusItens(
-        prev.map((i) =>
-          i.codigo === codigo
-            ? { ...i, quantidade: Math.max(0, (i.quantidade || 0) + delta) }
-            : i,
-        ),
+        prev.map((i) => (i.codigo === codigo ? { ...i, quantidade: qtd } : i)),
       ),
     );
+  };
+
+  /**
+   * Toggle do quadradinho na posição `pos` (1..6).
+   * - Se a posição já estava marcada, desmarca todas dela em diante.
+   * - Se ainda não estava, marca todas até essa posição (preenchimento sequencial).
+   * Esse comportamento espelha como o operador preencheria a folha de papel.
+   */
+  const toggleQuadradinho = (codigo: string, pos: number) => {
+    if (naoRodou) return;
+    const item = itens.find((i) => i.codigo === codigo);
+    if (!item) return;
+    const atual = item.quantidade || 0;
+    const nova = atual >= pos ? pos - 1 : pos;
+    setMarcacoes(codigo, nova);
   };
 
   const toggleNaoRodou = (v: boolean) => {
@@ -202,44 +218,64 @@ function PtpJanelaDetalhe() {
           <Switch checked={naoRodou} onCheckedChange={toggleNaoRodou} />
         </div>
 
-        {/* Itens */}
+        {/* Aviso de regra */}
+        <div className="mb-3 rounded-xl border-2 border-primary/30 bg-primary/5 p-3 text-sm">
+          <p className="font-semibold text-foreground">
+            Cada marcação na folha equivale a 2 ocorrências da anomalia.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Toque em um quadradinho para marcar/desmarcar. Limite de 6 marcações por item (= 12 ocorrências).
+          </p>
+        </div>
+
+        {/* Itens — interface fiel ao papel: 6 quadradinhos clicáveis por item */}
         <div className={`space-y-3 ${naoRodou ? "opacity-50" : ""}`}>
-          {itens.map((it) => (
-            <div
-              key={it.codigo}
-              className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card p-4"
-            >
-              <div className="flex-1">
-                <p className="text-sm font-bold text-foreground">{it.nome}</p>
-                <p className="text-xs text-muted-foreground">
-                  Marcar a cada 2 ocorrências, conforme padrão da folha.
+          {itens.map((it) => {
+            const marcacoes = it.quantidade || 0;
+            const ocorrencias = marcacoes * 2;
+            return (
+              <div
+                key={it.codigo}
+                className="rounded-xl border border-border bg-card p-4"
+              >
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <p className="text-sm font-bold text-foreground">{it.nome}</p>
+                  <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                    {marcacoes}/6 · {ocorrencias} ocorr.
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {[1, 2, 3, 4, 5, 6].map((pos) => {
+                    const ativo = marcacoes >= pos;
+                    return (
+                      <button
+                        key={pos}
+                        type="button"
+                        aria-label={`Marcação ${pos} de ${it.nome}`}
+                        aria-pressed={ativo}
+                        onClick={() => toggleQuadradinho(it.codigo, pos)}
+                        disabled={naoRodou}
+                        className={`flex h-12 w-12 items-center justify-center rounded-md border-2 text-base font-bold transition-all ${
+                          ativo
+                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                            : "border-border bg-background text-muted-foreground hover:border-primary/50"
+                        } ${naoRodou ? "cursor-not-allowed" : "active:scale-95"}`}
+                      >
+                        {ativo ? "✓" : "2"}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Cada marcação = 2 ocorrências · Equivale a{" "}
+                  <strong className="text-foreground">{ocorrencias}</strong>{" "}
+                  ocorrência{ocorrencias === 1 ? "" : "s"}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12"
-                  onClick={() => ajustar(it.codigo, -1)}
-                  disabled={naoRodou || it.quantidade === 0}
-                >
-                  <Minus className="h-5 w-5" />
-                </Button>
-                <span className="w-10 text-center text-2xl font-bold tabular-nums">
-                  {it.quantidade}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-12 w-12"
-                  onClick={() => ajustar(it.codigo, +1)}
-                  disabled={naoRodou}
-                >
-                  <Plus className="h-5 w-5" />
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Observação */}
