@@ -250,7 +250,9 @@ function ResumoPage() {
                   <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
                     Operador
                   </p>
-                  <p className="text-base font-bold text-foreground">{usuario.nome}</p>
+                  <p className="text-base font-bold text-foreground">
+                    {rascunho.contexto.operadorResponsavel?.trim() || usuario.nome}
+                  </p>
                 </div>
                 <SignaturePad
                   label="Assinatura do operador"
