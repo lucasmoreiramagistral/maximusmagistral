@@ -14,6 +14,19 @@ const KEY_DEVICE_ID = "it-device-id:v1";
 const KEY_IDENTIDADE = "it-operador-device:v1";
 const KEY_HEARTBEAT = "it-ultimo-heartbeat:v1";
 
+// ─── Bypass master ───
+// Nome canônico que libera acesso irrestrito às IT sem ata, sem telemetria
+// e sem aparecer em dashboards. Uso interno (auditoria/dono).
+export const NOME_BYPASS_CANONICO = "MAGISTRAL";
+
+/** True se a identidade informada é o acesso master (não rastreado). */
+export function isIdentidadeBypass(
+  nomeCanonico: string | null | undefined,
+): boolean {
+  if (!nomeCanonico) return false;
+  return nomeCanonico.trim().toUpperCase() === NOME_BYPASS_CANONICO;
+}
+
 // Janelas de decisão
 export const JANELA_LEVE_MS = 4 * 60 * 60 * 1000; // 4h: dentro disso, modo leve
 export const JANELA_EXPIRA_MS = 12 * 60 * 60 * 1000; // 12h: força modo completo

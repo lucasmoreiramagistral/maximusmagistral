@@ -30,6 +30,7 @@ import type { ItDocSlug } from "@/lib/it/types";
 import {
   INATIVIDADE_LEVE_MS,
   JANELA_LEVE_MS,
+  isIdentidadeBypass,
   registrarUltimoHeartbeat,
   type IdentidadeConfirmada,
 } from "@/lib/it/identidade";
@@ -116,6 +117,7 @@ export function useItTelemetria(
       ? { slug: paramsOrSlug, identidade: null }
       : paramsOrSlug;
   const { slug, identidade } = params;
+  const bypass = isIdentidadeBypass(identidade?.nomeCanonico);
 
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
@@ -207,6 +209,7 @@ export function useItTelemetria(
   // ── abrir/reusar sessão (uma vez por slug) ──
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: não abre sessão, não registra nada
     if (!usuario) return;
     if (!identidade) return; // espera o gate
 
@@ -343,6 +346,7 @@ export function useItTelemetria(
   // ── heartbeat + tracking de interação ──
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: sem heartbeat, sem rastro
 
     const marcarInteracao = () => {
       ultimaInteracaoRef.current = Date.now();
@@ -380,6 +384,7 @@ export function useItTelemetria(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: não dispara close/beacon
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {

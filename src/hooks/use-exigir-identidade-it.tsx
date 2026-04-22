@@ -20,6 +20,7 @@ import {
 import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
 import {
   decidirModoIdentidade,
+  isIdentidadeBypass,
   lerIdentidadeDevice,
   obterOuCriarDeviceId,
   salvarIdentidadeDevice,
@@ -96,6 +97,12 @@ export function useExigirIdentidadeIt(
   useEffect(() => {
     if (!confirmada || !documento) {
       setSemTreinamento(false);
+      return;
+    }
+    // Bypass master: pula check de ata, libera direto sem rastro.
+    if (isIdentidadeBypass(confirmada.nomeCanonico)) {
+      setSemTreinamento(false);
+      setVerificandoAta(false);
       return;
     }
     let cancelado = false;
