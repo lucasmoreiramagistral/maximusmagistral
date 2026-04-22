@@ -52,12 +52,25 @@ function PtpJanelaDetalhe() {
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
+  // Snapshot do status no momento em que a tela carrega.
+  // O bloco "Motivo da edição" só deve aparecer se a janela JÁ ESTAVA
+  // concluída quando o operador abriu a tela — não logo após concluir.
+  const [jaConcluidaSnapshot, setJaConcluidaSnapshot] = useState<boolean | null>(
+    null,
+  );
+
   useEffect(() => {
     if (!janelaBase) return;
     setItens(janelaBase.itens);
     setNaoRodou(janelaBase.statusJanela === "nao_rodou");
     setObservacao(janelaBase.observacao ?? "");
     setAssinatura(null); // sempre exigir nova assinatura ao concluir
+    if (jaConcluidaSnapshot === null) {
+      setJaConcluidaSnapshot(
+        janelaBase.statusJanela !== "pendente" &&
+          janelaBase.statusJanela !== "rascunho",
+      );
+    }
   }, [janelaBase?.id, janelaBase?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -80,6 +93,8 @@ function PtpJanelaDetalhe() {
 
   const jaConcluida =
     janelaBase.statusJanela !== "pendente" && janelaBase.statusJanela !== "rascunho";
+  // Snapshot fixo no mount — usado para decidir se exigimos motivo de edição.
+  const exigeMotivoEdicao = jaConcluidaSnapshot === true;
 
   /**
    * Define a quantidade de marcações de um item (0..6).
@@ -166,7 +181,7 @@ function PtpJanelaDetalhe() {
       toast.error("Assine para concluir esta janela.");
       return;
     }
-    if (jaConcluida && !motivoEdicao.trim()) {
+    if (exigeMotivoEdicao && !motivoEdicao.trim()) {
       toast.error("Informe o motivo da edição.");
       return;
     }
@@ -196,7 +211,7 @@ function PtpJanelaDetalhe() {
         voltarPara="/operador/verso/ptp"
       />
       <main className="mx-auto w-full max-w-[900px] px-4 py-6 md:px-8 md:py-10">
-        {jaConcluida && (
+        {exigeMotivoEdicao && (
           <div className="mb-4 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 text-sm">
             <p className="font-semibold text-foreground">
               Esta janela já estava concluída por {janelaBase.operadorNome ?? "—"}.
@@ -303,8 +318,8 @@ function PtpJanelaDetalhe() {
           </div>
         )}
 
-        {/* Motivo da edição (só se já estava concluída) */}
-        {jaConcluida && (
+        {/* Motivo da edição (só se já estava concluída quando a tela carregou) */}
+        {exigeMotivoEdicao && (
           <div className="mt-5">
             <Label htmlFor="motivo" className="text-base">
               Motivo da edição *
