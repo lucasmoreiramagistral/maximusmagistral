@@ -199,7 +199,7 @@ interface BlocoValidacaoTurnoProps {
   salvarTurno: ReturnType<typeof useLimpezaTurnos>["salvarTurno"];
   usuarioLogin: string;
   usuarioNome: string;
-  turnoLogado: TurnoAtivo | null;
+  
 }
 
 function BlocoValidacaoTurno({
@@ -209,14 +209,12 @@ function BlocoValidacaoTurno({
   salvarTurno,
   usuarioLogin,
   usuarioNome,
-  turnoLogado,
 }: BlocoValidacaoTurnoProps) {
   const [abrindo, setAbrindo] = useState(false);
   const [liderNome, setLiderNome] = useState(usuarioNome);
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const ehDoOperador = turnoLogado === turnoAlvo;
   const codigosDoTurno = PTP_JANELAS_POR_TURNO[turnoAlvo];
 
   // PTP do turno (6 janelas)
@@ -236,7 +234,7 @@ function BlocoValidacaoTurno({
     limpezaTurno?.status === "validado";
   const turnoValidado = limpezaTurno?.status === "validado";
 
-  const liberado = ptpOk && limpezaConcluida && !turnoValidado && ehDoOperador;
+  const liberado = ptpOk && limpezaConcluida && !turnoValidado;
 
   // ─── Estado: já validado ──────────────────────────────────────────
   if (turnoValidado && limpezaTurno) {
