@@ -645,7 +645,24 @@ function ItAnalytics() {
                   </CollapsibleContent>
                 </Collapsible>
 
-                {dificuldade.length === 0 ? (
+                {erroDificuldade ? (
+                  <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning/10 p-3">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-foreground" />
+                    <div className="text-xs">
+                      <p className="font-semibold text-foreground">
+                        Score de dificuldade indisponível.
+                      </p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        A view <code className="font-mono">it_dificuldade_paginas</code> ainda
+                        não está disponível no banco. O restante do painel
+                        continua funcionando normalmente.
+                      </p>
+                      <p className="mt-1 font-mono text-[10px] text-muted-foreground/70">
+                        {erroDificuldade}
+                      </p>
+                    </div>
+                  </div>
+                ) : dificuldade.length === 0 ? (
                   <SemDados />
                 ) : (
                   <div className="overflow-x-auto">
