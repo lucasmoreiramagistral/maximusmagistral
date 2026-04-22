@@ -154,33 +154,29 @@ function VersoHome() {
           </Link>
         </div>
 
-        <section className="mt-6">
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">
-              Validação dos Líderes
-            </h2>
-          </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Cada líder valida o seu próprio turno (PTP do turno + limpeza do
-            turno). São duas validações independentes — uma para cada turno.
-          </p>
+        {turnoLogado && (
+          <section className="mt-6">
+            <div className="mb-3 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground">
+                Validação do Líder — {turnoLogado}
+              </h2>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              O líder valida o turno após o operador concluir o PTP e a limpeza
+              da sala de envase.
+            </p>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {TURNOS_ATIVOS_LIMPEZA.map((tn) => (
-              <BlocoValidacaoTurno
-                key={tn}
-                turnoAlvo={tn as TurnoAtivo}
-                ptpJanelas={ptp.janelas}
-                limpezaTurnos={limpeza.turnos}
-                salvarTurno={limpeza.salvarTurno}
-                usuarioLogin={usuario.usuario}
-                usuarioNome={usuario.nome}
-                turnoLogado={turnoLogado}
-              />
-            ))}
-          </div>
-        </section>
+            <BlocoValidacaoTurno
+              turnoAlvo={turnoLogado}
+              ptpJanelas={ptp.janelas}
+              limpezaTurnos={limpeza.turnos}
+              salvarTurno={limpeza.salvarTurno}
+              usuarioLogin={usuario.usuario}
+              usuarioNome={usuario.nome}
+            />
+          </section>
+        )}
       </main>
     </div>
   );
