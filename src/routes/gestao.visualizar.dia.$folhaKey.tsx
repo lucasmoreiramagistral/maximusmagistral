@@ -17,7 +17,12 @@ import { useAnomaliasRemote, useChecklistsRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
-import { exportarFolhaDiaExcel, exportarTurnoExcel } from "@/lib/checklist/excel-export";
+import {
+  exportarFolhaDiaExcel,
+  exportarFrenteVersoCompletoExcel,
+  exportarTurnoComVersoExcel,
+  exportarTurnoExcel,
+} from "@/lib/checklist/excel-export";
 import { ObservacoesVersoConsolidado } from "@/components/observacoes-verso-consolidado";
 import { VersoDiaDetalhe } from "@/components/verso-dia-detalhe";
 import { temVerso } from "@/lib/verso/aplicabilidade";
@@ -34,7 +39,9 @@ function VisualizarDiaPage() {
   const { data: checklists, loading: loadingC } = useChecklistsRemote({ realtime: true });
   const { data: anomalias, loading: loadingA } = useAnomaliasRemote({ realtime: true });
   const [exportOpen, setExportOpen] = useState(false);
-  const [exporting, setExporting] = useState<"turno" | "dia" | null>(null);
+  const [exporting, setExporting] = useState<
+    "turno" | "dia" | "turno-verso" | "frente-verso-completo" | null
+  >(null);
 
   const todasFolhas = useMemo(
     () => buildFolhasAgrupadas(checklists, anomalias),
@@ -54,14 +61,20 @@ function VisualizarDiaPage() {
 
   if (loading || loadingC || loadingA || !usuario) return <TelaCarregando />;
 
-  async function handleExport(modo: "turno" | "dia") {
+  async function handleExport(
+    modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+  ) {
     if (!folha) return;
     setExporting(modo);
     try {
       if (modo === "turno") {
         await exportarTurnoExcel(folha, anomalias);
-      } else {
+      } else if (modo === "dia") {
         await exportarFolhaDiaExcel(folha, todasFolhas, anomalias);
+      } else if (modo === "turno-verso") {
+        await exportarTurnoComVersoExcel(folha, anomalias);
+      } else {
+        await exportarFrenteVersoCompletoExcel(folha, todasFolhas, anomalias);
       }
       toast.success("Excel exportado com sucesso");
       setExportOpen(false);
@@ -161,6 +174,40 @@ function VisualizarDiaPage() {
               )}
               Exportar folha do dia (3 turnos consolidados)
             </Button>
+            {folha && temVerso(folha) && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Frente + Verso (PTP + Limpeza)
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleExport("turno-verso")}
+                  disabled={!!exporting}
+                  className="justify-start"
+                >
+                  {exporting === "turno-verso" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  Exportar Turno ({folha.contexto.turno}) — frente + verso
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleExport("frente-verso-completo")}
+                  disabled={!!exporting}
+                  className="justify-start"
+                >
+                  {exporting === "frente-verso-completo" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  Exportar Frente e Verso completo (todos os turnos)
+                </Button>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setExportOpen(false)} disabled={!!exporting}>

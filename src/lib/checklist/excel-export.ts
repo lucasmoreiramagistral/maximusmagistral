@@ -11,6 +11,12 @@ import type {
 // Garante que funcione em QUALQUER ambiente (preview, .lovable.app, custom domain)
 // sem depender de fetch HTTP nem do asset ser servido estaticamente pelo host.
 import { TEMPLATE_BASE64 } from "@/assets/templates/checklist-template";
+import { gerarVersoWorksheet } from "@/lib/verso/excel-export";
+import {
+  fetchLimpezaTurnos,
+  fetchPtpJanelas,
+} from "@/lib/verso/supabase-storage";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 const SHEET_NAME = "ENCHEDORA 3";
 
@@ -555,10 +561,20 @@ function baixarBlob(buffer: ArrayBuffer, nomeArquivo: string): void {
   baixarBlobNoNavegador(buffer, nomeArquivo);
 }
 
-function nomeArquivo(folha: FolhaChecklistDia, modo: "turno" | "dia"): string {
+function nomeArquivo(
+  folha: FolhaChecklistDia,
+  modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+): string {
   const data = folha.contexto.data;
-  const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   const equipe = sanitizarArquivo(folha.contexto.equipe);
+  if (modo === "turno-verso") {
+    const turno = sanitizarArquivo(folha.contexto.turno);
+    return `FM09_TURNO_FRENTE_VERSO_L3_${data}_${turno}_${equipe}.xlsx`;
+  }
+  if (modo === "frente-verso-completo") {
+    return `FM09_FRENTE_VERSO_COMPLETO_L3_${data}_${equipe}.xlsx`;
+  }
+  const turno = modo === "turno" ? sanitizarArquivo(folha.contexto.turno) : "FOLHA-DIA";
   return `FM09_CHECKLIST_OPERACIONAL_L3_${data}_${turno}_${equipe}_EDITAVEL.xlsx`;
 }
 
@@ -647,4 +663,114 @@ export async function exportarFolhaDiaExcel(
   removerProtecoes(wb);
   const buf = await wb.xlsx.writeBuffer();
   baixarBlob(buf as ArrayBuffer, nomeArquivo(folhaAtual, "dia"));
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Exports que incluem o VERSO (PTP + Limpeza) — Linha 3 / Enchedora 3
+// ────────────────────────────────────────────────────────────────────
+
+async function carregarVersoDoDia(folha: FolhaChecklistDia) {
+  const folhaDiaKey = buildFolhaDiaKey(
+    folha.contexto.data,
+    folha.contexto.linha,
+    folha.contexto.maquina,
+  );
+  const [ptpJanelas, limpezaTurnos] = await Promise.all([
+    fetchPtpJanelas(folhaDiaKey),
+    fetchLimpezaTurnos(folhaDiaKey),
+  ]);
+  return { ptpJanelas, limpezaTurnos };
+}
+
+/** Exporta o turno atual: aba ENCHEDORA 3 (frente preenchida só do turno)
+ *  + aba VERSO com PTP/Limpeza filtrados pelo mesmo turno. */
+export async function exportarTurnoComVersoExcel(
+  folha: FolhaChecklistDia,
+  anomalias: Anomalia[],
+): Promise<void> {
+  const wb = await carregarTemplate();
+  const ws = wb.getWorksheet(SHEET_NAME);
+  if (!ws) throw new Error("Aba ENCHEDORA 3 não encontrada no template.");
+
+  const rotulos = snapshotRotulosAssinatura(ws);
+  preencherCabecalhoData(ws, folha.contexto.data);
+
+  const turno = folha.contexto.turno;
+  const mapa = MAPA_TURNOS[turno];
+  const concluidos = checklistsConcluidos(folha);
+  for (const c of concluidos) {
+    preencherRespostasChecklist(ws, c, mapa);
+  }
+  const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
+  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
+  const checklistAss = checklistComAssinaturas(concluidos);
+  if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
+
+  const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
+  preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
+
+  // Aba VERSO (filtrada pelo turno)
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
+  gerarVersoWorksheet(wb, {
+    dataOperacao: folha.contexto.data,
+    ptpJanelas,
+    limpezaTurnos,
+    turnoFiltro: turno,
+  });
+
+  removerProtecoes(wb);
+  const buf = await wb.xlsx.writeBuffer();
+  baixarBlob(buf as ArrayBuffer, nomeArquivo(folha, "turno-verso"));
+}
+
+/** Exporta a folha do dia COMPLETA + a aba VERSO completa (3 turnos). */
+export async function exportarFrenteVersoCompletoExcel(
+  folhaAtual: FolhaChecklistDia,
+  todasFolhasDoDia: FolhaChecklistDia[],
+  anomalias: Anomalia[],
+): Promise<void> {
+  const wb = await carregarTemplate();
+  const ws = wb.getWorksheet(SHEET_NAME);
+  if (!ws) throw new Error("Aba ENCHEDORA 3 não encontrada no template.");
+
+  const rotulos = snapshotRotulosAssinatura(ws);
+  preencherCabecalhoData(ws, folhaAtual.contexto.data);
+
+  const candidatas = todasFolhasDoDia.filter(
+    (f) =>
+      f.contexto.data === folhaAtual.contexto.data &&
+      f.contexto.linha === folhaAtual.contexto.linha &&
+      f.contexto.maquina === folhaAtual.contexto.maquina,
+  );
+
+  const turnosUsados = new Set<Turno>();
+  const todosChecklistsConcluidos: Checklist[] = [];
+
+  for (const f of candidatas) {
+    if (turnosUsados.has(f.contexto.turno)) continue;
+    turnosUsados.add(f.contexto.turno);
+    const mapa = MAPA_TURNOS[f.contexto.turno];
+    const concluidos = checklistsConcluidos(f);
+    for (const c of concluidos) preencherRespostasChecklist(ws, c, mapa);
+    const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
+    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    const checklistAss = checklistComAssinaturas(concluidos);
+    if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
+    todosChecklistsConcluidos.push(...concluidos);
+  }
+
+  const grupos = coletarObservacoesPorTurno(todosChecklistsConcluidos, anomalias);
+  preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
+
+  // Aba VERSO completa (sem filtro de turno)
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
+  gerarVersoWorksheet(wb, {
+    dataOperacao: folhaAtual.contexto.data,
+    ptpJanelas,
+    limpezaTurnos,
+  });
+
+  removerProtecoes(wb);
+  const buf = await wb.xlsx.writeBuffer();
+  baixarBlob(buf as ArrayBuffer, nomeArquivo(folhaAtual, "frente-verso-completo"));
 }
