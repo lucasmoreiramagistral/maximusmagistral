@@ -1,14 +1,13 @@
 // ============================================================
 // Hook de telemetria do viewer de IT.
+// - Recebe identidade confirmada do gate (nomeCompleto + nomeCanonico + deviceId)
 // - Cria UMA sessão por consulta (persistida em sessionStorage)
-// - Registra eventos via fila offline (fire-and-forget)
-// - Captura page_leave / it_close de forma defensiva:
-//     visibilitychange + pagehide + beforeunload + cleanup
-//   sendBeacon é apenas reforço; o registro REAL fica garantido
-//   na fila offline em localStorage antes do handler retornar.
+// - Reusa sessão se: mesmo slug + canonico + device + < 4h + último heartbeat < 30min
+// - Heartbeat 60s (visibilidade + interação recente) → corte de 5min no painel
+// - Captura page_leave / it_close de forma defensiva
 // ============================================================
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
@@ -24,13 +23,20 @@ import {
   slugParaDocumento,
   type ContextoOperadorIt,
   type EventoIt,
-  type ModoCacheIt,
   type SessaoIt,
   type TipoEventoIt,
 } from "@/lib/it/telemetria";
 import type { ItDocSlug } from "@/lib/it/types";
+import {
+  INATIVIDADE_LEVE_MS,
+  JANELA_LEVE_MS,
+  registrarUltimoHeartbeat,
+  type IdentidadeConfirmada,
+} from "@/lib/it/identidade";
 
-// chave do sessionStorage por slug — preserva a sessão entre remontagens
+const HEARTBEAT_MS = 60_000; // 60s
+const INTERACAO_MAX_AGE_MS = 60_000; // só envia heartbeat se houve interação no último 1min
+
 function chaveSessaoStorage(slug: ItDocSlug): string {
   return `it-telemetria:sessao:${slug}`;
 }
@@ -41,6 +47,9 @@ interface SessaoPersistida {
   documento: "it002" | "it005";
   rota: string;
   contexto: ContextoOperadorIt;
+  device_id: string;
+  nome_canonico: string;
+  ultimo_heartbeat: number;
 }
 
 function lerSessaoPersistida(slug: ItDocSlug): SessaoPersistida | null {
@@ -93,7 +102,21 @@ export interface ItTelemetriaApi {
   trackPageView: (pagina: number) => void;
 }
 
-export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
+export interface UseItTelemetriaParams {
+  slug: ItDocSlug;
+  identidade: IdentidadeConfirmada | null;
+}
+
+export function useItTelemetria(
+  paramsOrSlug: ItDocSlug | UseItTelemetriaParams,
+): ItTelemetriaApi {
+  // Backward-compat: aceita slug puro ou {slug, identidade}
+  const params: UseItTelemetriaParams =
+    typeof paramsOrSlug === "string"
+      ? { slug: paramsOrSlug, identidade: null }
+      : paramsOrSlug;
+  const { slug, identidade } = params;
+
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
 
@@ -101,8 +124,15 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
   const paginaAtualRef = useRef<number | null>(null);
   const inicioPaginaRef = useRef<number | null>(null);
   const inicioSessaoRef = useRef<number>(Date.now());
+  const ultimaInteracaoRef = useRef<number>(Date.now());
+  const deviceIdRef = useRef<string | null>(identidade?.deviceId ?? null);
+  const nomeCanonicoRef = useRef<string | null>(
+    identidade?.nomeCanonico ?? null,
+  );
+  const userAgentRef = useRef<string | null>(
+    typeof navigator !== "undefined" ? navigator.userAgent : null,
+  );
 
-  // Snapshot estável do contexto (recalculado quando user muda)
   const contextoRef = useRef<ContextoOperadorIt>({
     user_id: null,
     operador_nome: null,
@@ -112,10 +142,18 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
     data_operacional: null,
   });
 
+  // Atualiza refs quando identidade muda
+  useEffect(() => {
+    deviceIdRef.current = identidade?.deviceId ?? null;
+    nomeCanonicoRef.current = identidade?.nomeCanonico ?? null;
+  }, [identidade?.deviceId, identidade?.nomeCanonico]);
+
   useEffect(() => {
     contextoRef.current = {
       user_id: usuario?.userId ?? null,
-      operador_nome: usuario?.nome ?? null,
+      // Prioriza identidade declarada do gate; se não houver, cai no perfil
+      operador_nome:
+        identidade?.nomeCompleto ?? usuario?.nome ?? null,
       perfil: usuario?.perfil ?? null,
       equipe: usuario?.equipePadrao ?? null,
       turno: usuario?.turnoPadrao ?? null,
@@ -125,7 +163,6 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           : null,
     };
 
-    // Fallback: se userId vier null, tenta auth.getUser() — evita evento órfão.
     if (!usuario?.userId) {
       void supabase.auth.getUser().then(({ data }) => {
         const authId = data.user?.id ?? null;
@@ -134,18 +171,13 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
         }
       }).catch(() => { /* ignore */ });
     }
-  }, [usuario]);
+  }, [usuario, identidade?.nomeCompleto]);
 
-  // ── helper interno: enfileira evento (fire-and-forget) ──
   const registrarEvento = useCallback(
-    (
-      tipo: TipoEventoIt,
-      extras?: Partial<EventoIt>,
-    ) => {
+    (tipo: TipoEventoIt, extras?: Partial<EventoIt>) => {
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
-        // Não envia evento órfão (sem user_id) — bate em RLS e vira lixo.
         if (!contextoRef.current.user_id) return;
         const evento: EventoIt = {
           sessao_id: sessao.id,
@@ -155,11 +187,10 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           created_at: nowIso(),
           ...extras,
         };
-
-        // Tenta direto; em caso de falha, vai pra fila offline.
-        void insertItEvento(evento).catch(() => {
+        const deviceId = deviceIdRef.current;
+        void insertItEvento(evento, { deviceId }).catch(() => {
           try {
-            enfileirar("it_evento", evento);
+            enfileirar("it_evento", { ...evento, device_id: deviceId } as any);
           } catch {
             /* ignore */
           }
@@ -171,16 +202,28 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
     [enfileirar],
   );
 
-  // ── abrir sessão (uma vez por slug) ──
+  // ── abrir/reusar sessão (uma vez por slug) ──
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!usuario) return; // sem user, não abre sessão
+    if (!usuario) return;
+    if (!identidade) return; // espera o gate
 
     let cancelled = false;
+    const deviceId = identidade.deviceId;
+    const canonico = identidade.nomeCanonico;
+    const userAgent = userAgentRef.current;
 
     (async () => {
       const persistida = lerSessaoPersistida(slug);
-      if (persistida) {
+      const agora = Date.now();
+      const podeReusar =
+        persistida != null &&
+        persistida.device_id === deviceId &&
+        persistida.nome_canonico === canonico &&
+        agora - Date.parse(persistida.iniciado_em) < JANELA_LEVE_MS &&
+        agora - persistida.ultimo_heartbeat < INATIVIDADE_LEVE_MS;
+
+      if (podeReusar && persistida) {
         sessaoRef.current = {
           id: persistida.id,
           documento: persistida.documento,
@@ -188,7 +231,24 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           iniciado_em: persistida.iniciado_em,
           contexto: persistida.contexto,
         };
+        inicioSessaoRef.current = Date.parse(persistida.iniciado_em) || Date.now();
         return;
+      }
+
+      // Se havia sessão antiga, fecha-a antes de criar nova
+      if (persistida) {
+        try {
+          await updateItSessaoFechamento(
+            persistida.id,
+            Math.max(
+              0,
+              persistida.ultimo_heartbeat - Date.parse(persistida.iniciado_em),
+            ),
+          );
+        } catch {
+          /* ignore */
+        }
+        limparSessaoPersistida(slug);
       }
 
       const documento = slugParaDocumento(slug);
@@ -201,17 +261,20 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
       };
       sessaoRef.current = sessao;
       inicioSessaoRef.current = Date.now();
+
       escreverSessaoPersistida(slug, {
         id: sessao.id,
         iniciado_em: sessao.iniciado_em,
         documento: sessao.documento,
         rota: sessao.rota,
         contexto: sessao.contexto,
+        device_id: deviceId,
+        nome_canonico: canonico,
+        ultimo_heartbeat: Date.now(),
       });
 
-      // INSERT da sessão; se falhar, enfileira sessão crua (será criada no drain)
       try {
-        await insertItSessao(sessao);
+        await insertItSessao(sessao, { deviceId, userAgent });
       } catch {
         try {
           enfileirar("it_evento", {
@@ -229,18 +292,21 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
 
       if (cancelled) return;
 
-      // Evento it_open
-      registrarEvento("it_open", {
-        metadata_json: { rota: sessao.rota },
+      registrarEvento("it_open", { metadata_json: { rota: sessao.rota } });
+      registrarEvento("identidade_confirmada", {
+        metadata_json: {
+          nome_canonico: canonico,
+          device_id: deviceId,
+        },
       });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [slug, usuario, enfileirar, registrarEvento]);
+  }, [slug, usuario, identidade, enfileirar, registrarEvento]);
 
-  // ── fechar sessão / page_leave ao desmontar ou esconder/sair ──
+  // ── page_leave / it_close ──
   const flushPageLeave = useCallback(() => {
     const pag = paginaAtualRef.current;
     const inicio = inicioPaginaRef.current;
@@ -258,7 +324,6 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
     if (!sessao) return;
     const duracao_total_ms = Date.now() - inicioSessaoRef.current;
     registrarEvento("it_close", { duracao_ms: duracao_total_ms });
-    // tentar atualizar a sessão (best-effort)
     void updateItSessaoFechamento(sessao.id, duracao_total_ms).catch(() => {
       try {
         enfileirar("it_sessao_close", {
@@ -273,7 +338,44 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
     sessaoRef.current = null;
   }, [flushPageLeave, registrarEvento, enfileirar, slug]);
 
-  // listeners + cleanup
+  // ── heartbeat + tracking de interação ──
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const marcarInteracao = () => {
+      ultimaInteracaoRef.current = Date.now();
+    };
+    window.addEventListener("touchstart", marcarInteracao, { passive: true });
+    window.addEventListener("click", marcarInteracao);
+    window.addEventListener("scroll", marcarInteracao, { passive: true });
+    window.addEventListener("keydown", marcarInteracao);
+
+    const interval = window.setInterval(() => {
+      if (typeof document === "undefined") return;
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - ultimaInteracaoRef.current > INTERACAO_MAX_AGE_MS) return;
+      // Atualiza heartbeat persistido (entre sessões)
+      registrarUltimoHeartbeat(Date.now());
+      // Atualiza heartbeat na sessão persistida (pra reuso)
+      const persistida = lerSessaoPersistida(slug);
+      if (persistida) {
+        escreverSessaoPersistida(slug, {
+          ...persistida,
+          ultimo_heartbeat: Date.now(),
+        });
+      }
+      registrarEvento("heartbeat");
+    }, HEARTBEAT_MS);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("touchstart", marcarInteracao);
+      window.removeEventListener("click", marcarInteracao);
+      window.removeEventListener("scroll", marcarInteracao);
+      window.removeEventListener("keydown", marcarInteracao);
+    };
+  }, [slug, registrarEvento]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -283,7 +385,6 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
       }
     };
     const onPageHide = () => {
-      // tenta sendBeacon como REFORÇO (não é a única camada — fila já gravou)
       try {
         const sessao = sessaoRef.current;
         if (
@@ -294,20 +395,24 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/it_consulta_eventos`;
           const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
           if (url && apikey) {
-            const evento: EventoIt = {
+            const evento = {
               sessao_id: sessao.id,
               documento: sessao.documento,
               tipo_evento: "it_close",
-              contexto: contextoRef.current,
+              user_id: contextoRef.current.user_id,
+              operador_nome: contextoRef.current.operador_nome,
+              perfil: contextoRef.current.perfil,
+              equipe: contextoRef.current.equipe,
+              turno: contextoRef.current.turno,
+              data_operacional: contextoRef.current.data_operacional,
               created_at: nowIso(),
               duracao_ms: Date.now() - inicioSessaoRef.current,
+              device_id: deviceIdRef.current,
               metadata_json: { __via: "sendBeacon" },
             };
             const blob = new Blob([JSON.stringify(evento)], {
               type: "application/json",
             });
-            // sendBeacon não suporta headers; será aceito anonimamente?
-            // Mantemos como reforço — sucesso não é garantido em RLS.
             navigator.sendBeacon(`${url}?apikey=${apikey}`, blob);
           }
         }
@@ -328,15 +433,12 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("pagehide", onPageHide);
       window.removeEventListener("beforeunload", onBeforeUnload);
-      // cleanup do componente — caminho normal SPA
       fecharSessao();
     };
   }, [flushPageLeave, fecharSessao]);
 
-  // ── API pública ──
   const trackPageView = useCallback(
     (pagina: number) => {
-      // primeiro fecha a página anterior (se houver)
       if (
         paginaAtualRef.current != null &&
         paginaAtualRef.current !== pagina &&
@@ -348,7 +450,6 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           duracao_ms,
         });
       }
-      // abre a nova
       paginaAtualRef.current = pagina;
       inicioPaginaRef.current = Date.now();
       registrarEvento("page_view", { pagina });
@@ -361,5 +462,8 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
     [registrarEvento],
   );
 
-  return { trackEvento, trackPageView };
+  return useMemo(
+    () => ({ trackEvento, trackPageView }),
+    [trackEvento, trackPageView],
+  );
 }
