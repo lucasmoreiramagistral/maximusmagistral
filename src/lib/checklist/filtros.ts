@@ -9,6 +9,16 @@ import type {
   StatusAnomalia,
   Turno,
 } from "./types";
+import { temVerso } from "@/lib/verso/aplicabilidade";
+import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
+import type { ResumoVerso } from "@/lib/verso/resumo";
+
+/** Estado do verso (PTP + Limpeza) — só faz sentido pra Linha 3 / Enchedora 3. */
+export type EstadoVersoFiltro =
+  | "com_verso"
+  | "pendente"
+  | "ocorrencias"
+  | "validado";
 
 export interface Filtros {
   dataInicio?: string; // YYYY-MM-DD
@@ -21,6 +31,7 @@ export interface Filtros {
   criticidadeAnomalia?: CriticidadeAnomalia | "";
   maquina?: string | "";
   equipamentoAfetado?: string | "";
+  estadoVerso?: EstadoVersoFiltro;
 }
 
 const KEY = "fm-checklist:filtros";
