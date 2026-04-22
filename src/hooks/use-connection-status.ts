@@ -163,7 +163,13 @@ const store = {
 
   refreshPending() {
     const fila = readFila();
-    this.state = { ...this.state, fila, pendingCount: fila.length };
+    // pendingCount = só itens "ao vivo" (que ainda podem ser enviados).
+    // Itens com conflito de versão ou que estouraram tentativas NÃO contam,
+    // pois ficam presos esperando ação do usuário e poluem o badge.
+    const ativos = fila.filter(
+      (f) => f.status !== "conflito" && f.tentativas < MAX_TENTATIVAS,
+    );
+    this.state = { ...this.state, fila, pendingCount: ativos.length };
     this.emit();
   },
 
