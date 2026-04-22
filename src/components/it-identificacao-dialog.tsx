@@ -104,10 +104,9 @@ function ModoLeve({
   return (
     <Dialog open={open}>
       <DialogContent
-        className="max-w-md"
+        className="max-w-md [&>button]:hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
-        showCloseButton={false}
       >
         <DialogHeader>
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
@@ -260,10 +259,9 @@ function ModoCompleto({
     return (
       <Dialog open={open}>
         <DialogContent
-          className="max-w-md"
+          className="max-w-md [&>button]:hidden"
           onPointerDownOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
-          showCloseButton={false}
         >
           <DialogHeader>
             <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-warning/15">
@@ -326,10 +324,9 @@ function ModoCompleto({
   return (
     <Dialog open={open}>
       <DialogContent
-        className="max-w-md"
+        className="max-w-md [&>button]:hidden"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
-        showCloseButton={false}
       >
         <DialogHeader>
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
