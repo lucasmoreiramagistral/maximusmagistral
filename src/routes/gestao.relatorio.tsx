@@ -178,6 +178,48 @@ function RelatorioPage() {
     [anomaliasFiltradas, recorrencia, faixas, comparativos],
   );
 
+  // ─── Verso (PTP + Limpeza) ──────────────────────────────────────────
+  const versoRel = useVersoRelatorioRemote(aplicado.dataInicio, aplicado.dataFim);
+  const referenciaFrente = useMemo(
+    () => construirReferenciaFrente(checklistsFiltrados),
+    [checklistsFiltrados],
+  );
+  const aderencia = useMemo(
+    () => cruzarFrenteVerso(referenciaFrente, versoRel.ptp, versoRel.limpeza),
+    [referenciaFrente, versoRel.ptp, versoRel.limpeza],
+  );
+  const ptpDoRecorte = useMemo(
+    () => filtrarPtpDoRecorte(referenciaFrente, versoRel.ptp),
+    [referenciaFrente, versoRel.ptp],
+  );
+  const limpezaDoRecorte = useMemo(
+    () => filtrarLimpezaDoRecorte(referenciaFrente, versoRel.limpeza),
+    [referenciaFrente, versoRel.limpeza],
+  );
+  const resumoVerso = useMemo(
+    () => calcularResumoVersoRelatorio(aderencia),
+    [aderencia],
+  );
+  const diagPtp = useMemo(() => calcularDiagnosticoPtp(ptpDoRecorte), [ptpDoRecorte]);
+  const diagLimp = useMemo(
+    () => calcularDiagnosticoLimpeza(limpezaDoRecorte, resumoVerso.limpezasEsperadas),
+    [limpezaDoRecorte, resumoVerso.limpezasEsperadas],
+  );
+  const alertasVerso = useMemo(
+    () => calcularAlertasVerso({ aderencia, resumo: resumoVerso, diagPtp, diagLimp }),
+    [aderencia, resumoVerso, diagPtp, diagLimp],
+  );
+  const fora = useMemo(
+    () => registrosVersoForaDoRecorte(referenciaFrente, versoRel.ptp, versoRel.limpeza),
+    [referenciaFrente, versoRel.ptp, versoRel.limpeza],
+  );
+  const filtrosIncompativeisAtivos =
+    (aplicado.statusAnomalia && aplicado.statusAnomalia !== "Todos") ||
+    (aplicado.criticidade && aplicado.criticidade !== "Todas") ||
+    (aplicado.categoria && aplicado.categoria !== "Todas") ||
+    (aplicado.momento && aplicado.momento !== "Todos") ||
+    (aplicado.equipamentoAfetado && aplicado.equipamentoAfetado !== "Todos");
+
   if (loading || !usuario) return <TelaCarregando />;
 
   const aplicarAtalho = (id: AtalhoId) => {
