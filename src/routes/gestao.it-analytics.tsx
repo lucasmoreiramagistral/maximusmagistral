@@ -133,13 +133,16 @@ function ItAnalytics() {
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
 
-  // Carregamento dos dados
+  // Carregamento dos dados — Promise.allSettled: falha de uma query
+  // (ex: view ainda não criada) não derruba o painel inteiro.
   useEffect(() => {
     if (!usuario) return;
     let cancelled = false;
     setCarregando(true);
     setErro(null);
+    setErroDificuldade(null);
 
     (async () => {
       try {
@@ -179,16 +182,46 @@ function ItAnalytics() {
         if (filtros.documento !== "todos")
           qDif = qDif.eq("documento", filtros.documento);
 
-        const [sesRes, evRes, difRes] = await Promise.all([qSes, qEv, qDif]);
+        const [sesRes, evRes, difRes] = await Promise.allSettled([
+          qSes,
+          qEv,
+          qDif,
+        ]);
 
         if (cancelled) return;
-        if (sesRes.error) throw sesRes.error;
-        if (evRes.error) throw evRes.error;
-        if (difRes.error) throw difRes.error;
 
-        setSessoes((sesRes.data as SessaoRow[]) ?? []);
-        setEventos((evRes.data as EventoRow[]) ?? []);
-        setDificuldade((difRes.data as DificuldadeRow[]) ?? []);
+        // Sessões e eventos são essenciais — se falharem, mostra erro principal
+        if (sesRes.status === "rejected") {
+          throw sesRes.reason instanceof Error
+            ? sesRes.reason
+            : new Error(String(sesRes.reason));
+        }
+        if (sesRes.value.error) throw sesRes.value.error;
+
+        if (evRes.status === "rejected") {
+          throw evRes.reason instanceof Error
+            ? evRes.reason
+            : new Error(String(evRes.reason));
+        }
+        if (evRes.value.error) throw evRes.value.error;
+
+        setSessoes((sesRes.value.data as SessaoRow[]) ?? []);
+        setEventos((evRes.value.data as EventoRow[]) ?? []);
+
+        // Dificuldade é opcional — degrada graciosamente
+        if (difRes.status === "rejected") {
+          setDificuldade([]);
+          setErroDificuldade(
+            difRes.reason instanceof Error
+              ? difRes.reason.message
+              : String(difRes.reason),
+          );
+        } else if (difRes.value.error) {
+          setDificuldade([]);
+          setErroDificuldade(difRes.value.error.message);
+        } else {
+          setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
+        }
       } catch (e) {
         if (cancelled) return;
         setErro(e instanceof Error ? e.message : "Erro ao carregar analytics.");

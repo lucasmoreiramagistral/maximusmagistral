@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
+import { supabase } from "@/integrations/supabase/client";
 import {
   insertItEvento,
   insertItSessao,
