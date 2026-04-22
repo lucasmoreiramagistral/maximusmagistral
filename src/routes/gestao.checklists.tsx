@@ -16,11 +16,11 @@ import {
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
 import type { EstadoVersoFiltro } from "@/lib/checklist/filtros";
-import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
+import { extrairFolhasDiaKeysComVerso, temVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
-import { Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
+import { ClipboardCheck, Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
 import type { Filtros } from "@/lib/checklist/filtros";
 
 export const Route = createFileRoute("/gestao/checklists")({
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/gestao/checklists")({
   component: ListaChecklists,
 });
 
-type Visao = "momento" | "dia";
+type Visao = "momento" | "dia" | "verso";
 
 function ListaChecklists() {
   const navigate = useNavigate();
@@ -78,15 +78,18 @@ function ListaChecklists() {
     () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
     [todasFolhas, anomalias, filtros, resumosVerso],
   );
+  const folhasVerso = useMemo(() => folhas.filter(temVerso), [folhas]);
 
   if (loadingAuth || !usuario) return <TelaCarregando />;
 
   const ativos = filtrosAtivos(filtros);
 
   const totalLabel =
-    visao === "dia"
-      ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
-      : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
+    visao === "verso"
+      ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
+      : visao === "dia"
+        ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
+        : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
 
   return (
     <div className="min-h-screen bg-background">
@@ -120,6 +123,17 @@ function ListaChecklists() {
               >
                 <ListIcon className="h-3.5 w-3.5" /> Por momento
               </button>
+              <button
+                type="button"
+                onClick={() => setVisao("verso")}
+                className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  visao === "verso"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" /> Verso
+              </button>
             </div>
             <Button asChild variant={ativos ? "default" : "outline"}>
               <Link to="/gestao/filtros" search={{ origem: "checklists" }}>
@@ -130,7 +144,7 @@ function ListaChecklists() {
           </div>
         </div>
 
-        {visao === "dia" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
+        {visao === "verso" && <ChipsFiltroVerso estadoAtual={filtros.estadoVerso} />}
 
         {erro && (
           <p className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive">
@@ -141,9 +155,31 @@ function ListaChecklists() {
           <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" /> Carregando…
           </div>
+        ) : visao === "verso" ? (
+          folhasVerso.length === 0 ? (
+            <FolhasVazio filtros={filtros} visao="verso" />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {folhasVerso.map((f) => {
+                const versoKey = buildFolhaDiaKey(
+                  f.contexto.data,
+                  f.contexto.linha,
+                  f.contexto.maquina,
+                );
+                return (
+                  <ChecklistDiaResumoCard
+                    key={f.folhaKey}
+                    folha={f}
+                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                    versoResumo={resumosVerso.get(versoKey)}
+                  />
+                );
+              })}
+            </div>
+          )
         ) : visao === "dia" ? (
           folhas.length === 0 ? (
-            <FolhasVazio filtros={filtros} />
+            <FolhasVazio filtros={filtros} visao="dia" />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {folhas.map((f) => {
@@ -234,7 +270,6 @@ function ListaChecklists() {
 
 const CHIPS: Array<{ label: string; valor: EstadoVersoFiltro | undefined }> = [
   { label: "Todos", valor: undefined },
-  { label: "Com verso", valor: "com_verso" },
   { label: "Pendente", valor: "pendente" },
   { label: "Ocorrências", valor: "ocorrencias" },
   { label: "Validado", valor: "validado" },
@@ -272,7 +307,13 @@ function ChipsFiltroVerso({ estadoAtual }: { estadoAtual: EstadoVersoFiltro | un
   );
 }
 
-function FolhasVazio({ filtros }: { filtros: Filtros }) {
+function FolhasVazio({
+  filtros,
+  visao,
+}: {
+  filtros: Filtros;
+  visao: "dia" | "verso";
+}) {
   const versoAtivo = !!filtros.estadoVerso;
   const outrosAtivos = filtrosAtivos({ ...filtros, estadoVerso: undefined });
 
@@ -282,6 +323,55 @@ function FolhasVazio({ filtros }: { filtros: Filtros }) {
   }
   function limparTudo() {
     setFiltros({});
+  }
+
+  if (visao === "verso") {
+    if (versoAtivo && outrosAtivos) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Nenhuma folha de Linha 3 corresponde aos filtros aplicados.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={limparVerso}>
+              Limpar filtro de verso
+            </Button>
+            <Button variant="outline" size="sm" onClick={limparTudo}>
+              Limpar todos os filtros
+            </Button>
+          </div>
+        </div>
+      );
+    }
+    if (versoAtivo) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Nenhuma folha de Linha 3 com este estado.
+          </p>
+          <Button variant="outline" size="sm" onClick={limparVerso}>
+            Limpar filtro de verso
+          </Button>
+        </div>
+      );
+    }
+    if (outrosAtivos) {
+      return (
+        <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
+          <p className="mb-4 text-muted-foreground">
+            Filtros atuais não retornam folhas de Linha 3.
+          </p>
+          <Button variant="outline" size="sm" onClick={limparTudo}>
+            Limpar todos os filtros
+          </Button>
+        </div>
+      );
+    }
+    return (
+      <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
+        Nenhuma folha de Linha 3 disponível.
+      </p>
+    );
   }
 
   if (versoAtivo && outrosAtivos) {
