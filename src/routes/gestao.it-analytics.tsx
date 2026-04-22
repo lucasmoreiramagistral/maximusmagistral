@@ -536,6 +536,57 @@ function ItAnalytics() {
           </CardContent>
         </Card>
 
+        {/* ⚠ Alertas de identidade — sempre no topo quando houver */}
+        {alertas.length > 0 && (
+          <Card className="mb-6 border-destructive/50 bg-destructive/5">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base text-destructive">
+                <AlertTriangle className="h-5 w-5" />
+                Alertas de identidade ({alertas.length})
+              </CardTitle>
+              <CardDescription>
+                Sinais que merecem atenção da coordenação. Cada alerta é
+                auditável.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {alertas.map((a, i) => (
+                  <li
+                    key={`${a.tipo}-${a.chave}-${i}`}
+                    className="flex items-start gap-3 rounded-md border border-destructive/30 bg-card px-3 py-2 text-sm"
+                  >
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    <div className="flex-1">
+                      {a.tipo === "multi_device" ? (
+                        <p>
+                          <strong>{a.chave}</strong> aparece em{" "}
+                          <strong>
+                            {(a.detalhes?.qtd_devices as number) ?? "?"} devices
+                          </strong>{" "}
+                          ativos ao mesmo tempo.
+                        </p>
+                      ) : (
+                        <p>
+                          Device{" "}
+                          <code className="rounded bg-muted px-1 font-mono text-xs">
+                            {a.chave.slice(0, 8)}…
+                          </code>{" "}
+                          teve{" "}
+                          <strong>
+                            {(a.detalhes?.trocas_1h as number) ?? "?"} trocas
+                          </strong>{" "}
+                          de operador na última hora.
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+
         {erro && (
           <Card className="mb-6 border-destructive/40">
             <CardContent className="flex items-start gap-3 p-4">
@@ -557,7 +608,12 @@ function ItAnalytics() {
         ) : (
           <>
             {/* KPIs */}
-            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+              <KpiCard
+                titulo="Em consulta agora"
+                valor={kpis.emConsultaAgora}
+                destaque={kpis.emConsultaAgora > 0 ? "success" : undefined}
+              />
               <KpiCard titulo="Sessões" valor={kpis.sessoesCount} />
               <KpiCard titulo="Consultas (page views)" valor={kpis.consultas} />
               <KpiCard titulo="Buscas no índice" valor={kpis.buscas} />
