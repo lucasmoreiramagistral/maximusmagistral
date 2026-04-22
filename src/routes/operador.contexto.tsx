@@ -54,6 +54,15 @@ function ContextoPage() {
   const [erro, setErro] = useState("");
   const [nomeOperador, setNomeOperador] = useState("");
 
+  // Pré-carregar nome salvo do operador (por userId), se houver.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const key = nomeStorageKey(usuario?.userId);
+    if (!key) return;
+    const salvo = window.localStorage.getItem(key);
+    if (salvo) setNomeOperador(salvo);
+  }, [usuario?.userId]);
+
   // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
   const turno = usuario?.turnoPadrao ?? null;
   const equipe = usuario?.equipePadrao ?? null;
