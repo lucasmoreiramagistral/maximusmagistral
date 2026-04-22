@@ -111,18 +111,23 @@ export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtp
           }
         : null;
 
+      // Conflito de versão: usa o updatedAt do snapshot que estamos salvando
+      // (espelha o que o servidor devolveu na última leitura/gravação).
+      // Se for a primeira gravação, será undefined e a checagem é pulada.
+      const expectedUpdatedAt = janela.updatedAt ?? opts?.anterior?.updatedAt;
+
       // 2) tenta enviar agora; se falhar, vai pra fila
       if (!isOnline) {
         enfileirar("ptp_janela", {
           janela,
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt ?? null,
           edicao,
         });
         return;
       }
       try {
         const saved = await upsertPtpJanela(janela, {
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt,
         });
         versoStorage.savePtpJanela(saved);
         setJanelas((prev) => {
@@ -172,7 +177,7 @@ export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtp
         // erro provável de rede → enfileira
         enfileirar("ptp_janela", {
           janela,
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt ?? null,
           edicao,
         });
       }

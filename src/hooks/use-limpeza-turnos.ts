@@ -103,17 +103,21 @@ export function useLimpezaTurnos(
           }
         : null;
 
+      // Conflito de versão: usa o updatedAt do snapshot que estamos salvando
+      // (refletindo a última leitura/gravação). Primeira gravação → undefined.
+      const expectedUpdatedAt = turno.updatedAt ?? opts?.anterior?.updatedAt;
+
       if (!isOnline) {
         enfileirar("limpeza_turno", {
           turno,
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt ?? null,
           edicao,
         });
         return;
       }
       try {
         const saved = await upsertLimpezaTurno(turno, {
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt,
         });
         versoStorage.saveLimpezaTurno(saved);
         setTurnos((prev) => {
@@ -159,7 +163,7 @@ export function useLimpezaTurnos(
         }
         enfileirar("limpeza_turno", {
           turno,
-          expectedUpdatedAt: opts?.anterior?.updatedAt ?? null,
+          expectedUpdatedAt: expectedUpdatedAt ?? null,
           edicao,
         });
       }
