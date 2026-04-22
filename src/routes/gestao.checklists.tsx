@@ -168,11 +168,11 @@ function ListaChecklists() {
                   f.contexto.maquina,
                 );
                 return (
-                  <ChecklistDiaResumoCard
+                  <VersoResumoCard
                     key={f.folhaKey}
                     folha={f}
                     href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                    versoResumo={resumosVerso.get(versoKey)}
+                    resumo={resumosVerso.get(versoKey)}
                   />
                 );
               })}
