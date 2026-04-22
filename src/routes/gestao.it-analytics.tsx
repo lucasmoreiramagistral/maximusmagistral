@@ -151,6 +151,7 @@ function ItAnalytics() {
   const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
   const [alertas, setAlertas] = useState<AlertaRow[]>([]);
+  const [legadasCount, setLegadasCount] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
@@ -172,6 +173,8 @@ function ItAnalytics() {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
         // Sessões — VIEW efetiva (duracao_efetiva_ms + ativa_agora)
+        // Filtro device_id no servidor quando "apenasRastreaveis" — evita puxar
+        // milhares de sessões legadas sem rastreabilidade pra filtrar no client.
         let qSes = (supabase.from as any)("it_consulta_sessoes_efetivas")
           .select(
             "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,device_id",
@@ -183,8 +186,9 @@ function ItAnalytics() {
           qSes = qSes.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qSes = qSes.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qSes = qSes.eq("turno", filtros.turno);
+        if (filtros.apenasRastreaveis) qSes = qSes.not("device_id", "is", null);
 
-        // Eventos
+        // Eventos — mesma lógica
         let qEv = (supabase.from as any)("it_consulta_eventos")
           .select(
             "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,device_id,metadata_json,created_at",
@@ -196,6 +200,7 @@ function ItAnalytics() {
           qEv = qEv.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qEv = qEv.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qEv = qEv.eq("turno", filtros.turno);
+        if (filtros.apenasRastreaveis) qEv = qEv.not("device_id", "is", null);
 
         // Dificuldade (view)
         let qDif = (supabase.from as any)("it_dificuldade_paginas")
@@ -210,11 +215,19 @@ function ItAnalytics() {
           .select("*")
           .limit(100);
 
-        const [sesRes, evRes, difRes, alertRes] = await Promise.allSettled([
+        // Conta sessões legadas (sem device_id) no período — para o badge informativo.
+        // HEAD + count exact = não trafega linhas, só o número.
+        const qLegadas = (supabase.from as any)("it_consulta_sessoes")
+          .select("id", { count: "exact", head: true })
+          .gte("iniciado_em", dataInicio)
+          .is("device_id", null);
+
+        const [sesRes, evRes, difRes, alertRes, legRes] = await Promise.allSettled([
           qSes,
           qEv,
           qDif,
           qAlertas,
+          qLegadas,
         ]);
 
         if (guard.cancelled) return;
@@ -256,6 +269,12 @@ function ItAnalytics() {
           setAlertas([]);
         }
 
+        if (legRes.status === "fulfilled" && !legRes.value.error) {
+          setLegadasCount(legRes.value.count ?? 0);
+        } else {
+          setLegadasCount(0);
+        }
+
         setUltimaAtualizacao(new Date());
       } catch (e) {
         if (guard.cancelled) return;
@@ -264,7 +283,7 @@ function ItAnalytics() {
         if (!guard.cancelled && !silent) setCarregando(false);
       }
     },
-    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno],
+    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno, filtros.apenasRastreaveis],
   );
 
   // Carregamento inicial / quando filtros mudam
@@ -280,30 +299,11 @@ function ItAnalytics() {
     void carregarDados(true);
   });
 
-  // Filtragem por rastreabilidade (lixo pré-blindagem = device_id NULL)
-  // Sessões e eventos antigos (antes da Fase 2) não tinham device_id, então
-  // por padrão escondemos eles dos KPIs pra não inflar os números.
-  const sessoesIds = useMemo(() => {
-    if (!filtros.apenasRastreaveis) return null;
-    const set = new Set<string>();
-    for (const s of sessoes) if (s.device_id) set.add(s.id);
-    return set;
-  }, [sessoes, filtros.apenasRastreaveis]);
-
-  const sessoesFiltradas = useMemo(() => {
-    if (!filtros.apenasRastreaveis) return sessoes;
-    return sessoes.filter((s) => s.device_id != null);
-  }, [sessoes, filtros.apenasRastreaveis]);
-
-  const eventosFiltrados = useMemo(() => {
-    if (!filtros.apenasRastreaveis || !sessoesIds) return eventos;
-    return eventos.filter((e) => sessoesIds.has(e.sessao_id));
-  }, [eventos, sessoesIds, filtros.apenasRastreaveis]);
-
-  const sessoesLegadas = useMemo(
-    () => sessoes.filter((s) => s.device_id == null).length,
-    [sessoes],
-  );
+  // Filtragem agora é feita no servidor (via .not("device_id","is",null)) quando
+  // "apenasRastreaveis" está ligado. Aliases mantidos pra clareza nas agregações.
+  const sessoesFiltradas = sessoes;
+  const eventosFiltrados = eventos;
+  const sessoesLegadas = legadasCount;
 
   // Agregações memoizadas
   const kpis = useMemo(() => {

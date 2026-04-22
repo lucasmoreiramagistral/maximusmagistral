@@ -8,7 +8,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useUsuario } from "@/hooks/use-storage";
+import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
 import {
   decidirModoIdentidade,
   lerIdentidadeDevice,
@@ -35,6 +35,7 @@ export interface UseExigirIdentidadeItResult {
 
 export function useExigirIdentidadeIt(): UseExigirIdentidadeItResult {
   const usuario = useUsuario();
+  const authLoading = useAuthLoading();
 
   const [identidadePersistida, setIdentidadePersistida] =
     useState<IdentidadeOperadorDevice | null>(null);
@@ -46,12 +47,22 @@ export function useExigirIdentidadeIt(): UseExigirIdentidadeItResult {
   const [ultimoResultado, setUltimoResultado] =
     useState<ResultadoIdentificacao | null>(null);
 
-  // Decide o modo na montagem / quando user muda
+  // Decide o modo SOMENTE depois de auth resolver E houver usuário.
+  // Evita race: usuário=null no primeiro render → forçaria "completo"
+  // mesmo com identidade salva válida no localStorage.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (authLoading) return;
+    if (!usuario) {
+      // Sem usuário autenticado → não abre modal (useGuard vai redirecionar)
+      setOpen(false);
+      setConfirmada(null);
+      return;
+    }
+
     const ident = lerIdentidadeDevice();
     setIdentidadePersistida(ident);
-    const novoModo = decidirModoIdentidade(ident, usuario?.userId ?? null);
+    const novoModo = decidirModoIdentidade(ident, usuario.userId ?? null);
     setModo(novoModo);
 
     if (novoModo === "nao") {
@@ -68,7 +79,7 @@ export function useExigirIdentidadeIt(): UseExigirIdentidadeItResult {
       setConfirmada(null);
       setOpen(true);
     }
-  }, [usuario?.userId]);
+  }, [authLoading, usuario]);
 
   const handleConfirmar = useCallback(
     (resultado: ResultadoIdentificacao) => {
