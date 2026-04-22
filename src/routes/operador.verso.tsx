@@ -17,7 +17,6 @@ import {
 } from "@/lib/operacao/data-operacional";
 import {
   PTP_JANELAS_POR_TURNO,
-  TURNOS_ATIVOS_LIMPEZA,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
