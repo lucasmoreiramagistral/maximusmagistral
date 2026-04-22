@@ -93,6 +93,8 @@ function PtpJanelaDetalhe() {
 
   const jaConcluida =
     janelaBase.statusJanela !== "pendente" && janelaBase.statusJanela !== "rascunho";
+  // Snapshot fixo no mount — usado para decidir se exigimos motivo de edição.
+  const exigeMotivoEdicao = jaConcluidaSnapshot === true;
 
   /**
    * Define a quantidade de marcações de um item (0..6).
