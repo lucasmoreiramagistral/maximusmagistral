@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
   AlertCircle,
+  AlertTriangle,
+  ArrowRightLeft,
   BookOpen,
   Calendar,
   ChevronDown,
@@ -1049,14 +1051,16 @@ function KpiCard({
 }: {
   titulo: string;
   valor: number;
-  destaque?: "warning" | "destructive";
+  destaque?: "warning" | "destructive" | "success";
 }) {
   const cls =
     destaque === "destructive"
       ? "text-destructive"
       : destaque === "warning"
         ? "text-warning-foreground"
-        : "text-primary";
+        : destaque === "success"
+          ? "text-success"
+          : "text-primary";
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm md:p-5">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
