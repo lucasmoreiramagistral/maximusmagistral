@@ -209,6 +209,7 @@ export function useItTelemetria(
   // ── abrir/reusar sessão (uma vez por slug) ──
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (bypass) return; // acesso master: não abre sessão, não registra nada
     if (!usuario) return;
     if (!identidade) return; // espera o gate
 
