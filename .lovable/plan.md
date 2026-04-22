@@ -1,108 +1,138 @@
 
 
-# Plano final — Telemetria de IT + Painel de Gestão
+# Diagnóstico
 
-Aprovado. Incorporo a observação sobre `sendBeacon`: tratado como **camada de reforço**, nunca como mecanismo único.
+A view **`public.it_dificuldade_paginas`** não foi criada no banco. As tabelas `it_consulta_sessoes` e `it_consulta_eventos` estão lá e populando normalmente (vimos 573+ eventos), mas a terceira query do `Promise.all` no painel da gestão explode com 404 (`PGRST205`), cai no catch genérico e mostra "Não foi possível carregar os dados" + tudo zerado.
 
----
+Além disso, tem 2 reforços técnicos que o Serjão levantou que vou aplicar junto:
 
-## Captura de `page_leave` / `it_close` — defesa em profundidade
-
-Ordem de prioridade (todas ativas, redundantes de propósito):
-
-1. **`visibilitychange` → `hidden`** — primeiro gatilho confiável quando o operador troca de aba/app. Faz `flushPageLeave()` síncrono no `localStorage` (fila offline) e tenta `POST` direto.
-2. **`pagehide`** — dispara antes do `unload` em browsers modernos e em WebView Android (Capacitor). Mesma rotina de flush.
-3. **`beforeunload`** — fallback pra browsers antigos.
-4. **Cleanup do `useEffect`** — captura navegação SPA interna (trocar de IT, voltar pra home do operador). Esse é o caminho **principal** em uso normal.
-5. **`navigator.sendBeacon`** — reforço dentro dos handlers acima quando disponível e quando o payload couber. Se falhar ou não existir (WebView antigo), a fila offline já gravou o evento em `localStorage` e o próximo boot drena.
-
-Resultado: mesmo se `sendBeacon` "peidar" no APK, o evento está garantido em `localStorage` antes do handler retornar — `use-connection-status` envia na próxima abertura online.
+1. **Fechamento idempotente de sessão**: hoje o `closeItSessao` faz UPDATE por `id` puro. Com `visibilitychange` + `pagehide` + cleanup + sendBeacon, dá pra disparar 3-4 vezes. Filtrar por `encerrado_em IS NULL` resolve.
+2. **`user_id` sempre presente**: como o `useUsuario()` pode retornar `null` em casos raros, garantir fallback para `auth.uid()` no client antes de inserir.
 
 ---
 
-## Fase 1 — Banco
+# Plano
 
-**Migration:** `supabase/migrations/<ts>_it_telemetria.sql`
+## 1. Migration nova — criar a view faltante
 
-- `public.it_consulta_sessoes` (id, user_id, operador_nome, perfil, equipe, turno, documento CHECK in('it002','it005'), rota, iniciado_em, encerrado_em, duracao_total_ms, created_at)
-- `public.it_consulta_eventos` (+ `metadata_json jsonb`, CHECK em `tipo_evento` com os 14 tipos)
-- Índices: documento, user_id, sessao_id, tipo_evento, pagina, created_at
-- RLS: INSERT/UPDATE = `auth.uid() = user_id`; SELECT = `is_gestao(auth.uid())`
-- View `public.it_dificuldade_paginas`:
-  ```text
-  score = round(100 * (
-    0.30 * tempo_medio_norm
-  + 0.25 * zooms_por_view_norm
-  + 0.20 * retornos_por_view_norm
-  + 0.15 * buscas_que_levaram_aqui_norm
-  + 0.10 * retries_por_view_norm))
-  ```
-  Normalização por `MAX() OVER (PARTITION BY documento)`.
+`supabase/migrations/<ts>_it_dificuldade_paginas_view.sql`
 
-## Fase 2 — Telemetria no operador
+```sql
+CREATE OR REPLACE VIEW public.it_dificuldade_paginas
+WITH (security_invoker = on) AS
+WITH metricas_pagina AS (
+  SELECT
+    documento,
+    pagina,
+    -- Tempo médio na página (page_leave traz duracao_ms)
+    AVG(CASE WHEN tipo_evento = 'page_leave' THEN duracao_ms END) AS tempo_medio_ms,
+    -- Contagem de visualizações (denominador dos por_view)
+    COUNT(*) FILTER (WHERE tipo_evento = 'page_view') AS views,
+    -- Zooms na página
+    COUNT(*) FILTER (WHERE tipo_evento IN ('zoom_in','zoom_out','zoom_reset')) AS zooms,
+    -- Retornos: views além da primeira por sessão
+    GREATEST(
+      COUNT(*) FILTER (WHERE tipo_evento = 'page_view')
+      - COUNT(DISTINCT sessao_id) FILTER (WHERE tipo_evento = 'page_view'),
+      0
+    ) AS retornos,
+    -- Buscas que levaram aqui (clique em resultado de busca com pagina_destino = pagina)
+    0::bigint AS buscas_que_levaram_aqui_placeholder,
+    -- Retries de imagem
+    COUNT(*) FILTER (WHERE tipo_evento = 'image_retry') AS retries
+  FROM public.it_consulta_eventos
+  WHERE pagina IS NOT NULL
+  GROUP BY documento, pagina
+),
+buscas_destino AS (
+  SELECT documento, pagina_destino AS pagina, COUNT(*) AS buscas
+  FROM public.it_consulta_eventos
+  WHERE tipo_evento = 'index_search_result_click'
+    AND pagina_destino IS NOT NULL
+  GROUP BY documento, pagina_destino
+),
+combinado AS (
+  SELECT
+    m.documento,
+    m.pagina,
+    COALESCE(m.tempo_medio_ms, 0) AS tempo_medio_ms,
+    m.views,
+    m.zooms,
+    m.retornos,
+    COALESCE(b.buscas, 0) AS buscas_que_levaram_aqui,
+    m.retries,
+    -- Por view (guarda contra divisão por zero)
+    CASE WHEN m.views > 0 THEN m.zooms::float / m.views ELSE 0 END AS zoom_por_view,
+    CASE WHEN m.views > 0 THEN m.retornos::float / m.views ELSE 0 END AS retorno_por_view,
+    CASE WHEN m.views > 0 THEN m.retries::float / m.views ELSE 0 END AS retry_por_view
+  FROM metricas_pagina m
+  LEFT JOIN buscas_destino b
+    ON b.documento = m.documento AND b.pagina = m.pagina
+)
+SELECT
+  documento,
+  pagina,
+  ROUND(tempo_medio_ms)::bigint AS tempo_medio_ms,
+  views,
+  zooms,
+  retornos,
+  buscas_que_levaram_aqui,
+  retries,
+  ROUND(100 * (
+      0.30 * COALESCE(tempo_medio_ms / NULLIF(MAX(tempo_medio_ms) OVER (PARTITION BY documento), 0), 0)
+    + 0.25 * COALESCE(zoom_por_view / NULLIF(MAX(zoom_por_view) OVER (PARTITION BY documento), 0), 0)
+    + 0.20 * COALESCE(retorno_por_view / NULLIF(MAX(retorno_por_view) OVER (PARTITION BY documento), 0), 0)
+    + 0.15 * COALESCE(buscas_que_levaram_aqui::float / NULLIF(MAX(buscas_que_levaram_aqui) OVER (PARTITION BY documento), 0), 0)
+    + 0.10 * COALESCE(retry_por_view / NULLIF(MAX(retry_por_view) OVER (PARTITION BY documento), 0), 0)
+  ))::int AS score
+FROM combinado;
 
-**Novos:**
-- `src/lib/it/telemetria.ts` — tipos, sanitizador de busca (trim, lowercase, ≥2 chars, max 100), debounce 600 ms, gerador de UUID
-- `src/lib/it/supabase-analytics.ts` — `iniciarSessao`, `fecharSessao`, `registrarEvento` (fire-and-forget; em falha → `enfileirar("it_evento", ...)`)
-- `src/hooks/use-it-telemetria.ts` — sessão única persistida em `sessionStorage`, page tracking, listeners `visibilitychange`/`pagehide`/`beforeunload` + cleanup, `sendBeacon` só como reforço
-
-**Editado: `src/hooks/use-connection-status.ts`**
-- `FilaItemTipo` += `"it_evento" | "it_sessao_close"`
-- `processarItem` ganha 2 branches
-
-**Editado: `src/routes/operador.it.$doc.tsx`**
-- `useItTelemetria(slug, totalPaginas)` no topo de `Visualizador`
-- Eventos: `page_view`, `page_leave`, `index_open`, `index_click`, `index_search` (debounced), `index_search_result_click`, `zoom_in/out/reset`, `image_retry`, `image_error`, `cache_mode` (só em mudança real via `useRef`)
-- Tudo em `try/catch` silencioso
-
-## Fase 3 — Painel da gestão
-
-**Nova rota:** `src/routes/gestao.it-analytics.tsx`
-
-```text
-┌─ Banner: "Esta análise serve para identificar pontos       ┐
-│  que precisam de reforço de treinamento, não para           │
-│  avaliar operadores individualmente."                       │
-├─ Filtros: período (Hoje/7d/30d/custom), documento,          ┤
-│           equipe, turno                                     │
-├─ KPIs: sessões · consultas · buscas · zooms · retries       ┤
-├─ Ranking: ITs mais consultadas                              ┤
-├─ Ranking: páginas mais consultadas (por IT)                 ┤
-├─ Ranking: termos mais buscados                              ┤
-├─ Score de dificuldade (top 10) — fórmula expandível         ┤
-├─ Diagnóstico: tempo médio · zoom · retry por página         ┤
-├─ Toggle "Ver por operador" (oculto por default)             ┤
-└─ Segmentação: equipe × turno                                ┘
+-- Permissão de leitura: só gestão
+REVOKE ALL ON public.it_dificuldade_paginas FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.it_dificuldade_paginas TO authenticated;
 ```
 
-**Editado: `src/routes/gestao.index.tsx`**
-- 5º `BotaoLink` → `/gestao/it-analytics`, ícone `BookOpen`, descrição "Inteligência de uso das ITs · pontos para reforço de treinamento"
+> O `security_invoker=on` faz a view rodar com a permissão do chamador, então a RLS de `it_consulta_eventos` (SELECT só pra `is_gestao`) já protege o conteúdo. Operador autenticado consegue chamar a view, mas não retorna nada porque não passa na RLS da tabela base.
+
+## 2. Robustez do fechamento de sessão
+
+**Editado: `src/lib/it/supabase-analytics.ts`**
+- Em `updateItSessaoFechamento`, adicionar `.is("encerrado_em", null)` no `.eq("id", sessaoId)`. Se já fechou, vira no-op silencioso, sem race condition.
+
+## 3. Fallback de user_id no client
+
+**Editado: `src/hooks/use-it-telemetria.ts`**
+- Antes de montar o payload da sessão/evento, se `usuario.id` vier `null`, buscar `(await supabase.auth.getUser()).data.user?.id` como fallback.
+- Se ainda assim vier `null` (sem auth), aborta o registro silenciosamente — não tenta gravar evento órfão que vai bater na RLS.
+
+## 4. Tratamento de erro mais explícito no painel
+
+**Editado: `src/routes/gestao.it-analytics.tsx`**
+- Trocar o `Promise.all` por `Promise.allSettled` para que a falha de uma query (ex: view ainda não criada num ambiente em transição) não derrube o painel inteiro. KPIs e rankings continuam aparecendo; só o card de "Score de dificuldade" mostra um aviso curto se a view falhar.
 
 ---
 
-## Arquivos tocados
+# Arquivos tocados
 
-**Novos (5):** migration SQL, `lib/it/telemetria.ts`, `lib/it/supabase-analytics.ts`, `hooks/use-it-telemetria.ts`, `routes/gestao.it-analytics.tsx`
+**Novo (1):** `supabase/migrations/<ts>_it_dificuldade_paginas_view.sql`
 
-**Editados (3):** `routes/operador.it.$doc.tsx`, `routes/gestao.index.tsx`, `hooks/use-connection-status.ts`
+**Editados (3):**
+- `src/lib/it/supabase-analytics.ts` (filtro `encerrado_em IS NULL`)
+- `src/hooks/use-it-telemetria.ts` (fallback `auth.getUser()` para `user_id`)
+- `src/routes/gestao.it-analytics.tsx` (`Promise.allSettled` + degradação por bloco)
 
-**Não tocados:** checklist, anomalias, PTP, limpeza, relatório, manifest, storage, viewer logic.
+**Não tocados:** tabelas existentes, RLS já aplicada, viewer do operador, fila offline, demais módulos.
 
 ---
 
-## Critérios de aceitação
+# Critérios de aceitação
 
-1. Viewer de IT funciona idêntico
-2. Sessão única por consulta (sem duplicar em remontagens)
-3. Cada navegação/zoom/busca/erro vira evento
-4. Telemetria nunca bloqueia UI nem mostra erro
-5. Eventos sobem após reconexão (fila offline reusada)
-6. `/gestao/it-analytics` mostra KPIs, rankings, score, segmentação
-7. Filtros funcionam (período/documento/equipe/turno)
-8. Tom não-punitivo explícito; filtro por operador atrás de toggle
-9. RLS impede operador de ler analytics; só `is_gestao()` lê
-10. Termos de busca sanitizados e debounced
-11. `page_leave` registrado mesmo no APK (defesa em profundidade: visibilitychange + pagehide + beforeunload + cleanup; sendBeacon só como reforço)
-12. `cache_mode` só em mudança real
-13. Score visível com fórmula explicável
+1. `/gestao/it-analytics` para de mostrar "Não foi possível carregar os dados"
+2. KPIs (sessões, eventos, buscas, zooms, retries) aparecem com valores reais
+3. Ranking de páginas/ITs mais consultadas aparece
+4. Card "Score de dificuldade" mostra top 10 páginas com score 0–100
+5. Se a view falhar isoladamente, o resto do painel continua renderizando
+6. Fechamento de sessão é idempotente (sem race condition entre handlers)
+7. Eventos sem `user_id` válido não são enviados (não geram lixo nem erro de RLS)
+8. Operador continua sem conseguir ler analytics (RLS preservada)
 
