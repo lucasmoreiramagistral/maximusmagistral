@@ -281,22 +281,20 @@ const store = {
           const msg = err instanceof Error ? err.message : String(err);
           const isConflito =
             err instanceof ConflitoVersaoError || /conflito de vers/i.test(msg);
-          // detecta se é erro de rede (Failed to fetch, NetworkError, timeout, etc)
           const isNetworkError =
             /failed to fetch|networkerror|fetch failed|load failed|timeout|aborted|err_network|err_internet/i.test(
               msg,
             );
-          fila[i] = {
-            ...fila[i],
-            status: isConflito ? "conflito" : "erro",
-            tentativas: fila[i].tentativas + 1,
-            ultimoErro: msg,
-          };
-          writeFila(fila);
-          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
-          this.emit();
           if (isConflito) {
-            // não retenta automaticamente, alerta o usuário
+            fila[i] = {
+              ...fila[i],
+              status: "conflito",
+              tentativas: fila[i].tentativas + 1,
+              ultimoErro: msg,
+            };
+            writeFila(fila);
+            this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
+            this.emit();
             toast.error(
               "Conflito de versão: outro operador alterou esse registro. Recarregue a tela antes de salvar.",
               { duration: 10000 },
@@ -304,13 +302,31 @@ const store = {
             continue;
           }
           if (isNetworkError) {
-            // provavelmente offline novamente — para a sincronização
-            // e marca como offline para revalidar conexão
+            fila[i] = {
+              ...fila[i],
+              status: "erro",
+              tentativas: fila[i].tentativas + 1,
+              ultimoErro: msg,
+            };
+            writeFila(fila);
+            this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
+            this.emit();
             this.setOnline(false);
             break;
           }
-          // erro de aplicação (validação, auth, etc) — segue tentando os próximos
-          // para não travar a fila inteira por causa de um item ruim
+          // Erro de aplicação (validação, auth, payload inválido, etc).
+          // Descartar imediatamente — reter só confundiria o operador com um
+          // "X pend." que nunca some. O console preserva o detalhe.
+          console.error(
+            `[fila] descartando item ${item.tipo} (${item.id}) por erro de aplicação:`,
+            msg,
+            item.payload,
+          );
+          fila = fila.filter((x) => x.id !== item.id);
+          writeFila(fila);
+          this.state = { ...this.state, fila: [...fila], pendingCount: countAtivos(fila) };
+          this.emit();
+          i--;
           continue;
         }
       }
