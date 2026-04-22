@@ -1002,6 +1002,61 @@ function ItAnalytics() {
                 </CardContent>
               )}
             </Card>
+
+            {/* Trocas de operador (24h) */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <ArrowRightLeft className="h-4 w-4" />
+                  Trocas de operador (24h)
+                </CardTitle>
+                <CardDescription>
+                  Trilha auditável: cliente (otimista) + servidor (garantido por trigger).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {trocasOperador.length === 0 ? (
+                  <SemDados />
+                ) : (
+                  <ul className="space-y-1.5">
+                    {trocasOperador.map((t) => {
+                      const meta = (t.metadata_json ?? {}) as Record<string, unknown>;
+                      const anterior = (meta.anterior_canonico as string) ?? "—";
+                      const novo =
+                        (meta.novo_canonico as string) ??
+                        t.operador_nome_canonico ??
+                        t.operador_nome ??
+                        "—";
+                      const data = new Date(t.created_at);
+                      return (
+                        <li
+                          key={t.id}
+                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                        >
+                          <div className="flex flex-1 flex-col gap-0.5">
+                            <span>
+                              <span className="text-muted-foreground">{anterior}</span>{" "}
+                              → <strong>{novo}</strong>
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              {data.toLocaleString("pt-BR")} · device{" "}
+                              <code className="font-mono">
+                                {t.device_id?.slice(0, 8) ?? "—"}…
+                              </code>
+                              {t.tipo_evento === "identidade_trocada_servidor" && (
+                                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
+                                  servidor
+                                </span>
+                              )}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
       </main>
