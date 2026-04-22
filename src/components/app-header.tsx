@@ -68,10 +68,13 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
     navigate({ to: "/" });
   };
 
-  // Para operador: mostrar primeiro nome digitado em "Operador responsável", se houver.
+  // Para operador: mostrar SOMENTE o primeiro nome digitado em "Operador responsável".
+  // Se ainda não digitou, deixa vazio (só aparece "Operador" abaixo).
   const nomeExibido =
-    usuario?.perfil === "operador" && nomeOperadorSalvo
-      ? primeiroNome(nomeOperadorSalvo)
+    usuario?.perfil === "operador"
+      ? nomeOperadorSalvo
+        ? primeiroNome(nomeOperadorSalvo)
+        : ""
       : usuario?.nome ?? "";
 
   return (
