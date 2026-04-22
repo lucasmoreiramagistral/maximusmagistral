@@ -16,11 +16,11 @@ import {
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
 import type { EstadoVersoFiltro } from "@/lib/checklist/filtros";
-import { extrairFolhasDiaKeysComVerso } from "@/lib/verso/aplicabilidade";
+import { extrairFolhasDiaKeysComVerso, temVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
-import { Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
+import { ClipboardCheck, Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
 import type { Filtros } from "@/lib/checklist/filtros";
 
 export const Route = createFileRoute("/gestao/checklists")({
