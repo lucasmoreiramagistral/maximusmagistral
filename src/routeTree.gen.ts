@@ -24,6 +24,7 @@ import { Route as OperadorChecklistRouteImport } from './routes/operador.checkli
 import { Route as ManutencaoFiltrosRouteImport } from './routes/manutencao.filtros'
 import { Route as ManutencaoAnomaliasRouteImport } from './routes/manutencao.anomalias'
 import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
+import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
 import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
@@ -115,6 +116,11 @@ const GestaoRelatorioRoute = GestaoRelatorioRouteImport.update({
   path: '/gestao/relatorio',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GestaoItAnalyticsRoute = GestaoItAnalyticsRouteImport.update({
+  id: '/gestao/it-analytics',
+  path: '/gestao/it-analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GestaoFiltrosRoute = GestaoFiltrosRouteImport.update({
   id: '/gestao/filtros',
   path: '/gestao/filtros',
@@ -203,6 +209,7 @@ export interface FileRoutesByFullPath {
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -268,6 +276,7 @@ export interface FileRoutesById {
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/filtros'
+    | '/gestao/it-analytics'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/filtros'
+    | '/gestao/it-analytics'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -366,6 +377,7 @@ export interface FileRouteTypes {
     | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/filtros'
+    | '/gestao/it-analytics'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -399,6 +411,7 @@ export interface RootRouteChildren {
   GestaoAnomaliasRoute: typeof GestaoAnomaliasRoute
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
+  GestaoItAnalyticsRoute: typeof GestaoItAnalyticsRoute
   GestaoRelatorioRoute: typeof GestaoRelatorioRoute
   ManutencaoAnomaliasRoute: typeof ManutencaoAnomaliasRoute
   ManutencaoFiltrosRoute: typeof ManutencaoFiltrosRoute
@@ -528,6 +541,13 @@ declare module '@tanstack/react-router' {
       path: '/gestao/relatorio'
       fullPath: '/gestao/relatorio'
       preLoaderRoute: typeof GestaoRelatorioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/it-analytics': {
+      id: '/gestao/it-analytics'
+      path: '/gestao/it-analytics'
+      fullPath: '/gestao/it-analytics'
+      preLoaderRoute: typeof GestaoItAnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/filtros': {
@@ -680,6 +700,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoAnomaliasRoute: GestaoAnomaliasRoute,
   GestaoChecklistsRoute: GestaoChecklistsRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,
+  GestaoItAnalyticsRoute: GestaoItAnalyticsRoute,
   GestaoRelatorioRoute: GestaoRelatorioRoute,
   ManutencaoAnomaliasRoute: ManutencaoAnomaliasRoute,
   ManutencaoFiltrosRoute: ManutencaoFiltrosRoute,
