@@ -50,6 +50,7 @@ interface FiltrosState {
   equipe: string;
   turno: string;
   porOperador: boolean;
+  apenasRastreaveis: boolean;
 }
 
 interface EventoRow {
@@ -143,6 +144,7 @@ function ItAnalytics() {
     equipe: "todas",
     turno: "todos",
     porOperador: false,
+    apenasRastreaveis: true,
   });
 
   const [sessoes, setSessoes] = useState<SessaoRow[]>([]);
