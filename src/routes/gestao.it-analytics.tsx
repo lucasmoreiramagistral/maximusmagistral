@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
@@ -8,6 +8,7 @@ import {
   BookOpen,
   Calendar,
   ChevronDown,
+  ClipboardCheck,
   Info,
   Loader2,
   Search,
@@ -507,6 +508,29 @@ function ItAnalytics() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Atalho para Operadores com treinamento (Atas) */}
+        <Link
+          to="/gestao/it-treinamentos"
+          className="group mb-6 flex items-center gap-4 rounded-2xl border-2 border-primary/30 bg-card p-4 shadow-sm transition-all hover:border-primary hover:shadow-md md:p-5"
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <ClipboardCheck className="h-6 w-6" />
+          </div>
+          <div className="flex-1">
+            <p className="text-base font-bold text-foreground md:text-lg">
+              Operadores com treinamento
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Atas de treinamento na função (IT 002 e IT 005) com nome, turno e
+              assinatura do instrutor — exporta para o formulário oficial FM 01
+              PSGQ 05.
+            </p>
+          </div>
+          <span className="hidden text-sm font-semibold text-primary md:inline">
+            Abrir →
+          </span>
+        </Link>
 
         {/* Filtros */}
         <Card className="mb-6">
