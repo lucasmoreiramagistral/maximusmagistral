@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
   AlertCircle,
   BookOpen,
@@ -134,17 +135,23 @@ function ItAnalytics() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
+  const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date | null>(null);
+  // ref pra cancelar fetch antigo se chegar realtime no meio
+  const fetchAbortRef = useRef<{ cancelled: boolean } | null>(null);
 
-  // Carregamento dos dados — Promise.allSettled: falha de uma query
-  // (ex: view ainda não criada) não derruba o painel inteiro.
-  useEffect(() => {
-    if (!usuario) return;
-    let cancelled = false;
-    setCarregando(true);
-    setErro(null);
-    setErroDificuldade(null);
+  // Fetch unificado — silent=true não mostra spinner (usado em refetches realtime)
+  const carregarDados = useCallback(
+    async (silent = false) => {
+      if (!usuario) return;
+      // cancela fetch anterior em voo
+      if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
+      const guard = { cancelled: false };
+      fetchAbortRef.current = guard;
 
-    (async () => {
+      if (!silent) setCarregando(true);
+      setErro(null);
+      setErroDificuldade(null);
+
       try {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
@@ -188,9 +195,8 @@ function ItAnalytics() {
           qDif,
         ]);
 
-        if (cancelled) return;
+        if (guard.cancelled) return;
 
-        // Sessões e eventos são essenciais — se falharem, mostra erro principal
         if (sesRes.status === "rejected") {
           throw sesRes.reason instanceof Error
             ? sesRes.reason
@@ -208,7 +214,6 @@ function ItAnalytics() {
         setSessoes((sesRes.value.data as SessaoRow[]) ?? []);
         setEventos((evRes.value.data as EventoRow[]) ?? []);
 
-        // Dificuldade é opcional — degrada graciosamente
         if (difRes.status === "rejected") {
           setDificuldade([]);
           setErroDificuldade(
@@ -222,18 +227,30 @@ function ItAnalytics() {
         } else {
           setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
         }
+
+        setUltimaAtualizacao(new Date());
       } catch (e) {
-        if (cancelled) return;
+        if (guard.cancelled) return;
         setErro(e instanceof Error ? e.message : "Erro ao carregar analytics.");
       } finally {
-        if (!cancelled) setCarregando(false);
+        if (!guard.cancelled && !silent) setCarregando(false);
       }
-    })();
+    },
+    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno],
+  );
 
+  // Carregamento inicial / quando filtros mudam
+  useEffect(() => {
+    void carregarDados(false);
     return () => {
-      cancelled = true;
+      if (fetchAbortRef.current) fetchAbortRef.current.cancelled = true;
     };
-  }, [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno]);
+  }, [carregarDados]);
+
+  // Realtime: refetch silencioso quando chegar evento/sessão nova (debounced)
+  useItAnalyticsRealtime(!!usuario, () => {
+    void carregarDados(true);
+  });
 
   // Agregações memoizadas
   const kpis = useMemo(() => {
@@ -363,16 +380,37 @@ function ItAnalytics() {
         voltarPara="/gestao"
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-10">
-        {/* Banner não-punitivo */}
+        {/* Banner não-punitivo + indicador ao vivo */}
         <Card className="mb-6 border-primary/30 bg-primary-soft/40">
           <CardContent className="flex items-start gap-3 p-4 md:p-5">
             <Info className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-            <p className="text-sm text-foreground md:text-base">
-              Esta análise serve para identificar pontos da instrução que precisam
-              de reforço de treinamento, <strong>não</strong> para avaliar
-              operadores individualmente. O foco está em onde a operação encontra
-              dificuldade — não em quem.
-            </p>
+            <div className="flex-1">
+              <p className="text-sm text-foreground md:text-base">
+                Esta análise serve para identificar pontos da instrução que precisam
+                de reforço de treinamento, <strong>não</strong> para avaliar
+                operadores individualmente. O foco está em onde a operação encontra
+                dificuldade — não em quem.
+              </p>
+              <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
+                </span>
+                <span>
+                  Atualização ao vivo
+                  {ultimaAtualizacao && (
+                    <>
+                      {" · última: "}
+                      {ultimaAtualizacao.toLocaleTimeString("pt-BR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                      })}
+                    </>
+                  )}
+                </span>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
