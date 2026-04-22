@@ -318,8 +318,8 @@ function PtpJanelaDetalhe() {
           </div>
         )}
 
-        {/* Motivo da edição (só se já estava concluída) */}
-        {jaConcluida && (
+        {/* Motivo da edição (só se já estava concluída quando a tela carregou) */}
+        {exigeMotivoEdicao && (
           <div className="mt-5">
             <Label htmlFor="motivo" className="text-base">
               Motivo da edição *
