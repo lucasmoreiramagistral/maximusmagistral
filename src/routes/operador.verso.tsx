@@ -154,33 +154,29 @@ function VersoHome() {
           </Link>
         </div>
 
-        <section className="mt-6">
-          <div className="mb-3 flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold text-foreground">
-              Validação dos Líderes
-            </h2>
-          </div>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Cada líder valida o seu próprio turno (PTP do turno + limpeza do
-            turno). São duas validações independentes — uma para cada turno.
-          </p>
+        {turnoLogado && (
+          <section className="mt-6">
+            <div className="mb-3 flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground">
+                Validação do Líder — {turnoLogado}
+              </h2>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              O líder valida o turno após o operador concluir o PTP e a limpeza
+              da sala de envase.
+            </p>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {TURNOS_ATIVOS_LIMPEZA.map((tn) => (
-              <BlocoValidacaoTurno
-                key={tn}
-                turnoAlvo={tn as TurnoAtivo}
-                ptpJanelas={ptp.janelas}
-                limpezaTurnos={limpeza.turnos}
-                salvarTurno={limpeza.salvarTurno}
-                usuarioLogin={usuario.usuario}
-                usuarioNome={usuario.nome}
-                turnoLogado={turnoLogado}
-              />
-            ))}
-          </div>
-        </section>
+            <BlocoValidacaoTurno
+              turnoAlvo={turnoLogado}
+              ptpJanelas={ptp.janelas}
+              limpezaTurnos={limpeza.turnos}
+              salvarTurno={limpeza.salvarTurno}
+              usuarioLogin={usuario.usuario}
+              usuarioNome={usuario.nome}
+            />
+          </section>
+        )}
       </main>
     </div>
   );
@@ -203,7 +199,7 @@ interface BlocoValidacaoTurnoProps {
   salvarTurno: ReturnType<typeof useLimpezaTurnos>["salvarTurno"];
   usuarioLogin: string;
   usuarioNome: string;
-  turnoLogado: TurnoAtivo | null;
+  
 }
 
 function BlocoValidacaoTurno({
@@ -213,14 +209,12 @@ function BlocoValidacaoTurno({
   salvarTurno,
   usuarioLogin,
   usuarioNome,
-  turnoLogado,
 }: BlocoValidacaoTurnoProps) {
   const [abrindo, setAbrindo] = useState(false);
   const [liderNome, setLiderNome] = useState(usuarioNome);
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const ehDoOperador = turnoLogado === turnoAlvo;
   const codigosDoTurno = PTP_JANELAS_POR_TURNO[turnoAlvo];
 
   // PTP do turno (6 janelas)
@@ -240,7 +234,7 @@ function BlocoValidacaoTurno({
     limpezaTurno?.status === "validado";
   const turnoValidado = limpezaTurno?.status === "validado";
 
-  const liberado = ptpOk && limpezaConcluida && !turnoValidado && ehDoOperador;
+  const liberado = ptpOk && limpezaConcluida && !turnoValidado;
 
   // ─── Estado: já validado ──────────────────────────────────────────
   if (turnoValidado && limpezaTurno) {
@@ -273,35 +267,6 @@ function BlocoValidacaoTurno({
               <li className="flex items-center gap-2">
                 <CheckCircle2 className="h-3.5 w-3.5 text-success" />
                 Limpeza {turnoAlvo} concluída
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ─── Estado: bloqueado por turno errado ───────────────────────────
-  if (!ehDoOperador) {
-    return (
-      <div className="rounded-2xl border-2 border-dashed border-border bg-muted/40 p-5 opacity-80">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <Lock className="h-7 w-7" />
-          </div>
-          <div className="flex-1">
-            <p className="text-base font-bold text-foreground">
-              Líder {turnoAlvo}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Acesso restrito ao líder do turno {turnoAlvo}.
-            </p>
-            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <li>
-                PTP do turno: {ptpRegistradas}/{codigosDoTurno.length} janelas
-              </li>
-              <li>
-                Limpeza: {limpezaConcluida ? "concluída" : "aguardando conclusão"}
               </li>
             </ul>
           </div>
