@@ -467,7 +467,11 @@ export function gerarVersoWorksheet(
       cellMeio.value = "_____________________________";
     }
     if (lt?.assinaturaLider?.dataUrl) {
-      inserirImagem(wb, ws, `${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`, lt.assinaturaLider.dataUrl);
+      inserirImagem(wb, ws, `${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`, lt.assinaturaLider.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.55,
+        alturaFracao: 0.7,
+      });
     }
     // Base: legenda
     ws.mergeCells(`${colA}${rowTopo + 2}:${colB}${rowTopo + 2}`);
@@ -489,7 +493,11 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.font = { size: 8 };
     if (lt?.assinaturaOperador?.dataUrl) {
-      inserirImagem(wb, ws, `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`, lt.assinaturaOperador.dataUrl);
+      inserirImagem(wb, ws, `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`, lt.assinaturaOperador.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.85,
+        alturaFracao: 0.85,
+      });
     }
   });
 
