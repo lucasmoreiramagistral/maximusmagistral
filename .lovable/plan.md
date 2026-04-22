@@ -1,77 +1,108 @@
 
 
-## Análise do prompt do GPT
+# Plano final — Telemetria de IT + Painel de Gestão
 
-**Veredito:** O prompt está **muito bom** — escopo limitado, prioridades claras, não pede recriação, respeita o que já funciona. Bati cada ponto contra o código atual e está tudo coerente. Posso executar as 8 melhorias praticamente como descritas.
-
-### Pontos onde o prompt está perfeito
-- **Retry local da imagem** (Melhoria 1): a abordagem de resetar `imagemStatus` + `key/version` é exatamente o jeito certo dado o componente atual.
-- **Busca no índice** (Melhoria 2): faz sentido, o `Input` do projeto já existe (`src/components/ui/input.tsx`).
-- **Limpeza do hook** (Melhoria 4): confirmei que `getEntradaAtual` realmente não é mais usado em lugar nenhum do módulo — pode remover com segurança.
-- **Preload anterior** (Melhoria 5), **auto-scroll do índice** (Melhoria 7), **fallback do header** (Melhoria 8): todos válidos e simples.
-
-### Ajustes/melhorias que vou aplicar em cima do prompt
-
-1. **Melhoria 3 (destaque do grupo ativo) — corrigir de verdade:** o prompt sugere trocar `bg-primary/8` por `bg-primary/[0.08]`. Verifiquei que o projeto usa Tailwind v4 — `bg-primary/8` **não é uma escala padrão** e provavelmente não está sendo gerado. Vou usar `bg-primary/10` (escala padrão e confiável) em vez de `bg-primary/[0.08]`, que é mais limpo e também funciona. Mesma lógica para a borda: `border-primary/40` está ok.
-
-2. **Melhoria 6 (indicador de cache/offline) — refinar a regra:** o prompt diz "se hook estiver servindo manifest do cache **e** não houver rede, mostrar 'Consulta em cache'". Vou separar em duas mensagens distintas e mais úteis:
-   - `!isOnline` → "Modo offline" (mais crítico, prioridade)
-   - `fromCache && isOnline` → "Consulta em cache" (informativo)
-   - Posicionado discretamente abaixo da toolbar, só uma linha pequena com ícone.
-
-3. **Melhoria 2 (busca) — detalhe extra:** vou normalizar a busca (lowercase + trim + remover acentos) para "operacao" achar "Operação". Também vou esconder seções vazias quando o filtro estiver ativo (em vez de tentar manter a "seção anterior relevante", que o próprio prompt marcou como opcional e adiciona complexidade sem ganho real).
-
-4. **Melhoria 7 (auto-scroll do índice) — detalhe técnico:** vou usar `scrollIntoView({ block: "center" })` num `useEffect` disparado quando `indiceOpen` vira true, com pequeno timeout para esperar o Sheet abrir. O prompt aceita scroll instantâneo, então uso `behavior: "auto"` para evitar jank.
-
-### O que NÃO vou fazer (e o prompt acertou em não pedir)
-- Não mexer em manifest, storage, banco, outras telas.
-- Não adicionar "fit to width" nem mexer no zoom existente.
-- Não tocar no `operador.it.tsx` (layout/index) — está pronto.
+Aprovado. Incorporo a observação sobre `sendBeacon`: tratado como **camada de reforço**, nunca como mecanismo único.
 
 ---
 
-## Plano de execução
+## Captura de `page_leave` / `it_close` — defesa em profundidade
 
-### Arquivo 1 — `src/hooks/use-it-document.ts`
-- Remover `getEntradaAtual` (callback + tipo na interface) — confirmado que não é usado.
+Ordem de prioridade (todas ativas, redundantes de propósito):
 
-### Arquivo 2 — `src/routes/operador.it.$doc.tsx`
+1. **`visibilitychange` → `hidden`** — primeiro gatilho confiável quando o operador troca de aba/app. Faz `flushPageLeave()` síncrono no `localStorage` (fila offline) e tenta `POST` direto.
+2. **`pagehide`** — dispara antes do `unload` em browsers modernos e em WebView Android (Capacitor). Mesma rotina de flush.
+3. **`beforeunload`** — fallback pra browsers antigos.
+4. **Cleanup do `useEffect`** — captura navegação SPA interna (trocar de IT, voltar pra home do operador). Esse é o caminho **principal** em uso normal.
+5. **`navigator.sendBeacon`** — reforço dentro dos handlers acima quando disponível e quando o payload couber. Se falhar ou não existir (WebView antigo), a fila offline já gravou o evento em `localStorage` e o próximo boot drena.
 
-**a) Indicador de cache/offline (faixa discreta):**
-- Abaixo da toolbar superior, renderizar uma linha fina com ícone `WifiOff` ou `Database`:
-  - `!isOnline` → "Modo offline — usando dados em cache"
-  - `itDoc.fromCache && isOnline` → "Consulta em cache"
-  - online + fresh → nada.
+Resultado: mesmo se `sendBeacon` "peidar" no APK, o evento está garantido em `localStorage` antes do handler retornar — `use-connection-status` envia na próxima abertura online.
 
-**b) `PaginaImagem` — retry local + key:**
-- Adicionar `useState<number>` para `tentativa` (incrementado pelo botão "Tentar novamente").
-- Mudar `<img src={url}>` para `<img src={tentativa === 0 ? url : ${url}?r=${tentativa}}>` para forçar re-fetch.
-- No clique do botão: `setImagemStatus("loading"); setTentativa(t => t+1)`.
-- Adicionar `<Button>Tentar novamente</Button>` no overlay de erro (logo abaixo do subtítulo).
+---
 
-**c) `montarLabelTopo` — fallback robusto:**
-- Trocar fallback final `Página ${paginaAtual}` por `Página ${paginaAtual} de ${totalPaginas}`.
-- Passar `totalPaginas` como argumento da função.
+## Fase 1 — Banco
 
-**d) Preload da página anterior:**
-- No mesmo `useEffect` do preload, adicionar lógica para `paginaAtual - 1` quando existir.
+**Migration:** `supabase/migrations/<ts>_it_telemetria.sql`
 
-**e) `PainelIndice` — busca + auto-scroll + destaque corrigido:**
-- Adicionar prop `indiceOpen` ou usar `useEffect` no componente pai que dispara scroll quando abre.
-- Adicionar `useState` para `filtro`, com `<Input>` no topo (placeholder pedido pelo prompt).
-- Função de normalização (lowercase, sem acento) para comparar `filtro` contra `entry.label` e `entry.numero`.
-- Quando filtro ativo: filtrar entradas clicáveis (não-seção); esconder seções; se vazio → "Nenhum item encontrado".
-- Trocar `bg-primary/8` por `bg-primary/10` para garantir compilação Tailwind.
-- Adicionar `ref` no item ativo (primeira entrada da página atual) e `scrollIntoView({ block: "center", behavior: "auto" })` num `useEffect` quando o Sheet abrir.
+- `public.it_consulta_sessoes` (id, user_id, operador_nome, perfil, equipe, turno, documento CHECK in('it002','it005'), rota, iniciado_em, encerrado_em, duracao_total_ms, created_at)
+- `public.it_consulta_eventos` (+ `metadata_json jsonb`, CHECK em `tipo_evento` com os 14 tipos)
+- Índices: documento, user_id, sessao_id, tipo_evento, pagina, created_at
+- RLS: INSERT/UPDATE = `auth.uid() = user_id`; SELECT = `is_gestao(auth.uid())`
+- View `public.it_dificuldade_paginas`:
+  ```text
+  score = round(100 * (
+    0.30 * tempo_medio_norm
+  + 0.25 * zooms_por_view_norm
+  + 0.20 * retornos_por_view_norm
+  + 0.15 * buscas_que_levaram_aqui_norm
+  + 0.10 * retries_por_view_norm))
+  ```
+  Normalização por `MAX() OVER (PARTITION BY documento)`.
 
-### Critérios de aceitação
-1. Erro de imagem mostra botão "Tentar novamente" funcional (recarrega só a imagem).
-2. Drawer do índice tem campo de busca que filtra por número/label/passo/anexo (insensível a acento).
-3. Grupo da página atual no índice fica visivelmente destacado (`bg-primary/10`).
-4. `getEntradaAtual` removido do hook.
-5. Preload tanto da próxima quanto da anterior.
-6. Faixa discreta indica "Modo offline" ou "Consulta em cache" quando aplicável.
-7. Drawer do índice abre já rolado até a página atual.
-8. Header tem fallback "Página X de Y" se cair em caso estranho.
-9. Nada do que já funciona quebra (TTL, prewarm, rodapé, zoom, overlay, etc.).
+## Fase 2 — Telemetria no operador
+
+**Novos:**
+- `src/lib/it/telemetria.ts` — tipos, sanitizador de busca (trim, lowercase, ≥2 chars, max 100), debounce 600 ms, gerador de UUID
+- `src/lib/it/supabase-analytics.ts` — `iniciarSessao`, `fecharSessao`, `registrarEvento` (fire-and-forget; em falha → `enfileirar("it_evento", ...)`)
+- `src/hooks/use-it-telemetria.ts` — sessão única persistida em `sessionStorage`, page tracking, listeners `visibilitychange`/`pagehide`/`beforeunload` + cleanup, `sendBeacon` só como reforço
+
+**Editado: `src/hooks/use-connection-status.ts`**
+- `FilaItemTipo` += `"it_evento" | "it_sessao_close"`
+- `processarItem` ganha 2 branches
+
+**Editado: `src/routes/operador.it.$doc.tsx`**
+- `useItTelemetria(slug, totalPaginas)` no topo de `Visualizador`
+- Eventos: `page_view`, `page_leave`, `index_open`, `index_click`, `index_search` (debounced), `index_search_result_click`, `zoom_in/out/reset`, `image_retry`, `image_error`, `cache_mode` (só em mudança real via `useRef`)
+- Tudo em `try/catch` silencioso
+
+## Fase 3 — Painel da gestão
+
+**Nova rota:** `src/routes/gestao.it-analytics.tsx`
+
+```text
+┌─ Banner: "Esta análise serve para identificar pontos       ┐
+│  que precisam de reforço de treinamento, não para           │
+│  avaliar operadores individualmente."                       │
+├─ Filtros: período (Hoje/7d/30d/custom), documento,          ┤
+│           equipe, turno                                     │
+├─ KPIs: sessões · consultas · buscas · zooms · retries       ┤
+├─ Ranking: ITs mais consultadas                              ┤
+├─ Ranking: páginas mais consultadas (por IT)                 ┤
+├─ Ranking: termos mais buscados                              ┤
+├─ Score de dificuldade (top 10) — fórmula expandível         ┤
+├─ Diagnóstico: tempo médio · zoom · retry por página         ┤
+├─ Toggle "Ver por operador" (oculto por default)             ┤
+└─ Segmentação: equipe × turno                                ┘
+```
+
+**Editado: `src/routes/gestao.index.tsx`**
+- 5º `BotaoLink` → `/gestao/it-analytics`, ícone `BookOpen`, descrição "Inteligência de uso das ITs · pontos para reforço de treinamento"
+
+---
+
+## Arquivos tocados
+
+**Novos (5):** migration SQL, `lib/it/telemetria.ts`, `lib/it/supabase-analytics.ts`, `hooks/use-it-telemetria.ts`, `routes/gestao.it-analytics.tsx`
+
+**Editados (3):** `routes/operador.it.$doc.tsx`, `routes/gestao.index.tsx`, `hooks/use-connection-status.ts`
+
+**Não tocados:** checklist, anomalias, PTP, limpeza, relatório, manifest, storage, viewer logic.
+
+---
+
+## Critérios de aceitação
+
+1. Viewer de IT funciona idêntico
+2. Sessão única por consulta (sem duplicar em remontagens)
+3. Cada navegação/zoom/busca/erro vira evento
+4. Telemetria nunca bloqueia UI nem mostra erro
+5. Eventos sobem após reconexão (fila offline reusada)
+6. `/gestao/it-analytics` mostra KPIs, rankings, score, segmentação
+7. Filtros funcionam (período/documento/equipe/turno)
+8. Tom não-punitivo explícito; filtro por operador atrás de toggle
+9. RLS impede operador de ler analytics; só `is_gestao()` lê
+10. Termos de busca sanitizados e debounced
+11. `page_leave` registrado mesmo no APK (defesa em profundidade: visibilitychange + pagehide + beforeunload + cleanup; sendBeacon só como reforço)
+12. `cache_mode` só em mudança real
+13. Score visível com fórmula explicável
 
