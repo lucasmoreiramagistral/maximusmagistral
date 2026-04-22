@@ -268,7 +268,7 @@ function ItAnalytics() {
         if (!guard.cancelled && !silent) setCarregando(false);
       }
     },
-    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno],
+    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno, filtros.apenasRastreaveis],
   );
 
   // Carregamento inicial / quando filtros mudam
