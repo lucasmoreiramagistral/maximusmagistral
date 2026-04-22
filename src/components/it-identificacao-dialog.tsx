@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 import {
   REGEX_NOME_COMPLETO,
   canonizarNomeOperador,
+  isIdentidadeBypass,
   type IdentidadeOperadorDevice,
 } from "@/lib/it/identidade";
 
