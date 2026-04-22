@@ -18,6 +18,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  LabelList,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -884,20 +885,47 @@ function RelatorioPage() {
                         ])}
                       />
                     </div>
-                    {diagLimp.serieDiariaNaoRealizados.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="mb-2 text-sm font-semibold text-foreground">
-                          Itens não realizados por dia
-                        </h4>
-                        <GraficoBarras
-                          dados={diagLimp.serieDiariaNaoRealizados.map((r) => ({
-                            chave: r.data,
-                            total: r.total,
-                          }))}
-                          cor="var(--color-warning)"
-                        />
-                      </div>
-                    )}
+                    {diagLimp.serieDiariaNaoRealizados.length > 0 &&
+                      (() => {
+                        const serie = [...diagLimp.serieDiariaNaoRealizados].sort((a, b) =>
+                          a.data.localeCompare(b.data),
+                        );
+                        const totalNc = serie.reduce((s, r) => s + r.total, 0);
+                        const pico = serie.reduce(
+                          (max, r) => (r.total > max.total ? r : max),
+                          serie[0],
+                        );
+                        const formatarData = (iso: string) => {
+                          // espera "YYYY-MM-DD"
+                          const [, m, d] = iso.split("-");
+                          return d && m ? `${d}/${m}` : iso;
+                        };
+                        return (
+                          <div className="mt-4">
+                            <div className="mb-2 flex items-baseline justify-between gap-2">
+                              <h4 className="text-sm font-semibold text-foreground">
+                                Itens não realizados por dia
+                              </h4>
+                              <span className="text-xs text-muted-foreground">
+                                {serie.length} dia{serie.length > 1 ? "s" : ""} ·{" "}
+                                {totalNc} no total · pico em {formatarData(pico.data)} (
+                                {pico.total})
+                              </span>
+                            </div>
+                            <p className="mb-2 text-xs text-muted-foreground">
+                              Cada barra mostra quantos itens da limpeza ficaram “não realizados”
+                              naquele dia. Quanto mais alto, pior.
+                            </p>
+                            <GraficoBarras
+                              dados={serie.map((r) => ({ chave: r.data, total: r.total }))}
+                              cor="var(--color-warning)"
+                              formatarChave={formatarData}
+                              rotuloValor="Itens não realizados"
+                              larguraEixoY={64}
+                            />
+                          </div>
+                        );
+                      })()}
                   </Bloco>
 
                   {/* BLOCO 12 — Alertas operacionais do verso */}
@@ -1070,34 +1098,73 @@ function TabelaSimples({
 function GraficoBarras({
   dados,
   cor,
+  formatarChave,
+  rotuloValor = "Total",
+  larguraEixoY = 110,
 }: {
   dados: { chave: string; total: number }[];
   cor: string;
+  formatarChave?: (chave: string) => string;
+  rotuloValor?: string;
+  larguraEixoY?: number;
 }) {
   if (dados.length === 0) {
     return <p className="text-sm text-muted-foreground">Sem dados.</p>;
   }
+  const dadosFormatados = dados.map((d) => ({
+    ...d,
+    chaveLabel: formatarChave ? formatarChave(d.chave) : d.chave,
+  }));
+  const maxTotal = Math.max(...dadosFormatados.map((d) => d.total), 0);
+  // Espaço extra à direita pra caber o rótulo de valor sem cortar
+  const alturaPorBarra = 36;
+  const altura = Math.max(220, dadosFormatados.length * alturaPorBarra + 40);
   return (
-    <div className="h-64 w-full">
+    <div className="w-full" style={{ height: altura }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={dados} layout="vertical" margin={{ left: 20 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-          <XAxis type="number" stroke="var(--color-muted-foreground)" fontSize={11} />
-          <YAxis
-            type="category"
-            dataKey="chave"
+        <BarChart
+          data={dadosFormatados}
+          layout="vertical"
+          margin={{ top: 8, right: 32, bottom: 8, left: 8 }}
+          barCategoryGap={8}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+          <XAxis
+            type="number"
             stroke="var(--color-muted-foreground)"
             fontSize={11}
-            width={120}
+            allowDecimals={false}
+            domain={[0, Math.max(1, Math.ceil(maxTotal * 1.15))]}
+          />
+          <YAxis
+            type="category"
+            dataKey="chaveLabel"
+            stroke="var(--color-muted-foreground)"
+            fontSize={12}
+            width={larguraEixoY}
+            tickLine={false}
+            axisLine={false}
           />
           <Tooltip
+            cursor={{ fill: "var(--color-muted)", opacity: 0.3 }}
             contentStyle={{
               background: "var(--color-card)",
               border: "1px solid var(--color-border)",
               borderRadius: 8,
+              fontSize: 12,
             }}
+            formatter={(value: number) => [value, rotuloValor]}
+            labelFormatter={(label: string) => label}
           />
-          <Bar dataKey="total" fill={cor} radius={[0, 4, 4, 0]} />
+          <Bar dataKey="total" fill={cor} radius={[0, 6, 6, 0]} name={rotuloValor}>
+            <LabelList
+              dataKey="total"
+              position="right"
+              fill="var(--color-foreground)"
+              fontSize={12}
+              fontWeight={600}
+            />
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
