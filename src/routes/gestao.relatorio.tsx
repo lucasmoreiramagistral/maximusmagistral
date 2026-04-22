@@ -885,20 +885,47 @@ function RelatorioPage() {
                         ])}
                       />
                     </div>
-                    {diagLimp.serieDiariaNaoRealizados.length > 0 && (
-                      <div className="mt-4">
-                        <h4 className="mb-2 text-sm font-semibold text-foreground">
-                          Itens não realizados por dia
-                        </h4>
-                        <GraficoBarras
-                          dados={diagLimp.serieDiariaNaoRealizados.map((r) => ({
-                            chave: r.data,
-                            total: r.total,
-                          }))}
-                          cor="var(--color-warning)"
-                        />
-                      </div>
-                    )}
+                    {diagLimp.serieDiariaNaoRealizados.length > 0 &&
+                      (() => {
+                        const serie = [...diagLimp.serieDiariaNaoRealizados].sort((a, b) =>
+                          a.data.localeCompare(b.data),
+                        );
+                        const totalNc = serie.reduce((s, r) => s + r.total, 0);
+                        const pico = serie.reduce(
+                          (max, r) => (r.total > max.total ? r : max),
+                          serie[0],
+                        );
+                        const formatarData = (iso: string) => {
+                          // espera "YYYY-MM-DD"
+                          const [, m, d] = iso.split("-");
+                          return d && m ? `${d}/${m}` : iso;
+                        };
+                        return (
+                          <div className="mt-4">
+                            <div className="mb-2 flex items-baseline justify-between gap-2">
+                              <h4 className="text-sm font-semibold text-foreground">
+                                Itens não realizados por dia
+                              </h4>
+                              <span className="text-xs text-muted-foreground">
+                                {serie.length} dia{serie.length > 1 ? "s" : ""} ·{" "}
+                                {totalNc} no total · pico em {formatarData(pico.data)} (
+                                {pico.total})
+                              </span>
+                            </div>
+                            <p className="mb-2 text-xs text-muted-foreground">
+                              Cada barra mostra quantos itens da limpeza ficaram “não realizados”
+                              naquele dia. Quanto mais alto, pior.
+                            </p>
+                            <GraficoBarras
+                              dados={serie.map((r) => ({ chave: r.data, total: r.total }))}
+                              cor="var(--color-warning)"
+                              formatarChave={formatarData}
+                              rotuloValor="Itens não realizados"
+                              larguraEixoY={64}
+                            />
+                          </div>
+                        );
+                      })()}
                   </Bloco>
 
                   {/* BLOCO 12 — Alertas operacionais do verso */}
