@@ -275,35 +275,6 @@ function BlocoValidacaoTurno({
     );
   }
 
-  // ─── Estado: bloqueado por turno errado ───────────────────────────
-  if (!ehDoOperador) {
-    return (
-      <div className="rounded-2xl border-2 border-dashed border-border bg-muted/40 p-5 opacity-80">
-        <div className="flex items-start gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground">
-            <Lock className="h-7 w-7" />
-          </div>
-          <div className="flex-1">
-            <p className="text-base font-bold text-foreground">
-              Líder {turnoAlvo}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Acesso restrito ao líder do turno {turnoAlvo}.
-            </p>
-            <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-              <li>
-                PTP do turno: {ptpRegistradas}/{codigosDoTurno.length} janelas
-              </li>
-              <li>
-                Limpeza: {limpezaConcluida ? "concluída" : "aguardando conclusão"}
-              </li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ─── Estado: aberto para validação ────────────────────────────────
   const handleConfirmar = async () => {
     if (!liderNome.trim()) {
