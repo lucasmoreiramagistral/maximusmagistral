@@ -64,6 +64,9 @@ interface EventoRow {
   equipe: string | null;
   turno: string | null;
   operador_nome: string | null;
+  operador_nome_canonico: string | null;
+  device_id: string | null;
+  metadata_json: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -71,10 +74,15 @@ interface SessaoRow {
   id: string;
   documento: "it002" | "it005";
   duracao_total_ms: number | null;
+  duracao_efetiva_ms: number | null;
   iniciado_em: string;
+  ultimo_evento_em: string | null;
+  ativa_agora: boolean | null;
   equipe: string | null;
   turno: string | null;
   operador_nome: string | null;
+  operador_nome_canonico: string | null;
+  device_id: string | null;
 }
 
 interface DificuldadeRow {
@@ -87,6 +95,12 @@ interface DificuldadeRow {
   retries: number;
   buscas_que_levaram: number;
   score: number;
+}
+
+interface AlertaRow {
+  tipo: "multi_device" | "trocas_rapidas";
+  chave: string;
+  detalhes: Record<string, unknown>;
 }
 
 const DOC_LABEL: Record<"it002" | "it005", string> = {
