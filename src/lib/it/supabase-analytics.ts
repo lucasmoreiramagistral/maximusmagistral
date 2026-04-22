@@ -99,12 +99,15 @@ export async function updateItSessaoFechamento(
   sessaoId: string,
   duracaoTotalMs: number,
 ): Promise<void> {
+  // Idempotente: só fecha se ainda não foi fechada (evita race entre
+  // visibilitychange + pagehide + beforeunload + cleanup + sendBeacon)
   const { error } = await (supabase.from as any)("it_consulta_sessoes")
     .update({
       encerrado_em: new Date().toISOString(),
       duracao_total_ms: duracaoTotalMs,
     })
-    .eq("id", sessaoId);
+    .eq("id", sessaoId)
+    .is("encerrado_em", null);
   if (error) throw error;
 }
 

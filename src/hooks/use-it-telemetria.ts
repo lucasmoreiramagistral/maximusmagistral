@@ -12,6 +12,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
+import { supabase } from "@/integrations/supabase/client";
 import {
   insertItEvento,
   insertItSessao,
@@ -123,6 +124,16 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
           ? calcularDataOperacional(usuario.equipePadrao, usuario.turnoPadrao)
           : null,
     };
+
+    // Fallback: se userId vier null, tenta auth.getUser() — evita evento órfão.
+    if (!usuario?.userId) {
+      void supabase.auth.getUser().then(({ data }) => {
+        const authId = data.user?.id ?? null;
+        if (authId && contextoRef.current.user_id == null) {
+          contextoRef.current = { ...contextoRef.current, user_id: authId };
+        }
+      }).catch(() => { /* ignore */ });
+    }
   }, [usuario]);
 
   // ── helper interno: enfileira evento (fire-and-forget) ──
@@ -134,6 +145,8 @@ export function useItTelemetria(slug: ItDocSlug): ItTelemetriaApi {
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
+        // Não envia evento órfão (sem user_id) — bate em RLS e vira lixo.
+        if (!contextoRef.current.user_id) return;
         const evento: EventoIt = {
           sessao_id: sessao.id,
           documento: sessao.documento,

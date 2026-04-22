@@ -133,13 +133,16 @@ function ItAnalytics() {
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
 
-  // Carregamento dos dados
+  // Carregamento dos dados — Promise.allSettled: falha de uma query
+  // (ex: view ainda não criada) não derruba o painel inteiro.
   useEffect(() => {
     if (!usuario) return;
     let cancelled = false;
     setCarregando(true);
     setErro(null);
+    setErroDificuldade(null);
 
     (async () => {
       try {
@@ -179,16 +182,46 @@ function ItAnalytics() {
         if (filtros.documento !== "todos")
           qDif = qDif.eq("documento", filtros.documento);
 
-        const [sesRes, evRes, difRes] = await Promise.all([qSes, qEv, qDif]);
+        const [sesRes, evRes, difRes] = await Promise.allSettled([
+          qSes,
+          qEv,
+          qDif,
+        ]);
 
         if (cancelled) return;
-        if (sesRes.error) throw sesRes.error;
-        if (evRes.error) throw evRes.error;
-        if (difRes.error) throw difRes.error;
 
-        setSessoes((sesRes.data as SessaoRow[]) ?? []);
-        setEventos((evRes.data as EventoRow[]) ?? []);
-        setDificuldade((difRes.data as DificuldadeRow[]) ?? []);
+        // Sessões e eventos são essenciais — se falharem, mostra erro principal
+        if (sesRes.status === "rejected") {
+          throw sesRes.reason instanceof Error
+            ? sesRes.reason
+            : new Error(String(sesRes.reason));
+        }
+        if (sesRes.value.error) throw sesRes.value.error;
+
+        if (evRes.status === "rejected") {
+          throw evRes.reason instanceof Error
+            ? evRes.reason
+            : new Error(String(evRes.reason));
+        }
+        if (evRes.value.error) throw evRes.value.error;
+
+        setSessoes((sesRes.value.data as SessaoRow[]) ?? []);
+        setEventos((evRes.value.data as EventoRow[]) ?? []);
+
+        // Dificuldade é opcional — degrada graciosamente
+        if (difRes.status === "rejected") {
+          setDificuldade([]);
+          setErroDificuldade(
+            difRes.reason instanceof Error
+              ? difRes.reason.message
+              : String(difRes.reason),
+          );
+        } else if (difRes.value.error) {
+          setDificuldade([]);
+          setErroDificuldade(difRes.value.error.message);
+        } else {
+          setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
+        }
       } catch (e) {
         if (cancelled) return;
         setErro(e instanceof Error ? e.message : "Erro ao carregar analytics.");
@@ -612,7 +645,24 @@ function ItAnalytics() {
                   </CollapsibleContent>
                 </Collapsible>
 
-                {dificuldade.length === 0 ? (
+                {erroDificuldade ? (
+                  <div className="flex items-start gap-3 rounded-md border border-warning/40 bg-warning/10 p-3">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-warning-foreground" />
+                    <div className="text-xs">
+                      <p className="font-semibold text-foreground">
+                        Score de dificuldade indisponível.
+                      </p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        A view <code className="font-mono">it_dificuldade_paginas</code> ainda
+                        não está disponível no banco. O restante do painel
+                        continua funcionando normalmente.
+                      </p>
+                      <p className="mt-1 font-mono text-[10px] text-muted-foreground/70">
+                        {erroDificuldade}
+                      </p>
+                    </div>
+                  </div>
+                ) : dificuldade.length === 0 ? (
                   <SemDados />
                 ) : (
                   <div className="overflow-x-auto">
