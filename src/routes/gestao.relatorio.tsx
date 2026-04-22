@@ -1,5 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Component, useMemo, useState, type ReactNode } from "react";
+import { useVersoRelatorioRemote } from "@/hooks/use-verso-relatorio";
+import {
+  calcularAlertasVerso,
+  calcularDiagnosticoLimpeza,
+  calcularDiagnosticoPtp,
+  calcularResumoVersoRelatorio,
+  construirReferenciaFrente,
+  cruzarFrenteVerso,
+  filtrarLimpezaDoRecorte,
+  filtrarPtpDoRecorte,
+  registrosVersoForaDoRecorte,
+  type LinhaAderencia,
+  type SituacaoVerso,
+} from "@/lib/verso/reporting";
 import {
   Bar,
   BarChart,
@@ -163,6 +177,48 @@ function RelatorioPage() {
       calcularAcoesImediatas(anomaliasFiltradas, recorrencia, faixas, comparativos),
     [anomaliasFiltradas, recorrencia, faixas, comparativos],
   );
+
+  // ─── Verso (PTP + Limpeza) ──────────────────────────────────────────
+  const versoRel = useVersoRelatorioRemote(aplicado.dataInicio, aplicado.dataFim);
+  const referenciaFrente = useMemo(
+    () => construirReferenciaFrente(checklistsFiltrados),
+    [checklistsFiltrados],
+  );
+  const aderencia = useMemo(
+    () => cruzarFrenteVerso(referenciaFrente, versoRel.ptp, versoRel.limpeza),
+    [referenciaFrente, versoRel.ptp, versoRel.limpeza],
+  );
+  const ptpDoRecorte = useMemo(
+    () => filtrarPtpDoRecorte(referenciaFrente, versoRel.ptp),
+    [referenciaFrente, versoRel.ptp],
+  );
+  const limpezaDoRecorte = useMemo(
+    () => filtrarLimpezaDoRecorte(referenciaFrente, versoRel.limpeza),
+    [referenciaFrente, versoRel.limpeza],
+  );
+  const resumoVerso = useMemo(
+    () => calcularResumoVersoRelatorio(aderencia),
+    [aderencia],
+  );
+  const diagPtp = useMemo(() => calcularDiagnosticoPtp(ptpDoRecorte), [ptpDoRecorte]);
+  const diagLimp = useMemo(
+    () => calcularDiagnosticoLimpeza(limpezaDoRecorte, resumoVerso.limpezasEsperadas),
+    [limpezaDoRecorte, resumoVerso.limpezasEsperadas],
+  );
+  const alertasVerso = useMemo(
+    () => calcularAlertasVerso({ aderencia, resumo: resumoVerso, diagPtp, diagLimp }),
+    [aderencia, resumoVerso, diagPtp, diagLimp],
+  );
+  const fora = useMemo(
+    () => registrosVersoForaDoRecorte(referenciaFrente, versoRel.ptp, versoRel.limpeza),
+    [referenciaFrente, versoRel.ptp, versoRel.limpeza],
+  );
+  const filtrosIncompativeisAtivos =
+    (aplicado.statusAnomalia && aplicado.statusAnomalia !== "Todos") ||
+    (aplicado.criticidade && aplicado.criticidade !== "Todas") ||
+    (aplicado.categoria && aplicado.categoria !== "Todas") ||
+    (aplicado.momento && aplicado.momento !== "Todos") ||
+    (aplicado.equipamentoAfetado && aplicado.equipamentoAfetado !== "Todos");
 
   if (loading || !usuario) return <TelaCarregando />;
 
@@ -671,6 +727,218 @@ function RelatorioPage() {
                 </ul>
               )}
             </Bloco>
+
+            {/* ── BLOCOS 8–12 · VERSO (PTP + Limpeza) ─────────────────── */}
+            <VersoErrorBoundary>
+              {versoRel.error ? (
+                <Bloco titulo="Verso da folha — PTP e Limpeza">
+                  <p className="text-sm text-muted-foreground">
+                    Não foi possível carregar os dados do verso.
+                  </p>
+                </Bloco>
+              ) : referenciaFrente.length === 0 ? (
+                <Bloco titulo="Verso da folha — PTP e Limpeza">
+                  <p className="text-sm text-muted-foreground">
+                    Sem turnos da frente no recorte para avaliar verso.
+                  </p>
+                </Bloco>
+              ) : (
+                <>
+                  {filtrosIncompativeisAtivos && (
+                    <p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                      Indicadores do verso seguem data/turno/equipe da frente e não
+                      variam por filtros específicos de anomalias.
+                    </p>
+                  )}
+
+                  {/* BLOCO 8 — Resumo do verso */}
+                  <Bloco titulo="8 · Verso da folha — Resumo">
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <Kpi titulo="Turnos da frente" valor={resumoVerso.turnosFrente} />
+                      <Kpi
+                        titulo="Verso completo"
+                        valor={resumoVerso.turnosVersoCompleto}
+                        sub={`${resumoVerso.taxaAderencia}% de aderência`}
+                        destaque="success"
+                      />
+                      <Kpi titulo="PTP esperadas" valor={resumoVerso.ptpEsperadas} />
+                      <Kpi titulo="PTP registradas" valor={resumoVerso.ptpRegistradas} />
+                      <Kpi
+                        titulo="PTP pendentes"
+                        valor={resumoVerso.ptpPendentes}
+                        destaque={resumoVerso.ptpPendentes > 0 ? "warning" : undefined}
+                      />
+                      <Kpi
+                        titulo="PTP c/ ocorrência"
+                        valor={resumoVerso.ptpComOcorrencia}
+                        destaque={
+                          resumoVerso.ptpComOcorrencia > 0 ? "destructive" : undefined
+                        }
+                      />
+                      <Kpi titulo="Não rodou" valor={resumoVerso.ptpNaoRodou} />
+                      <Kpi
+                        titulo="Limpezas esperadas"
+                        valor={resumoVerso.limpezasEsperadas}
+                      />
+                      <Kpi
+                        titulo="Validadas"
+                        valor={resumoVerso.limpezasValidadas}
+                        destaque="success"
+                      />
+                      <Kpi
+                        titulo="Aguardando líder"
+                        valor={resumoVerso.limpezasAguardandoLider}
+                        destaque={
+                          resumoVerso.limpezasAguardandoLider > 0 ? "warning" : undefined
+                        }
+                      />
+                      <Kpi
+                        titulo="Pendentes/rascunho"
+                        valor={resumoVerso.limpezasPendentesOuRascunho}
+                        destaque={
+                          resumoVerso.limpezasPendentesOuRascunho > 0
+                            ? "warning"
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </Bloco>
+
+                  {/* BLOCO 9 — Aderência frente × verso */}
+                  <Bloco titulo="9 · Aderência documental Frente × Verso">
+                    <TabelaAderenciaVerso linhas={aderencia} />
+                    {(fora.ptp.length > 0 || fora.limpeza.length > 0) && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Registros do verso fora do recorte documental da frente:{" "}
+                        {fora.ptp.length} janela(s) PTP, {fora.limpeza.length}{" "}
+                        limpeza(s). Não entram no denominador de aderência.
+                      </p>
+                    )}
+                  </Bloco>
+
+                  {/* BLOCO 10 — Diagnóstico PTP */}
+                  <Bloco titulo="10 · Diagnóstico PTP">
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <TabelaSimples
+                        titulo="Distribuição por status das janelas"
+                        colunas={["Status", "Total"]}
+                        linhas={diagPtp.porStatus.map((r) => [r.chave, r.total])}
+                      />
+                      <TabelaSimples
+                        titulo="Top itens (marcações × ocorrências)"
+                        colunas={["Item", "Marcações", "Ocorrências"]}
+                        linhas={diagPtp.topItens.map((r) => [
+                          r.nome,
+                          r.marcacoes,
+                          r.ocorrencias,
+                        ])}
+                      />
+                    </div>
+                    <div className="mt-4">
+                      <h4 className="mb-2 text-sm font-semibold text-foreground">
+                        Marcações por janela (J01..J12)
+                      </h4>
+                      <GraficoBarras
+                        dados={diagPtp.porJanela}
+                        cor="var(--color-chart-1)"
+                      />
+                    </div>
+                    {diagPtp.comObservacao.length > 0 && (
+                      <TabelaSimples
+                        titulo="Janelas com observação registrada"
+                        colunas={["Data", "Turno", "Janela", "Observação"]}
+                        linhas={diagPtp.comObservacao
+                          .slice(0, 20)
+                          .map((r) => [
+                            r.dataOperacao,
+                            r.turno,
+                            r.janelaCodigo,
+                            r.observacao,
+                          ])}
+                      />
+                    )}
+                  </Bloco>
+
+                  {/* BLOCO 11 — Diagnóstico Limpeza */}
+                  <Bloco titulo="11 · Diagnóstico Limpeza">
+                    <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                      <Kpi
+                        titulo="Validação do líder"
+                        valor={`${diagLimp.taxaValidacaoLider}%`}
+                        destaque="success"
+                      />
+                    </div>
+                    <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <TabelaSimples
+                        titulo="Distribuição por status do turno"
+                        colunas={["Status", "Total"]}
+                        linhas={diagLimp.porStatus.map((r) => [r.chave, r.total])}
+                      />
+                      <TabelaSimples
+                        titulo="Top 5 itens não realizados"
+                        colunas={["Item", "Descrição", "Total"]}
+                        linhas={diagLimp.topItensNaoRealizados.map((r) => [
+                          `Item ${r.codigo}`,
+                          r.descricao,
+                          r.total,
+                        ])}
+                      />
+                    </div>
+                    {diagLimp.serieDiariaNaoRealizados.length > 0 && (
+                      <div className="mt-4">
+                        <h4 className="mb-2 text-sm font-semibold text-foreground">
+                          Itens não realizados por dia
+                        </h4>
+                        <GraficoBarras
+                          dados={diagLimp.serieDiariaNaoRealizados.map((r) => ({
+                            chave: r.data,
+                            total: r.total,
+                          }))}
+                          cor="var(--color-warning)"
+                        />
+                      </div>
+                    )}
+                  </Bloco>
+
+                  {/* BLOCO 12 — Alertas operacionais do verso */}
+                  <Bloco titulo="12 · Alertas operacionais do verso">
+                    {alertasVerso.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nenhum alerta no período.
+                      </p>
+                    ) : (
+                      <ul className="space-y-2">
+                        {alertasVerso.map((a, i) => (
+                          <li
+                            key={i}
+                            className={`flex items-start gap-3 rounded-lg border p-3 ${
+                              a.destaque === "destructive"
+                                ? "border-destructive/30 bg-destructive/5"
+                                : a.destaque === "warning"
+                                  ? "border-warning/30 bg-warning/5"
+                                  : "border-border bg-muted/30"
+                            }`}
+                          >
+                            <span
+                              className={`mt-0.5 inline-block h-2 w-2 flex-shrink-0 rounded-full ${
+                                a.destaque === "destructive"
+                                  ? "bg-destructive"
+                                  : a.destaque === "warning"
+                                    ? "bg-warning"
+                                    : "bg-primary"
+                              }`}
+                            />
+                            <span className="text-sm font-medium text-foreground">
+                              {a.texto}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </Bloco>
+                </>
+              )}
+            </VersoErrorBoundary>
           </>
         )}
       </main>
@@ -904,3 +1172,70 @@ function EstadoVazio() {
     </div>
   );
 }
+
+// ──────────────── Verso ────────────────
+
+const SITUACAO_LABEL: Record<SituacaoVerso, string> = {
+  completo: "Completo",
+  ptp_pendente: "PTP pendente",
+  limpeza_pendente: "Limpeza pendente",
+  verso_incompleto: "Verso incompleto",
+  frente_sem_verso: "Frente sem verso",
+};
+
+const LIMP_LABEL: Record<string, string> = {
+  pendente: "Pendente",
+  rascunho: "Rascunho",
+  aguardando_validacao: "Aguardando líder",
+  validado: "Validado",
+  ausente: "Não iniciada",
+};
+
+function TabelaAderenciaVerso({ linhas }: { linhas: LinhaAderencia[] }) {
+  return (
+    <TabelaSimples
+      titulo="Aderência por turno da frente"
+      colunas={["Data", "Turno", "Equipe", "PTP", "Limpeza", "Situação"]}
+      linhas={linhas.map((r) => [
+        r.dataOperacao,
+        r.turno,
+        r.equipe,
+        `${r.ptpRealizadas}/${r.ptpEsperadas}`,
+        LIMP_LABEL[r.limpezaStatus] ?? r.limpezaStatus,
+        SITUACAO_LABEL[r.situacao],
+      ])}
+    />
+  );
+}
+
+class VersoErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  componentDidCatch(error: unknown) {
+    console.error("[VersoErrorBoundary]", error);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <section className="mb-6 rounded-2xl border border-border bg-card p-4 shadow-sm md:p-6">
+          <h3 className="mb-2 text-base font-bold text-foreground md:text-lg">
+            Verso da folha — PTP e Limpeza
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar os dados do verso.
+          </p>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
+
