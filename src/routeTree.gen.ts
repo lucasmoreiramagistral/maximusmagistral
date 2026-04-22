@@ -24,6 +24,7 @@ import { Route as OperadorChecklistRouteImport } from './routes/operador.checkli
 import { Route as ManutencaoFiltrosRouteImport } from './routes/manutencao.filtros'
 import { Route as ManutencaoAnomaliasRouteImport } from './routes/manutencao.anomalias'
 import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
+import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
 import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
@@ -115,6 +116,11 @@ const ManutencaoAnomaliasRoute = ManutencaoAnomaliasRouteImport.update({
 const GestaoRelatorioRoute = GestaoRelatorioRouteImport.update({
   id: '/gestao/relatorio',
   path: '/gestao/relatorio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoItTreinamentosRoute = GestaoItTreinamentosRouteImport.update({
+  id: '/gestao/it-treinamentos',
+  path: '/gestao/it-treinamentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoItAnalyticsRoute = GestaoItAnalyticsRouteImport.update({
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
+  '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByTo {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
+  '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -285,6 +293,7 @@ export interface FileRoutesById {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
+  '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
   '/manutencao/filtros': typeof ManutencaoFiltrosRoute
@@ -321,6 +330,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
+    | '/gestao/it-treinamentos'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -355,6 +365,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
+    | '/gestao/it-treinamentos'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -389,6 +400,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
+    | '/gestao/it-treinamentos'
     | '/gestao/relatorio'
     | '/manutencao/anomalias'
     | '/manutencao/filtros'
@@ -424,6 +436,7 @@ export interface RootRouteChildren {
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
   GestaoItAnalyticsRoute: typeof GestaoItAnalyticsRoute
+  GestaoItTreinamentosRoute: typeof GestaoItTreinamentosRoute
   GestaoRelatorioRoute: typeof GestaoRelatorioRoute
   ManutencaoAnomaliasRoute: typeof ManutencaoAnomaliasRoute
   ManutencaoFiltrosRoute: typeof ManutencaoFiltrosRoute
@@ -553,6 +566,13 @@ declare module '@tanstack/react-router' {
       path: '/gestao/relatorio'
       fullPath: '/gestao/relatorio'
       preLoaderRoute: typeof GestaoRelatorioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/it-treinamentos': {
+      id: '/gestao/it-treinamentos'
+      path: '/gestao/it-treinamentos'
+      fullPath: '/gestao/it-treinamentos'
+      preLoaderRoute: typeof GestaoItTreinamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/it-analytics': {
@@ -722,6 +742,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoChecklistsRoute: GestaoChecklistsRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,
   GestaoItAnalyticsRoute: GestaoItAnalyticsRoute,
+  GestaoItTreinamentosRoute: GestaoItTreinamentosRoute,
   GestaoRelatorioRoute: GestaoRelatorioRoute,
   ManutencaoAnomaliasRoute: ManutencaoAnomaliasRoute,
   ManutencaoFiltrosRoute: ManutencaoFiltrosRoute,
