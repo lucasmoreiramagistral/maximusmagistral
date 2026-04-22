@@ -174,6 +174,40 @@ function VisualizarDiaPage() {
               )}
               Exportar folha do dia (3 turnos consolidados)
             </Button>
+            {folha && temVerso(folha) && (
+              <>
+                <div className="my-1 border-t border-border" />
+                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  Frente + Verso (PTP + Limpeza)
+                </p>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleExport("turno-verso")}
+                  disabled={!!exporting}
+                  className="justify-start"
+                >
+                  {exporting === "turno-verso" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  Exportar Turno ({folha.contexto.turno}) — frente + verso
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => handleExport("frente-verso-completo")}
+                  disabled={!!exporting}
+                  className="justify-start"
+                >
+                  {exporting === "frente-verso-completo" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  )}
+                  Exportar Frente e Verso completo (todos os turnos)
+                </Button>
+              </>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setExportOpen(false)} disabled={!!exporting}>
