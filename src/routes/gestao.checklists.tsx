@@ -78,15 +78,18 @@ function ListaChecklists() {
     () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
     [todasFolhas, anomalias, filtros, resumosVerso],
   );
+  const folhasVerso = useMemo(() => folhas.filter(temVerso), [folhas]);
 
   if (loadingAuth || !usuario) return <TelaCarregando />;
 
   const ativos = filtrosAtivos(filtros);
 
   const totalLabel =
-    visao === "dia"
-      ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
-      : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
+    visao === "verso"
+      ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
+      : visao === "dia"
+        ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
+        : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
 
   return (
     <div className="min-h-screen bg-background">
