@@ -108,10 +108,12 @@ export function useExigirIdentidadeIt(
         if (cancelado) return;
         setSemTreinamento(!tem);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelado) return;
-        // Em caso de erro de rede, libera (não punir)
-        setSemTreinamento(false);
+        // Fail-closed: em caso de erro (RLS, rede, etc.), BLOQUEIA o acesso.
+        // Antes liberávamos por engano, o que abria bypass do gate.
+        console.error("[gate-it] falha ao verificar ata, bloqueando acesso", err);
+        setSemTreinamento(true);
       })
       .finally(() => {
         if (!cancelado) setVerificandoAta(false);

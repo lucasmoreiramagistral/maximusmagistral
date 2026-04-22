@@ -144,9 +144,19 @@ export async function temAtaCadastrada(params: {
     .eq("operador_nome_canonico", params.operadorNomeCanonico)
     .maybeSingle();
   if (error) {
-    console.error("[atas] erro ao checar ata", error);
-    return false;
+    console.error("[atas] erro ao checar ata", {
+      documento: params.documento,
+      canonico: params.operadorNomeCanonico,
+      error,
+    });
+    // Propaga: o gate decide o que fazer (fail-closed).
+    throw error;
   }
+  console.info("[atas] checagem", {
+    documento: params.documento,
+    canonico: params.operadorNomeCanonico,
+    encontrou: !!data?.id,
+  });
   return !!data?.id;
 }
 
