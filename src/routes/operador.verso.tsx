@@ -66,17 +66,19 @@ function VersoHome() {
 
   if (loading || !usuario) return <TelaCarregando />;
 
-  const ptpConcluidas = ptp.janelas.filter(
-    (j) => j.statusJanela !== "pendente" && j.statusJanela !== "rascunho",
-  ).length;
-  const limpezaValidados = limpeza.turnos.filter((t) => t.status === "validado").length;
-  const limpezaAguardando = limpeza.turnos.filter(
-    (t) => t.status === "aguardando_validacao",
-  ).length;
-
   const turnoLogado = (turno === "12x36 Dia" || turno === "12x36 Noite"
     ? turno
     : null) as TurnoAtivo | null;
+
+  // PTP: conta só as janelas do turno do operador (6 janelas).
+  const codigosPtpDoTurno = turnoLogado ? PTP_JANELAS_POR_TURNO[turnoLogado] : [];
+  const totalPtpTurno = codigosPtpDoTurno.length;
+  const ptpConcluidasTurno = ptp.janelas.filter(
+    (j) =>
+      codigosPtpDoTurno.includes(j.janelaCodigo) &&
+      j.statusJanela !== "pendente" &&
+      j.statusJanela !== "rascunho",
+  ).length;
 
   return (
     <div className="min-h-screen bg-background">
