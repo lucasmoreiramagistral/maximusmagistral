@@ -61,14 +61,20 @@ function VisualizarDiaPage() {
 
   if (loading || loadingC || loadingA || !usuario) return <TelaCarregando />;
 
-  async function handleExport(modo: "turno" | "dia") {
+  async function handleExport(
+    modo: "turno" | "dia" | "turno-verso" | "frente-verso-completo",
+  ) {
     if (!folha) return;
     setExporting(modo);
     try {
       if (modo === "turno") {
         await exportarTurnoExcel(folha, anomalias);
-      } else {
+      } else if (modo === "dia") {
         await exportarFolhaDiaExcel(folha, todasFolhas, anomalias);
+      } else if (modo === "turno-verso") {
+        await exportarTurnoComVersoExcel(folha, anomalias);
+      } else {
+        await exportarFrenteVersoCompletoExcel(folha, todasFolhas, anomalias);
       }
       toast.success("Excel exportado com sucesso");
       setExportOpen(false);
