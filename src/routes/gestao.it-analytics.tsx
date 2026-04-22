@@ -299,30 +299,11 @@ function ItAnalytics() {
     void carregarDados(true);
   });
 
-  // Filtragem por rastreabilidade (lixo pré-blindagem = device_id NULL)
-  // Sessões e eventos antigos (antes da Fase 2) não tinham device_id, então
-  // por padrão escondemos eles dos KPIs pra não inflar os números.
-  const sessoesIds = useMemo(() => {
-    if (!filtros.apenasRastreaveis) return null;
-    const set = new Set<string>();
-    for (const s of sessoes) if (s.device_id) set.add(s.id);
-    return set;
-  }, [sessoes, filtros.apenasRastreaveis]);
-
-  const sessoesFiltradas = useMemo(() => {
-    if (!filtros.apenasRastreaveis) return sessoes;
-    return sessoes.filter((s) => s.device_id != null);
-  }, [sessoes, filtros.apenasRastreaveis]);
-
-  const eventosFiltrados = useMemo(() => {
-    if (!filtros.apenasRastreaveis || !sessoesIds) return eventos;
-    return eventos.filter((e) => sessoesIds.has(e.sessao_id));
-  }, [eventos, sessoesIds, filtros.apenasRastreaveis]);
-
-  const sessoesLegadas = useMemo(
-    () => sessoes.filter((s) => s.device_id == null).length,
-    [sessoes],
-  );
+  // Filtragem agora é feita no servidor (via .not("device_id","is",null)) quando
+  // "apenasRastreaveis" está ligado. Aliases mantidos pra clareza nas agregações.
+  const sessoesFiltradas = sessoes;
+  const eventosFiltrados = eventos;
+  const sessoesLegadas = legadasCount;
 
   // Agregações memoizadas
   const kpis = useMemo(() => {
