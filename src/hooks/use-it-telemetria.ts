@@ -117,6 +117,7 @@ export function useItTelemetria(
       ? { slug: paramsOrSlug, identidade: null }
       : paramsOrSlug;
   const { slug, identidade } = params;
+  const bypass = isIdentidadeBypass(identidade?.nomeCanonico);
 
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
