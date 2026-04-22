@@ -169,15 +169,25 @@ function StatusBadge({ status }: { status: LimpezaTurnoStatus }) {
   const map: Record<LimpezaTurnoStatus, string> = {
     pendente: "bg-muted text-muted-foreground",
     rascunho: "bg-warning/15 text-warning",
-    aguardando_validacao: "bg-warning/20 text-warning",
+    aguardando_validacao: "bg-success/15 text-success",
     validado: "bg-success/15 text-success",
+  };
+  // Reescreve "Aguardando líder" como "Concluído" nesta tela (a validação
+  // do líder mora no /operador/verso e não deve poluir o badge do operador).
+  const labelLocal: Record<LimpezaTurnoStatus, string> = {
+    pendente: LABEL_LIMPEZA_STATUS.pendente,
+    rascunho: LABEL_LIMPEZA_STATUS.rascunho,
+    aguardando_validacao: "Concluído",
+    validado: "Validado",
   };
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold ${map[status]}`}
     >
-      {status === "validado" && <CheckCircle2 className="h-3 w-3" />}
-      {LABEL_LIMPEZA_STATUS[status]}
+      {(status === "validado" || status === "aguardando_validacao") && (
+        <CheckCircle2 className="h-3 w-3" />
+      )}
+      {labelLocal[status]}
     </span>
   );
 }
