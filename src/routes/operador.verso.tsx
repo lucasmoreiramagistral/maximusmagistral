@@ -79,6 +79,14 @@ function VersoHome() {
       j.statusJanela !== "rascunho",
   ).length;
 
+  // Limpeza: conta itens respondidos do turno do operador (21 itens).
+  const limpezaTurnoOperador = turnoLogado
+    ? limpeza.turnos.find((t) => t.turno === turnoLogado)
+    : undefined;
+  const totalItensLimpeza = limpezaTurnoOperador?.itens.length ?? 21;
+  const itensLimpezaRespondidos =
+    limpezaTurnoOperador?.itens.filter((i) => i.status !== null).length ?? 0;
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
