@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
-import { BookOpen, Droplets, Settings2 } from "lucide-react";
+import { BookOpen, ClipboardCheck, Droplets, Settings2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
@@ -68,6 +68,30 @@ function OperadorItIndex() {
             titulo="Instrução de Trabalho LIMPEZA"
             descricao="Limpeza da Enchedora L3"
           />
+        </div>
+
+        {/* Ata de Treinamento na Função — habilita acesso às IT */}
+        <div className="mt-8 rounded-2xl border-2 border-dashed border-primary/30 bg-primary-soft/30 p-5 md:p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <ClipboardCheck className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <p className="text-lg font-bold text-foreground md:text-xl">
+                Ata de Treinamento na Função
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground md:text-base">
+                Sem ata, você não consegue abrir a IT. Cadastre uma vez por IT
+                (Operação ou Limpeza) com a assinatura de quem te ensinou.
+              </p>
+              <Link
+                to="/operador/it/ata"
+                className="mt-4 inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 active:scale-[0.98] md:text-base"
+              >
+                Cadastrar Ata de Treinamento →
+              </Link>
+            </div>
+          </div>
         </div>
       </main>
     </div>

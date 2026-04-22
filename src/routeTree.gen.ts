@@ -30,6 +30,7 @@ import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists
 import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
 import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
 import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
+import { Route as OperadorItAtaRouteImport } from './routes/operador.it.ata'
 import { Route as OperadorItDocRouteImport } from './routes/operador.it.$doc'
 import { Route as OperadorAnomaliaNovaRouteImport } from './routes/operador.anomalia.nova'
 import { Route as ManutencaoAnomaliaNovaRouteImport } from './routes/manutencao.anomalia.nova'
@@ -146,6 +147,11 @@ const OperadorVersoLimpezaRoute = OperadorVersoLimpezaRouteImport.update({
   path: '/limpeza',
   getParentRoute: () => OperadorVersoRoute,
 } as any)
+const OperadorItAtaRoute = OperadorItAtaRouteImport.update({
+  id: '/ata',
+  path: '/ata',
+  getParentRoute: () => OperadorItRoute,
+} as any)
 const OperadorItDocRoute = OperadorItDocRouteImport.update({
   id: '/$doc',
   path: '/$doc',
@@ -227,6 +233,7 @@ export interface FileRoutesByFullPath {
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
+  '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -260,6 +267,7 @@ export interface FileRoutesByTo {
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
+  '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -294,6 +302,7 @@ export interface FileRoutesById {
   '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
+  '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
   '/operador/verso/ptp': typeof OperadorVersoPtpRouteWithChildren
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
@@ -329,6 +338,7 @@ export interface FileRouteTypes {
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
+    | '/operador/it/ata'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -362,6 +372,7 @@ export interface FileRouteTypes {
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
+    | '/operador/it/ata'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -395,6 +406,7 @@ export interface FileRouteTypes {
     | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
+    | '/operador/it/ata'
     | '/operador/verso/limpeza'
     | '/operador/verso/ptp'
     | '/gestao/visualizar/anomalia/$id'
@@ -585,6 +597,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorVersoLimpezaRouteImport
       parentRoute: typeof OperadorVersoRoute
     }
+    '/operador/it/ata': {
+      id: '/operador/it/ata'
+      path: '/ata'
+      fullPath: '/operador/it/ata'
+      preLoaderRoute: typeof OperadorItAtaRouteImport
+      parentRoute: typeof OperadorItRoute
+    }
     '/operador/it/$doc': {
       id: '/operador/it/$doc'
       path: '/$doc'
@@ -660,10 +679,12 @@ declare module '@tanstack/react-router' {
 
 interface OperadorItRouteChildren {
   OperadorItDocRoute: typeof OperadorItDocRoute
+  OperadorItAtaRoute: typeof OperadorItAtaRoute
 }
 
 const OperadorItRouteChildren: OperadorItRouteChildren = {
   OperadorItDocRoute: OperadorItDocRoute,
+  OperadorItAtaRoute: OperadorItAtaRoute,
 }
 
 const OperadorItRouteWithChildren = OperadorItRoute._addFileChildren(
