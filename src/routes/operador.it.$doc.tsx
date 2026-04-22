@@ -35,6 +35,8 @@ import {
 import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { useItDocument } from "@/hooks/use-it-document";
+import { useItTelemetria } from "@/hooks/use-it-telemetria";
+import { criarDebouncerBusca } from "@/lib/it/telemetria";
 import {
   IT_DOC_TITULO,
   type IndiceEntry,
