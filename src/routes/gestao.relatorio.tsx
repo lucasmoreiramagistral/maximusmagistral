@@ -203,7 +203,10 @@ function RelatorioPage() {
     () => calcularResumoVersoRelatorio(aderencia),
     [aderencia],
   );
-  const diagPtp = useMemo(() => calcularDiagnosticoPtp(ptpDoRecorte), [ptpDoRecorte]);
+  const diagPtp = useMemo(
+    () => calcularDiagnosticoPtp(ptpDoRecorte, referenciaFrente),
+    [ptpDoRecorte, referenciaFrente],
+  );
   const diagLimp = useMemo(
     () => calcularDiagnosticoLimpeza(limpezaDoRecorte, resumoVerso.limpezasEsperadas),
     [limpezaDoRecorte, resumoVerso.limpezasEsperadas],
@@ -804,6 +807,34 @@ function RelatorioPage() {
                             : undefined
                         }
                       />
+                      {/* ── Análise de Ângulo (aderência/verificação — não é defeito) ── */}
+                      <Kpi
+                        titulo="Análise de Ângulo"
+                        valor={`${resumoVerso.analiseAnguloRealizadas} / ${resumoVerso.analiseAnguloEsperadas}`}
+                        sub="verificações realizadas"
+                      />
+                      <Kpi
+                        titulo="% Aderência Ângulo"
+                        valor={`${resumoVerso.taxaAnaliseAngulo}%`}
+                        destaque={
+                          resumoVerso.analiseAnguloEsperadas === 0
+                            ? undefined
+                            : resumoVerso.taxaAnaliseAngulo >= 70
+                              ? "success"
+                              : resumoVerso.taxaAnaliseAngulo >= 40
+                                ? "warning"
+                                : "destructive"
+                        }
+                      />
+                      <Kpi
+                        titulo="Pendências Ângulo"
+                        valor={resumoVerso.analiseAnguloPendentes}
+                        destaque={
+                          resumoVerso.analiseAnguloPendentes > 0
+                            ? "warning"
+                            : undefined
+                        }
+                      />
                     </div>
                   </Bloco>
 
@@ -858,6 +889,14 @@ function RelatorioPage() {
                             r.observacao,
                           ])}
                       />
+                    )}
+                    {/* ── Análise de Ângulo por Janela (aderência) ── */}
+                    {diagPtp.analiseAnguloPorJanela.length > 0 && (
+                      <div className="mt-4">
+                        <TabelaAnaliseAngulo
+                          linhas={diagPtp.analiseAnguloPorJanela}
+                        />
+                      </div>
                     )}
                   </Bloco>
 
@@ -1409,5 +1448,124 @@ class VersoErrorBoundary extends Component<
     }
     return this.props.children;
   }
+}
+
+// ──────────────── Tabela: Análise de Ângulo por Janela ────────────────
+type AnaliseAnguloLinha = {
+  dataOperacao: string;
+  turno: string;
+  janelaCodigo: string;
+  janelaRotulo: string;
+  v1Realizada: boolean;
+  v2Realizada: boolean;
+  realizadas: number;
+  esperadas: number;
+  status: "completa" | "parcial" | "pendente" | "nao_rodou";
+};
+
+function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
+  const formatarData = (iso: string) => {
+    const [, m, d] = iso.split("-");
+    return d && m ? `${d}/${m}` : iso;
+  };
+
+  const renderMarca = (realizada: boolean, naoRodou: boolean) => {
+    if (naoRodou) {
+      return (
+        <span className="font-mono text-xs text-muted-foreground">NR</span>
+      );
+    }
+    return realizada ? (
+      <span className="font-mono text-base text-success" aria-label="Realizada">
+        ✓
+      </span>
+    ) : (
+      <span className="font-mono text-base text-muted-foreground" aria-label="Não realizada">
+        —
+      </span>
+    );
+  };
+
+  const renderStatus = (s: AnaliseAnguloLinha["status"]) => {
+    const cls =
+      s === "completa"
+        ? "border-success/30 bg-success/10 text-success"
+        : s === "parcial"
+          ? "border-warning/30 bg-warning/10 text-warning-foreground"
+          : s === "nao_rodou"
+            ? "border-border bg-muted/40 text-muted-foreground"
+            : "border-destructive/30 bg-destructive/10 text-destructive";
+    const label =
+      s === "completa"
+        ? "Completa"
+        : s === "parcial"
+          ? "Parcial"
+          : s === "nao_rodou"
+            ? "Não rodou"
+            : "Pendente";
+    return (
+      <span
+        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}
+      >
+        {label}
+      </span>
+    );
+  };
+
+  return (
+    <div className="rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-3 py-2">
+        <h4 className="text-sm font-semibold text-foreground">
+          Análise de Ângulo por Janela
+        </h4>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Verificação de aderência (não conta como defeito). 2 verificações por janela.
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-xs uppercase text-muted-foreground">
+              <th className="px-3 py-2 font-medium">Data</th>
+              <th className="px-3 py-2 font-medium">Turno</th>
+              <th className="px-3 py-2 font-medium">Janela</th>
+              <th className="px-3 py-2 text-center font-medium">V1</th>
+              <th className="px-3 py-2 text-center font-medium">V2</th>
+              <th className="px-3 py-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((r, i) => {
+              const naoRodou = r.status === "nao_rodou";
+              return (
+                <tr
+                  key={`${r.dataOperacao}-${r.turno}-${r.janelaCodigo}-${i}`}
+                  className="border-b border-border/60 last:border-b-0"
+                >
+                  <td className="px-3 py-2 text-foreground">
+                    {formatarData(r.dataOperacao)}
+                  </td>
+                  <td className="px-3 py-2 text-foreground">{r.turno}</td>
+                  <td className="px-3 py-2 text-foreground">
+                    <span className="font-mono text-xs">{r.janelaCodigo}</span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                      {r.janelaRotulo}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    {renderMarca(r.v1Realizada, naoRodou)}
+                  </td>
+                  <td className="px-3 py-2 text-center">
+                    {renderMarca(r.v2Realizada, naoRodou)}
+                  </td>
+                  <td className="px-3 py-2">{renderStatus(r.status)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 

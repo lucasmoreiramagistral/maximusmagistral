@@ -47,6 +47,11 @@ export interface LinhaAderencia {
   ptpNaoRodou: number;
   limpezaStatus: LimpezaTurnoStatus | "ausente";
   situacao: SituacaoVerso;
+  // ── Análise de Ângulo (aderência por turno) ──
+  analiseAnguloEsperadas: number;
+  analiseAnguloRealizadas: number;
+  /** 0..100 — quando esperadas=0, retorna 0. */
+  taxaAnaliseAngulo: number;
 }
 
 export interface ResumoVersoRelatorio {
@@ -62,6 +67,12 @@ export interface ResumoVersoRelatorio {
   limpezasValidadas: number;
   limpezasAguardandoLider: number;
   limpezasPendentesOuRascunho: number;
+  // ── Análise de Ângulo (aderência/verificação — NÃO é defeito) ──
+  analiseAnguloEsperadas: number;
+  analiseAnguloRealizadas: number;
+  analiseAnguloPendentes: number;
+  /** 0..100 — quando esperadas=0, retorna 0. */
+  taxaAnaliseAngulo: number;
 }
 
 export interface DiagnosticoPtp {
@@ -79,6 +90,23 @@ export interface DiagnosticoPtp {
     turno: Turno;
     janelaCodigo: string;
     observacao: string;
+  }[];
+  /**
+   * Análise de Ângulo por janela — métrica de aderência/verificação.
+   * NÃO é defeito, NÃO conta como ocorrência.
+   * O `turno` aqui vem do contexto da frente (RefFrente) — janela isolada
+   * não define turno com segurança. Fallback: derivarTurnoDaJanela.
+   */
+  analiseAnguloPorJanela: {
+    dataOperacao: string;
+    turno: Turno;
+    janelaCodigo: string;
+    janelaRotulo: string;
+    v1Realizada: boolean;
+    v2Realizada: boolean;
+    realizadas: number;
+    esperadas: number;
+    status: "completa" | "parcial" | "pendente" | "nao_rodou";
   }[];
 }
 
@@ -245,6 +273,21 @@ export function cruzarFrenteVerso(
     ).length;
     const ptpNaoRodou = ptpDoTurno.filter((j) => j.statusJanela === "nao_rodou").length;
 
+    // ── Análise de Ângulo: só conta janelas que rodaram (≠ nao_rodou) ──
+    let analiseAnguloEsperadas = 0;
+    let analiseAnguloRealizadas = 0;
+    for (const j of ptpDoTurno) {
+      if (j.statusJanela === "nao_rodou") continue;
+      analiseAnguloEsperadas += 2;
+      const a = j.analiseAngulo;
+      if (a?.v1Realizada) analiseAnguloRealizadas += 1;
+      if (a?.v2Realizada) analiseAnguloRealizadas += 1;
+    }
+    const taxaAnaliseAngulo =
+      analiseAnguloEsperadas === 0
+        ? 0
+        : Math.round((analiseAnguloRealizadas / analiseAnguloEsperadas) * 100);
+
     const limp = limpPorChave.get(k);
     const limpezaStatus: LimpezaTurnoStatus | "ausente" = limp ? limp.status : "ausente";
 
@@ -259,6 +302,9 @@ export function cruzarFrenteVerso(
       ptpNaoRodou,
       limpezaStatus,
       situacao: avaliarSituacao(ptpEsperadas, ptpRealizadas, limpezaStatus),
+      analiseAnguloEsperadas,
+      analiseAnguloRealizadas,
+      taxaAnaliseAngulo,
     };
   });
 }
@@ -292,6 +338,24 @@ export function calcularResumoVersoRelatorio(
       a.limpezaStatus === "ausente",
   ).length;
 
+  // ── Análise de Ângulo: agregação no período ──
+  const analiseAnguloEsperadas = aderencia.reduce(
+    (s, a) => s + a.analiseAnguloEsperadas,
+    0,
+  );
+  const analiseAnguloRealizadas = aderencia.reduce(
+    (s, a) => s + a.analiseAnguloRealizadas,
+    0,
+  );
+  const analiseAnguloPendentes = Math.max(
+    0,
+    analiseAnguloEsperadas - analiseAnguloRealizadas,
+  );
+  const taxaAnaliseAngulo =
+    analiseAnguloEsperadas === 0
+      ? 0
+      : Math.round((analiseAnguloRealizadas / analiseAnguloEsperadas) * 100);
+
   return {
     turnosFrente,
     turnosVersoCompleto,
@@ -305,6 +369,10 @@ export function calcularResumoVersoRelatorio(
     limpezasValidadas,
     limpezasAguardandoLider,
     limpezasPendentesOuRascunho,
+    analiseAnguloEsperadas,
+    analiseAnguloRealizadas,
+    analiseAnguloPendentes,
+    taxaAnaliseAngulo,
   };
 }
 
@@ -320,6 +388,13 @@ const LABEL_PTP: Record<PtpJanelaStatus, string> = {
 
 export function calcularDiagnosticoPtp(
   ptpDoRecorte: PtpJanela[],
+  /**
+   * Referência da frente — usada para resolver o turno de cada janela
+   * a partir do contexto real (data, equipe, linha, máquina). Janela sozinha
+   * NÃO define turno com segurança (J05 pode pertencer a múltiplos turnos).
+   * Quando ausente, cai para derivarTurnoDaJanela como fallback.
+   */
+  ref: RefFrente[] = [],
 ): DiagnosticoPtp {
   // Por status
   const statusMap = new Map<PtpJanelaStatus, number>();
@@ -362,16 +437,63 @@ export function calcularDiagnosticoPtp(
     rotulo: def.rotulo,
   })).filter((r) => r.total > 0);
 
+  // ── Resolução de turno por janela: contexto manda, janela é fallback ──
+  // Index: para cada (data, janelaCodigo) busca o turno da RefFrente cuja
+  // escala cobre essa janela. Se não houver, fallback p/ derivarTurnoDaJanela.
+  const turnoPorChaveJanela = new Map<string, Turno>();
+  for (const r of ref) {
+    const escala = escalaPorTurnoEquipe(r.turno, r.equipe as never);
+    if (!escala) continue;
+    for (const jc of janelasDeEscalaCacheada(escala)) {
+      turnoPorChaveJanela.set(`${r.dataOperacao}__${jc}`, r.turno);
+    }
+  }
+  function resolverTurno(dataOperacao: string, janelaCodigo: string): Turno {
+    const ctx = turnoPorChaveJanela.get(`${dataOperacao}__${janelaCodigo}`);
+    if (ctx) return ctx;
+    return (derivarTurnoDaJanela(janelaCodigo) ?? "12x36 Dia") as Turno;
+  }
+
   // Janelas com observação preenchida
   const comObservacao = ptpDoRecorte
     .filter((j) => j.observacao && j.observacao.trim().length > 0)
+    .map((j) => ({
+      dataOperacao: j.dataOperacao,
+      turno: resolverTurno(j.dataOperacao, j.janelaCodigo),
+      janelaCodigo: j.janelaCodigo,
+      observacao: (j.observacao ?? "").trim(),
+    }))
+    .sort(
+      (a, b) =>
+        a.dataOperacao.localeCompare(b.dataOperacao) ||
+        a.janelaCodigo.localeCompare(b.janelaCodigo),
+    );
+
+  // ── Análise de Ângulo por janela ──
+  const rotuloPorJanela = new Map(PTP_JANELAS.map((d) => [d.codigo, d.rotulo]));
+  const analiseAnguloPorJanela = ptpDoRecorte
     .map((j) => {
-      const t = derivarTurnoDaJanela(j.janelaCodigo);
+      const isNaoRodou = j.statusJanela === "nao_rodou";
+      const a = j.analiseAngulo;
+      const v1 = !isNaoRodou && Boolean(a?.v1Realizada);
+      const v2 = !isNaoRodou && Boolean(a?.v2Realizada);
+      const esperadas = isNaoRodou ? 0 : 2;
+      const realizadas = (v1 ? 1 : 0) + (v2 ? 1 : 0);
+      let status: "completa" | "parcial" | "pendente" | "nao_rodou";
+      if (isNaoRodou) status = "nao_rodou";
+      else if (realizadas === 2) status = "completa";
+      else if (realizadas === 1) status = "parcial";
+      else status = "pendente";
       return {
         dataOperacao: j.dataOperacao,
-        turno: (t ?? "12x36 Dia") as Turno,
+        turno: resolverTurno(j.dataOperacao, j.janelaCodigo),
         janelaCodigo: j.janelaCodigo,
-        observacao: (j.observacao ?? "").trim(),
+        janelaRotulo: rotuloPorJanela.get(j.janelaCodigo) ?? j.janelaCodigo,
+        v1Realizada: v1,
+        v2Realizada: v2,
+        realizadas,
+        esperadas,
+        status,
       };
     })
     .sort(
@@ -380,7 +502,7 @@ export function calcularDiagnosticoPtp(
         a.janelaCodigo.localeCompare(b.janelaCodigo),
     );
 
-  return { porStatus, topItens, porJanela, comObservacao };
+  return { porStatus, topItens, porJanela, comObservacao, analiseAnguloPorJanela };
 }
 
 // ─── Diagnóstico Limpeza ─────────────────────────────────────────────
@@ -515,6 +637,21 @@ export function calcularAlertasVerso(args: {
       texto: `${resumo.ptpPendentes} janela(s) PTP pendentes/rascunho no período.`,
       destaque: "warning",
     });
+  }
+
+  // ── Análise de Ângulo: alertas de aderência (não é defeito) ──
+  if (resumo.analiseAnguloEsperadas > 0) {
+    if (resumo.taxaAnaliseAngulo < 40) {
+      alertas.push({
+        texto: `Aderência crítica na Análise de Ângulo: ${resumo.taxaAnaliseAngulo}% das verificações realizadas (${resumo.analiseAnguloRealizadas}/${resumo.analiseAnguloEsperadas}).`,
+        destaque: "destructive",
+      });
+    } else if (resumo.taxaAnaliseAngulo < 70) {
+      alertas.push({
+        texto: `Aderência baixa na Análise de Ângulo: ${resumo.taxaAnaliseAngulo}% das verificações realizadas (${resumo.analiseAnguloRealizadas}/${resumo.analiseAnguloEsperadas}).`,
+        destaque: "warning",
+      });
+    }
   }
 
   const topPtp = diagPtp.topItens[0];
