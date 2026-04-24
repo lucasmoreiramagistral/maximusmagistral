@@ -8,6 +8,8 @@ import {
   FileText,
   ClipboardList,
   Pencil,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -45,8 +47,18 @@ function ChecklistPage() {
   const [abrindoAnomaliaItem, setAbrindoAnomaliaItem] = useState<number | null>(null);
   const [modoEdicao, setModoEdicao] = useState(false);
 
+  // Indicador de salvamento: "idle" | "saving" | "saved"
+  const [statusSalvamento, setStatusSalvamento] = useState<"idle" | "saving" | "saved">("idle");
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // refs por itemNumero para scroll
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
@@ -132,10 +144,21 @@ function ChecklistPage() {
       r.itemNumero === itemNumero ? { ...r, ...patch } : r,
     );
     const next: Checklist = { ...base, respostas: novas };
+    setStatusSalvamento("saving");
+    if (savedTimerRef.current) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
+    }
     try {
       storage.setRascunho(next);
+      setStatusSalvamento("saved");
+      savedTimerRef.current = setTimeout(() => {
+        setStatusSalvamento("idle");
+        savedTimerRef.current = null;
+      }, 1500);
     } catch {
       // silencioso — re-render via useRascunho cobre o estado local
+      setStatusSalvamento("idle");
     }
     // limpa o estado de erro daquele item ao interagir
     setItensComErro((prev) => {
@@ -264,7 +287,18 @@ function ChecklistPage() {
     return { ok: erros.length === 0, itens: erros, mensagem };
   };
 
-  const concluirMomento = () => {
+  // Garante que tudo foi gravado no storage antes de navegar.
+  // Como `setRascunho` é síncrono (localStorage), basta aguardar o flush
+  // do estado "saving" → "saved" antes de seguir.
+  const aguardarPersistencia = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (statusSalvamento !== "saving") return resolve();
+      // pequeno yield para garantir flush do último setRascunho
+      setTimeout(resolve, 50);
+    });
+  };
+
+  const concluirMomento = async () => {
     const r = validarTudo();
     if (!r.ok) {
       setItensComErro(new Set(r.itens));
@@ -281,10 +315,12 @@ function ChecklistPage() {
     }
     setItensComErro(new Set());
     setErroGlobal("");
+    await aguardarPersistencia();
     navigate({ to: "/operador/resumo" });
   };
 
-  const voltarMomentos = () => {
+  const voltarMomentos = async () => {
+    await aguardarPersistencia();
     navigate({ to: "/operador/momento" });
   };
 
@@ -311,9 +347,12 @@ function ChecklistPage() {
                 <span className="ml-2 text-muted-foreground">· {pendentes} pendente(s)</span>
               )}
             </p>
-            <p className="text-xs text-muted-foreground md:text-sm">
-              {Math.round(progresso)}%
-            </p>
+            <div className="flex items-center gap-3">
+              <IndicadorSalvamento status={statusSalvamento} />
+              <p className="text-xs text-muted-foreground md:text-sm">
+                {Math.round(progresso)}%
+              </p>
+            </div>
           </div>
           <Progress value={progresso} className="mt-2 h-2" />
         </div>
@@ -376,6 +415,36 @@ function ChecklistPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Indicador de salvamento (Salvando… / Salvo)
+// ─────────────────────────────────────────────────────────────────
+
+function IndicadorSalvamento({ status }: { status: "idle" | "saving" | "saved" }) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+      >
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Salvando…
+      </span>
+    );
+  }
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success animate-in fade-in"
+    >
+      <Check className="h-3.5 w-3.5" />
+      Salvo
+    </span>
   );
 }
 
