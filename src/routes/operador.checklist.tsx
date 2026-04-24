@@ -76,21 +76,33 @@ function ChecklistPage() {
 
   // Recupera decisões NC já salvas (NC com observação ≥3 e sem anomaliaId → "observacao";
   // NC com anomaliaId → "anomalia"). Garante consistência ao voltar.
+  // Recupera decisões NC já salvas a partir do rascunho persistido.
+  // Regra (sem campo extra no schema):
+  //   - NC com anomaliaId          → decisão "anomalia"
+  //   - NC com observação ≥ 3 chars → decisão "observacao" (operador já confirmou)
+  //   - caso contrário              → indefinida (operador ainda precisa escolher)
+  // Roda sempre que o rascunho muda (id ou conteúdo das respostas), para
+  // restaurar corretamente ao alternar entre momentos da mesma folha.
   useEffect(() => {
     if (!rascunho) return;
     setDecisoesNC((prev) => {
       const novo = { ...prev };
       for (const r of rascunho.respostas) {
-        if (r.resposta === "Não conforme") {
-          if (r.anomaliaId) novo[r.itemNumero] = "anomalia";
-          else if (novo[r.itemNumero] === undefined && r.observacao.trim().length >= 3) {
-            // se não há decisão, mantém indefinida (deixa o operador escolher)
-          }
+        if (r.resposta !== "Não conforme") {
+          // limpa decisão se a resposta não é mais NC
+          if (novo[r.itemNumero]) delete novo[r.itemNumero];
+          continue;
+        }
+        if (r.anomaliaId) {
+          novo[r.itemNumero] = "anomalia";
+        } else if (r.observacao.trim().length >= 3 && !novo[r.itemNumero]) {
+          // tem observação válida e não há decisão na memória → assume "observacao"
+          novo[r.itemNumero] = "observacao";
         }
       }
       return novo;
     });
-  }, [rascunho?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rascunho]);
 
   const itensDef: ItemChecklistDef[] = useMemo(() => {
     if (!rascunho) return [];
