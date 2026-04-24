@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -140,9 +141,19 @@ export function PtpItemContador({
             <ChevronLeft className="h-12 w-12" strokeWidth={3} />
           </button>
 
-          <div className="flex h-20 min-w-[5rem] flex-1 items-center justify-center rounded-2xl border-2 border-border bg-background px-4 text-4xl font-bold text-foreground tabular-nums">
-            {entrada}
-          </div>
+          <Input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            value={entrada}
+            onChange={(e) => {
+              const n = parseInt(e.target.value, 10);
+              setEntrada(Number.isFinite(n) && n > 0 ? n : 0);
+            }}
+            onFocus={(e) => e.currentTarget.select()}
+            disabled={disabled}
+            className="h-20 min-w-[5rem] flex-1 rounded-2xl border-2 border-border bg-background px-4 text-center text-4xl font-bold text-foreground tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
 
           <button
             type="button"
@@ -165,38 +176,39 @@ export function PtpItemContador({
           </button>
         </div>
         <p className="mt-1 text-center text-[11px] text-muted-foreground">
-          Toque para ±1 · Segure para repetir
+          Toque nas setas para ±1 · Segure para repetir · Toque no número para digitar
         </p>
       </div>
 
-      {/* Atalhos rápidos +5 / +10 e Limpar */}
-      <div className="grid grid-cols-3 gap-2">
-        {[5, 10].map((n) => (
+      {/* Atalhos rápidos -1 / +1 / +5 / +10 */}
+      <div className="grid grid-cols-4 gap-2">
+        {[
+          { label: "-1", delta: -1 },
+          { label: "+1", delta: 1 },
+          { label: "+5", delta: 5 },
+          { label: "+10", delta: 10 },
+        ].map(({ label, delta }) => (
           <button
-            key={n}
+            key={label}
             type="button"
             disabled={disabled}
-            onClick={() => aplicarDelta(n)}
-            className={`h-11 rounded-md border-2 text-sm font-bold transition-all ${
+            onPointerDown={(e) => {
+              e.preventDefault();
+              iniciarPressHold(delta);
+            }}
+            onPointerUp={limparTimers}
+            onPointerLeave={limparTimers}
+            onPointerCancel={limparTimers}
+            className={`h-11 rounded-md border-2 text-base font-bold transition-all ${
               disabled
                 ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
                 : "border-border bg-background text-foreground hover:border-primary/50 active:scale-95 active:bg-primary/10"
             }`}
-            aria-label={`Adicionar ${n}`}
+            aria-label={`Ajustar ${label}`}
           >
-            +{n}
+            {label}
           </button>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          disabled={disabled || entrada === 0}
-          onClick={() => setEntrada(0)}
-          className="h-11"
-        >
-          <Trash2 className="mr-1 h-4 w-4" />
-          Limpar
-        </Button>
       </div>
 
       {/* Ações principais */}
@@ -208,6 +220,16 @@ export function PtpItemContador({
           className="h-12 flex-1 text-base font-bold"
         >
           Adicionar ao total
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled || entrada === 0}
+          onClick={() => setEntrada(0)}
+          className="h-12 sm:w-auto"
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Limpar
         </Button>
         <Button
           type="button"
