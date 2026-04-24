@@ -518,7 +518,7 @@ export function calcularAlertasVerso(args: {
   }
 
   const topPtp = diagPtp.topItens[0];
-  if (topPtp && topPtp.marcacoes > 0) {
+  if (topPtp && topPtp.ocorrencias > 0) {
     alertas.push({
       texto: `Item PTP recorrente: ${topPtp.nome} — ${topPtp.label}.`,
       destaque: "info",

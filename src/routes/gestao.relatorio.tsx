@@ -828,18 +828,17 @@ function RelatorioPage() {
                         linhas={diagPtp.porStatus.map((r) => [r.chave, r.total])}
                       />
                       <TabelaSimples
-                        titulo="Top itens (marcações × ocorrências)"
-                        colunas={["Item", "Marcações", "Ocorrências"]}
+                        titulo="Top itens (ocorrências reais)"
+                        colunas={["Item", "Ocorrências"]}
                         linhas={diagPtp.topItens.map((r) => [
                           r.nome,
-                          r.marcacoes,
                           r.ocorrencias,
                         ])}
                       />
                     </div>
                     <div className="mt-4">
                       <h4 className="mb-2 text-sm font-semibold text-foreground">
-                        Marcações por janela (J01..J12)
+                        Ocorrências por janela (J01..J12)
                       </h4>
                       <GraficoBarras
                         dados={diagPtp.porJanela}
