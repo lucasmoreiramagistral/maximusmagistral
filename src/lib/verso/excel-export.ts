@@ -209,14 +209,11 @@ export function gerarVersoWorksheet(
   ws.getCell("A3").value = `DATA: ${formatarDataBR(opts.dataOperacao)}`;
   ws.getCell("A3").font = { bold: true };
 
-  ws.mergeCells("G3:I3");
-  ws.getCell("G3").value = "X = SEM OCORRÊNCIA";
+  ws.mergeCells("G3:L3");
+  ws.getCell("G3").value = "n° = quantidade real de ocorrências";
   ws.getCell("G3").alignment = { horizontal: "center" };
-  ws.mergeCells("J3:L3");
-  ws.getCell("J3").value = "n° = HOUVE OCORRÊNCIA";
-  ws.getCell("J3").alignment = { horizontal: "center" };
   ws.mergeCells("M3:R3");
-  ws.getCell("M3").value = "NR = NÃO RODOU";
+  ws.getCell("M3").value = "NR = NÃO RODOU   |   ✓ = verificação realizada";
   ws.getCell("M3").alignment = { horizontal: "center" };
 
   // Operadores por COLUNA POSICIONAL (1/2/3) — extrai por turno do PTP
@@ -256,7 +253,7 @@ export function gerarVersoWorksheet(
   ws.mergeCells("A8:F9");
   const cabPtp = ws.getCell("A8");
   cabPtp.value =
-    "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Marque a quantidade quando houver ocorrência)";
+    "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Informe a quantidade quando houver ocorrência)";
   cabPtp.alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
   cabPtp.font = { bold: true, size: 9 };
   cabPtp.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
