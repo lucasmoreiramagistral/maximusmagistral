@@ -3,30 +3,39 @@ import {
   LIMPEZA_ITENS_DEF,
   PTP_ITENS,
   PTP_JANELAS,
-  PTP_JANELAS_POR_TURNO,
+  janelasPtpDoTurno,
 } from "./constants";
 import type { LimpezaTurno, PtpJanela } from "./types";
 import type { Turno } from "@/lib/checklist/types";
+import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
 // ─────────────────────────────────────────────────────────────────────
 // Layout fiel ao Excel oficial "PTP_s_e_CHECKLIST_SALA_DE_ENVASE"
 // 1 aba única → PTP no topo + Limpeza embaixo, com assinaturas no final.
-// Larguras / merges escolhidos para imprimir bem em A4 paisagem.
+// As 3 colunas físicas oficiais do verso (N/O/P para limpeza, e
+// G:L / M:R para o cabeçalho do PTP) são mapeadas pelos turnos via
+// `colunaPosicionalDoTurno()` da fonte única em escalas.ts:
+//   coluna 1 → 12x36 Dia · 1º Turno · Comercial
+//   coluna 2 → 12x36 Noite · 2º Turno
+//   coluna 3 → 3º Turno
+// As janelas PTP (J01..J12) são mapeadas pelo HORÁRIO REAL da escala
+// via `janelasPtpDoTurno()`, que aplica fallback de legado por nome.
 // ─────────────────────────────────────────────────────────────────────
 
 export const VERSO_SHEET_NAME = "PTP + LIMPEZA L3";
 
-const TURNOS_ORDEM: Turno[] = ["12x36 Dia", "12x36 Noite", "3º Turno"];
-
-function rotuloTurnoCabecalho(t: Turno): string {
-  if (t === "12x36 Dia") return "1° TURNO ou 12x36 Dia";
-  if (t === "12x36 Noite") return "2° TURNO ou 12x36 Noite";
+function rotuloTurnoCabecalho(turno: Turno): string {
+  // Rótulo "ou" oficial por coluna posicional.
+  const col = colunaPosicionalDoTurno(turno);
+  if (col === 1) return "1° TURNO ou 12x36 Dia ou Comercial";
+  if (col === 2) return "2° TURNO ou 12x36 Noite";
   return "3° TURNO";
 }
 
-function rotuloTurnoCurto(t: Turno): string {
-  if (t === "12x36 Dia") return "1°T ou 12x36 D";
-  if (t === "12x36 Noite") return "2°T ou 12x36 N";
+function rotuloTurnoCurto(turno: Turno): string {
+  const col = colunaPosicionalDoTurno(turno);
+  if (col === 1) return "1°T ou 12x36 D ou Comerc.";
+  if (col === 2) return "2°T ou 12x36 N";
   return "3°T";
 }
 
@@ -101,11 +110,11 @@ function colunaPtpJanela(codigo: string): number {
   return 7 + idx; // G=7
 }
 
-/** Coluna no Limpeza para um turno específico (Dia=N, Noite=O, 3º=P). */
+/** Coluna no Limpeza para um turno específico via coluna posicional:
+ *  coluna 1 → N (14)  ·  coluna 2 → O (15)  ·  coluna 3 → P (16). */
 function colunaLimpezaTurno(turno: Turno): number {
-  if (turno === "12x36 Dia") return 14; // N
-  if (turno === "12x36 Noite") return 15; // O
-  return 16; // P
+  const col = colunaPosicionalDoTurno(turno) ?? 1;
+  return 13 + col; // N=14, O=15, P=16
 }
 
 function inserirImagem(
@@ -210,21 +219,31 @@ export function gerarVersoWorksheet(
   ws.getCell("M3").value = "NR = NÃO RODOU";
   ws.getCell("M3").alignment = { horizontal: "center" };
 
-  // Operadores 1/2/3 — extrai por turno do PTP (primeiro nome encontrado).
-  const operadorPorTurno = (turno: Turno): string => {
-    const codigos = turno === "3º Turno"
-      ? [] // 3º não tem mapping oficial; colete de qualquer janela cujo nome bata
-      : PTP_JANELAS_POR_TURNO[turno as "12x36 Dia" | "12x36 Noite"];
+  // Operadores por COLUNA POSICIONAL (1/2/3) — extrai por turno do PTP
+  // (primeiro nome encontrado nas janelas reais daquela coluna).
+  // Se múltiplas escalas caem na mesma coluna (ex: 12x36 Dia + 1º Turno +
+  // Comercial → coluna 1), o operador é o primeiro encontrado em qualquer
+  // janela coberta por qualquer escala daquela coluna.
+  const operadorPorColuna = (col: 1 | 2 | 3): string => {
+    // Reúne todos os códigos de janela de qualquer turno cuja coluna
+    // posicional bata com `col`.
+    const turnosDaColuna: Turno[] = (
+      ["12x36 Dia", "12x36 Noite", "Comercial", "1º Turno", "2º Turno", "3º Turno"] as Turno[]
+    ).filter((t) => colunaPosicionalDoTurno(t) === col);
+    const codigos = new Set<string>();
+    for (const t of turnosDaColuna) {
+      for (const c of janelasPtpDoTurno(t, null as never)) codigos.add(c);
+    }
     const nomes = opts.ptpJanelas
-      .filter((j) => codigos.includes(j.janelaCodigo))
+      .filter((j) => codigos.has(j.janelaCodigo))
       .map((j) => (j.operadorNome || j.operadorLogin || "").trim())
       .filter((n) => n.length > 0);
     return nomes[0] ?? "";
   };
 
-  const op1 = operadorPorTurno("12x36 Dia");
-  const op2 = operadorPorTurno("12x36 Noite");
-  const op3 = ""; // 3º turno não está em uso na UI; deixa em branco
+  const op1 = operadorPorColuna(1);
+  const op2 = operadorPorColuna(2);
+  const op3 = operadorPorColuna(3);
   ws.mergeCells("A4:R4");
   ws.getCell("A4").value = `OPERADOR 1: ${op1}`;
   ws.mergeCells("A5:R5");
