@@ -14,6 +14,7 @@ import { Route as OperadorIndexRouteImport } from './routes/operador.index'
 import { Route as ManutencaoIndexRouteImport } from './routes/manutencao.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as OperadorVersoRouteImport } from './routes/operador.verso'
+import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
 import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
 import { Route as OperadorItRouteImport } from './routes/operador.it'
@@ -67,6 +68,11 @@ const GestaoIndexRoute = GestaoIndexRouteImport.update({
 const OperadorVersoRoute = OperadorVersoRouteImport.update({
   id: '/operador/verso',
   path: '/operador/verso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorValidacaoLiderRoute = OperadorValidacaoLiderRouteImport.update({
+  id: '/operador/validacao-lider',
+  path: '/operador/validacao-lider',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorResumoRoute = OperadorResumoRouteImport.update({
@@ -240,6 +246,7 @@ export interface FileRoutesByFullPath {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao/': typeof GestaoIndexRoute
   '/manutencao/': typeof ManutencaoIndexRoute
@@ -276,6 +283,7 @@ export interface FileRoutesByTo {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao': typeof GestaoIndexRoute
   '/manutencao': typeof ManutencaoIndexRoute
@@ -313,6 +321,7 @@ export interface FileRoutesById {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/operador/verso': typeof OperadorVersoRouteWithChildren
   '/gestao/': typeof GestaoIndexRoute
   '/manutencao/': typeof ManutencaoIndexRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/validacao-lider'
     | '/operador/verso'
     | '/gestao/'
     | '/manutencao/'
@@ -387,6 +397,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/validacao-lider'
     | '/operador/verso'
     | '/gestao'
     | '/manutencao'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/validacao-lider'
     | '/operador/verso'
     | '/gestao/'
     | '/manutencao/'
@@ -460,6 +472,7 @@ export interface RootRouteChildren {
   OperadorItRoute: typeof OperadorItRouteWithChildren
   OperadorMomentoRoute: typeof OperadorMomentoRoute
   OperadorResumoRoute: typeof OperadorResumoRoute
+  OperadorValidacaoLiderRoute: typeof OperadorValidacaoLiderRoute
   OperadorVersoRoute: typeof OperadorVersoRouteWithChildren
   GestaoIndexRoute: typeof GestaoIndexRoute
   ManutencaoIndexRoute: typeof ManutencaoIndexRoute
@@ -509,6 +522,13 @@ declare module '@tanstack/react-router' {
       path: '/operador/verso'
       fullPath: '/operador/verso'
       preLoaderRoute: typeof OperadorVersoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/validacao-lider': {
+      id: '/operador/validacao-lider'
+      path: '/operador/validacao-lider'
+      fullPath: '/operador/validacao-lider'
+      preLoaderRoute: typeof OperadorValidacaoLiderRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/resumo': {
@@ -774,6 +794,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorItRoute: OperadorItRouteWithChildren,
   OperadorMomentoRoute: OperadorMomentoRoute,
   OperadorResumoRoute: OperadorResumoRoute,
+  OperadorValidacaoLiderRoute: OperadorValidacaoLiderRoute,
   OperadorVersoRoute: OperadorVersoRouteWithChildren,
   GestaoIndexRoute: GestaoIndexRoute,
   ManutencaoIndexRoute: ManutencaoIndexRoute,
