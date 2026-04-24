@@ -145,21 +145,14 @@ export function permissaoEdicaoChecklist(
         "Este checklist foi preenchido por outra conta operacional e não pode ser alterado neste acesso.",
     };
   }
-  // Bloqueio definitivo: se ambas as assinaturas (operador e líder) já foram coletadas
-  // no fechamento do dia, o checklist está finalizado e não pode mais ser alterado.
-  if (checklist.assinaturaOperador?.dataUrl && checklist.assinaturaLider?.dataUrl) {
+  // Bloqueio definitivo: somente quando o líder já validou (assinou) o checklist.
+  // O operador pode editar livremente até a validação do líder; toda alteração
+  // fica registrada no histórico de edições para a gestão auditar.
+  if (checklist.assinaturaLider?.dataUrl) {
     return {
       permitido: false,
       motivo: "assinado",
-      mensagem:
-        "Checklist finalizado e assinado pelo operador e pelo líder. Não pode mais ser alterado.",
-    };
-  }
-  if (!dentroDaJanelaEdicao(checklist)) {
-    return {
-      permitido: false,
-      motivo: "fora_horario",
-      mensagem: "Edição bloqueada. O horário deste turno já encerrou.",
+      mensagem: "Edição bloqueada. Checklist já validado pelo líder.",
     };
   }
   return { permitido: true };
