@@ -57,6 +57,27 @@ const authStore = {
 
   async loadProfile(uid: string) {
     try {
+      // Se o userId mudou em relação ao último login salvo neste dispositivo,
+      // limpa rascunhos/caches locais do operador anterior para evitar que o
+      // novo usuário veja "checklist em andamento" que não é dele.
+      if (typeof window !== "undefined") {
+        const ULTIMO_UID_KEY = "fm-checklist:last-uid";
+        const anterior = window.localStorage.getItem(ULTIMO_UID_KEY);
+        if (anterior && anterior !== uid) {
+          const remover: string[] = [];
+          for (let i = 0; i < window.localStorage.length; i++) {
+            const k = window.localStorage.key(i);
+            if (!k) continue;
+            // Limpa só dados operacionais do app; preserva sessão Supabase.
+            if (k.startsWith("fm-checklist:") && k !== ULTIMO_UID_KEY) {
+              remover.push(k);
+            }
+          }
+          remover.forEach((k) => window.localStorage.removeItem(k));
+        }
+        window.localStorage.setItem(ULTIMO_UID_KEY, uid);
+      }
+
       const { data, error } = await supabase
         .from("profiles")
         .select("*")

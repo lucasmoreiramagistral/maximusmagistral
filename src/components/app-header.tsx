@@ -55,14 +55,20 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
   }, [usuario?.userId]);
 
   const sair = async () => {
-    // Limpa todos os nomes de operador salvos (forçar re-digitar ao logar de novo).
+    // Limpa TUDO que é específico do operador/usuário anterior para evitar
+    // que o próximo login (em outro usuário) veja rascunhos/checklists/anomalias
+    // de quem usou o dispositivo antes.
     if (typeof window !== "undefined") {
-      const keys: string[] = [];
+      const keysRemover: string[] = [];
       for (let i = 0; i < window.localStorage.length; i++) {
         const k = window.localStorage.key(i);
-        if (k && k.startsWith(STORAGE_NOME_PREFIX)) keys.push(k);
+        if (!k) continue;
+        // Nomes de operador digitados (prefixo fm-checklist:nome-operador:*)
+        if (k.startsWith(STORAGE_NOME_PREFIX)) keysRemover.push(k);
+        // Dados do checklist/anomalias atrelados ao usuário anterior
+        if (k.startsWith("fm-checklist:")) keysRemover.push(k);
       }
-      keys.forEach((k) => window.localStorage.removeItem(k));
+      keysRemover.forEach((k) => window.localStorage.removeItem(k));
     }
     await supabase.auth.signOut();
     navigate({ to: "/" });
