@@ -1,15 +1,16 @@
 import type { Equipe, Turno } from "@/lib/checklist/types";
+import { escalaPorTurnoEquipe } from "./escalas";
 
 /**
- * Calcula a "data operacional" considerando a regra de madrugada:
- * - se o turno/equipe é noturno e ainda não passou das 06:10 da manhã (Manaus),
- *   a data ainda pertence ao dia anterior (a folha aberta na noite continua "viva").
+ * Calcula a "data operacional" considerando a regra de madrugada.
  *
- * IMPORTANTE: mantém a assinatura recebendo TANTO equipe quanto turno —
- * ambos são necessários para a regra (algumas equipes são fixas no noturno).
+ * Regra unificada (sem comparação por nome de equipe):
+ *   - Se a escala atravessa a meia-noite E o relógio Manaus ainda não passou
+ *     do horário de fim do turno (com folga de 10 min), a data ainda pertence
+ *     ao dia anterior — a folha aberta na noite continua "viva".
+ *   - Caso contrário, é a data de hoje em Manaus.
  *
- * Esta lógica vivia em src/routes/operador.contexto.tsx; foi extraída para
- * ser reutilizada também no Verso da Folha (PTP + Limpeza).
+ * Usa fonte única em escalas.ts. NÃO comparar equipe por literal aqui.
  */
 export function calcularDataOperacional(
   equipe: Equipe | null | undefined,
@@ -19,14 +20,16 @@ export function calcularDataOperacional(
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
   const manaus = new Date(utcMs - 4 * 60 * 60_000);
 
-  const horaMin = manaus.getUTCHours() * 60 + manaus.getUTCMinutes();
-  const ehNoite =
-    equipe === "Valderlan" ||
-    equipe === "Bruno" ||
-    turno === "12x36 Noite";
+  const escala = escalaPorTurnoEquipe(turno, equipe);
 
-  if (ehNoite && horaMin < 6 * 60 + 10) {
-    manaus.setUTCDate(manaus.getUTCDate() - 1);
+  if (escala?.atravessaMeiaNoite) {
+    const horaMin = manaus.getUTCHours() * 60 + manaus.getUTCMinutes();
+    const [hFim, mFim] = escala.horarioFim.split(":").map(Number);
+    const fimMin = hFim * 60 + mFim + 10; // folga de 10 min após o fim do turno
+
+    if (horaMin < fimMin) {
+      manaus.setUTCDate(manaus.getUTCDate() - 1);
+    }
   }
 
   const y = manaus.getUTCFullYear();

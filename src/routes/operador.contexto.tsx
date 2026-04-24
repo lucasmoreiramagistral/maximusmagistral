@@ -8,27 +8,9 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
 import { storage } from "@/lib/checklist/storage";
 import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
+import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
 
-function calcularDataFolha(equipe: Equipe | null, turno: Turno | null): string {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const manaus = new Date(utcMs - 4 * 60 * 60_000);
-
-  const horaMin = manaus.getUTCHours() * 60 + manaus.getUTCMinutes();
-  const ehNoite =
-    equipe === "Valderlan" ||
-    equipe === "Bruno" ||
-    turno === "12x36 Noite";
-
-  if (ehNoite && horaMin < 6 * 60 + 10) {
-    manaus.setUTCDate(manaus.getUTCDate() - 1);
-  }
-
-  const y = manaus.getUTCFullYear();
-  const m = String(manaus.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(manaus.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+const calcularDataFolha = calcularDataOperacional;
 
 function formatarDataBR(iso: string): string {
   const [y, m, d] = iso.split("-");
