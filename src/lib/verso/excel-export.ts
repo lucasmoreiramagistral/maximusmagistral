@@ -10,22 +10,33 @@ import type { Turno } from "@/lib/checklist/types";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
 // ─────────────────────────────────────────────────────────────────────
-// Layout fiel ao Excel oficial "PTP_s_e_CHECKLIST_SALA_DE_ENVASE"
-// 1 aba única → PTP no topo + Limpeza embaixo, com assinaturas no final.
-// As 3 colunas físicas oficiais do verso (N/O/P para limpeza, e
-// G:L / M:R para o cabeçalho do PTP) são mapeadas pelos turnos via
-// `colunaPosicionalDoTurno()` da fonte única em escalas.ts:
-//   coluna 1 → 12x36 Dia · 1º Turno · Comercial
-//   coluna 2 → 12x36 Noite · 2º Turno
-//   coluna 3 → 3º Turno
-// As janelas PTP (J01..J12) são mapeadas pelo HORÁRIO REAL da escala
-// via `janelasPtpDoTurno()`, que aplica fallback de legado por nome.
+// Layout fiel ao template oficial v3 "PTP_s_e_CHECKLIST_SALA_DE_ENVASE"
+// (aba "ENCHEDORA L3"). 1 aba única → PTP no topo + Limpeza embaixo.
+//
+// Mapa de colunas (B..S, 18 colunas físicas):
+//   B–G: descrição/cabeçalhos (PTP) e LOCAL/ITEM/SEÇÃO/DESCRIÇÃO (limpeza)
+//   H..S: 12 janelas PTP J01..J12
+//      H–K = 1° TURNO ou 12x36 Dia (J01..J04)
+//      L–O = 2° TURNO ou 12x36 Noite (J05..J08)
+//      P–S = 3° TURNO (J09..J12)
+//   Na limpeza:  O = 1°T, P = 2°T, Q = 3°T  ·  R:S = obs do líder
+//
+// Linhas-chave (PTP):
+//   1   título    · 3 data + legendas    · 4-6 operadores 1/2/3
+//   7   header turnos   · 8 rótulos das janelas
+//   9..13 itens PTP (5)    · 14 ANÁLISE DE ÂNGULO    · 15 vistos
+// Linhas-chave (Limpeza):
+//   17 título   · 18 hdr   · 20..40 21 itens
+//   41 assinaturas líder (3 turnos)   · 42 assin. operador (O/P/Q)
+//
+// Os horários nos rótulos das janelas usam a regra NOVA arredondada
+// (12:00–14:00, 20:00–22:00, 22:00–00:00), sobrescrevendo o que o
+// template Excel ainda mostra como 14:20/22:40 — decisão do usuário.
 // ─────────────────────────────────────────────────────────────────────
 
-export const VERSO_SHEET_NAME = "PTP + LIMPEZA L3";
+export const VERSO_SHEET_NAME = "ENCHEDORA L3";
 
 function rotuloTurnoCabecalho(turno: Turno): string {
-  // Rótulo "ou" oficial por coluna posicional.
   const col = colunaPosicionalDoTurno(turno);
   if (col === 1) return "1° TURNO ou 12x36 Dia ou Comercial";
   if (col === 2) return "2° TURNO ou 12x36 Noite";
@@ -34,7 +45,7 @@ function rotuloTurnoCabecalho(turno: Turno): string {
 
 function rotuloTurnoCurto(turno: Turno): string {
   const col = colunaPosicionalDoTurno(turno);
-  if (col === 1) return "1°T ou 12x36 D ou Comerc.";
+  if (col === 1) return "1°T ou 12x36 D";
   if (col === 2) return "2°T ou 12x36 N";
   return "3°T";
 }
@@ -104,17 +115,16 @@ function colNumParaLetra(n: number): string {
   return s;
 }
 
-/** Coluna no PTP para uma janela específica (J01..J12 → colunas G..R). */
+/** Coluna no PTP para uma janela específica (J01..J12 → colunas H..S). */
 function colunaPtpJanela(codigo: string): number {
   const idx = PTP_JANELAS.findIndex((j) => j.codigo === codigo);
-  return 7 + idx; // G=7
+  return 8 + idx; // H=8
 }
 
-/** Coluna no Limpeza para um turno específico via coluna posicional:
- *  coluna 1 → N (14)  ·  coluna 2 → O (15)  ·  coluna 3 → P (16). */
+/** Coluna na limpeza por turno: 1→O(15), 2→P(16), 3→Q(17). */
 function colunaLimpezaTurno(turno: Turno): number {
   const col = colunaPosicionalDoTurno(turno) ?? 1;
-  return 13 + col; // N=14, O=15, P=16
+  return 14 + col; // O=15, P=16, Q=17
 }
 
 function inserirImagem(
@@ -139,8 +149,6 @@ function inserirImagem(
   const totalRows = r2 - r1 + 1;
 
   if (opts.centralizar) {
-    // Calcula um sub-range centralizado dentro do range fornecido,
-    // ocupando "larguraFracao" do bloco horizontal e "alturaFracao" do vertical.
     const lf = opts.larguraFracao ?? 0.6;
     const af = opts.alturaFracao ?? 0.85;
     const padX = (1 - lf) / 2;
@@ -172,8 +180,8 @@ interface GerarVersoOpts {
   limpezaTurnos: LimpezaTurno[];
 }
 
-/** Adiciona uma worksheet "VERSO" ao workbook e a preenche fielmente
- *  ao layout oficial. Retorna a worksheet criada. */
+/** Adiciona uma worksheet "ENCHEDORA L3" ao workbook e a preenche fielmente
+ *  ao layout oficial v3. Retorna a worksheet criada. */
 export function gerarVersoWorksheet(
   wb: ExcelJS.Workbook,
   opts: GerarVersoOpts,
@@ -182,20 +190,22 @@ export function gerarVersoWorksheet(
     pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true },
   });
 
-  // Larguras de coluna (A..R = 18 colunas)
-  const widths = [
-    14, 4, 6, 18, 6, 6, // A..F (PTP item descrição/cabeçalhos)
-    9, 9, 9, 9, 9, 9, // G..L (J01..J06)
-    9, 9, 9, 9, 9, 9, // M..R (J07..J12) — também N/O/P usadas pela limpeza
+  // Larguras de coluna (A vazia + B..S = 18 colunas úteis)
+  ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
+  const widthsBS = [
+    8, 6, 6, 18, 6, 6, // B..G — descrições
+    8, 8, 8, 8,        // H..K — janelas 1°T (J01..J04)
+    8, 8, 8, 8,        // L..O — janelas 2°T (J05..J08)
+    8, 8, 8, 8,        // P..S — janelas 3°T (J09..J12)
   ];
-  widths.forEach((w, i) => {
-    ws.getColumn(i + 1).width = w;
+  widthsBS.forEach((w, i) => {
+    ws.getColumn(i + 2).width = w;
   });
 
-  // ─── Cabeçalho geral ───────────────────────────────────────────────
-  ws.mergeCells("A1:R1");
-  const tit = ws.getCell("A1");
-  tit.value = "PLANILHA DE PTP — ENCHEDORA LINHA 3";
+  // ─── Linha 1 — Título geral ───────────────────────────────────────
+  ws.mergeCells("B1:S1");
+  const tit = ws.getCell("B1");
+  tit.value = "PLANILHA DE PTP - ENCHEDORA LINHA 3";
   tit.font = { bold: true, size: 14 };
   tit.alignment = { horizontal: "center", vertical: "middle" };
   tit.fill = {
@@ -205,25 +215,46 @@ export function gerarVersoWorksheet(
   };
   ws.getRow(1).height = 24;
 
-  ws.mergeCells("A3:F3");
-  ws.getCell("A3").value = `DATA: ${formatarDataBR(opts.dataOperacao)}`;
-  ws.getCell("A3").font = { bold: true };
+  // ─── Linha 3 — Data + legendas ───────────────────────────────────
+  ws.mergeCells("B3:I3");
+  ws.getCell("B3").value = `DATA: ${formatarDataBR(opts.dataOperacao)}`;
+  ws.getCell("B3").font = { bold: true };
+  ws.getCell("B3").alignment = { vertical: "middle" };
 
-  ws.mergeCells("G3:L3");
-  ws.getCell("G3").value = "n° = quantidade real de ocorrências";
-  ws.getCell("G3").alignment = { horizontal: "center" };
-  ws.mergeCells("M3:R3");
-  ws.getCell("M3").value = "NR = NÃO RODOU   |   ✓ = verificação realizada";
-  ws.getCell("M3").alignment = { horizontal: "center" };
+  ws.mergeCells("J3:M3");
+  ws.getCell("J3").value = "n° = QUANTIDADE REAL DE OCORRÊNCIAS";
+  ws.getCell("J3").alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell("J3").font = { bold: true, size: 9 };
+  ws.getCell("J3").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFF59D" },
+  };
 
-  // Operadores por COLUNA POSICIONAL (1/2/3) — extrai por turno do PTP
-  // (primeiro nome encontrado nas janelas reais daquela coluna).
-  // Se múltiplas escalas caem na mesma coluna (ex: 12x36 Dia + 1º Turno +
-  // Comercial → coluna 1), o operador é o primeiro encontrado em qualquer
-  // janela coberta por qualquer escala daquela coluna.
+  ws.mergeCells("N3:P3");
+  ws.getCell("N3").value = "✓ = ANÁLISE DE ÂNGULO REALIZADA";
+  ws.getCell("N3").alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell("N3").font = { bold: true, size: 9 };
+  ws.getCell("N3").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFC8E6C9" },
+  };
+
+  ws.mergeCells("Q3:S3");
+  ws.getCell("Q3").value = "NR = NÃO RODOU";
+  ws.getCell("Q3").alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell("Q3").font = { bold: true, size: 9 };
+  ws.getCell("Q3").fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFCDD2" },
+  };
+
+  // ─── Linhas 4-6 — Operadores 1/2/3 ───────────────────────────────
+  // Operador por COLUNA POSICIONAL — pega o primeiro nome de qualquer
+  // janela coberta por qualquer turno daquela coluna.
   const operadorPorColuna = (col: 1 | 2 | 3): string => {
-    // Reúne todos os códigos de janela de qualquer turno cuja coluna
-    // posicional bata com `col`.
     const turnosDaColuna: Turno[] = (
       ["12x36 Dia", "12x36 Noite", "Comercial", "1º Turno", "2º Turno", "3º Turno"] as Turno[]
     ).filter((t) => colunaPosicionalDoTurno(t) === col);
@@ -241,31 +272,35 @@ export function gerarVersoWorksheet(
   const op1 = operadorPorColuna(1);
   const op2 = operadorPorColuna(2);
   const op3 = operadorPorColuna(3);
-  ws.mergeCells("A4:R4");
-  ws.getCell("A4").value = `OPERADOR 1: ${op1}`;
-  ws.mergeCells("A5:R5");
-  ws.getCell("A5").value = `OPERADOR 2: ${op2}`;
-  ws.mergeCells("A6:R6");
-  ws.getCell("A6").value = `OPERADOR 3: ${op3}`;
+  ws.mergeCells("B4:S4");
+  ws.getCell("B4").value = `OPERADOR 1: ${op1}`;
+  ws.getCell("B4").font = { bold: true };
+  ws.mergeCells("B5:S5");
+  ws.getCell("B5").value = `OPERADOR 2: ${op2}`;
+  ws.getCell("B5").font = { bold: true };
+  ws.mergeCells("B6:S6");
+  ws.getCell("B6").value = `OPERADOR 3: ${op3}`;
+  ws.getCell("B6").font = { bold: true };
 
-  // ─── PTP — cabeçalhos das janelas ─────────────────────────────────
-  // Linha 8: títulos dos turnos
-  ws.mergeCells("A8:F9");
-  const cabPtp = ws.getCell("A8");
+  // ─── Linha 7 — Header turnos do PTP ──────────────────────────────
+  ws.mergeCells("B7:G8");
+  const cabPtp = ws.getCell("B7");
   cabPtp.value =
     "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Informe a quantidade quando houver ocorrência)";
   cabPtp.alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
   cabPtp.font = { bold: true, size: 9 };
   cabPtp.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
 
-  ws.mergeCells("G8:L8");
-  ws.getCell("G8").value = rotuloTurnoCabecalho("12x36 Dia");
-  ws.mergeCells("M8:R8");
-  ws.getCell("M8").value = rotuloTurnoCabecalho("12x36 Noite");
-  ["G8", "M8"].forEach((c) => {
+  ws.mergeCells("H7:K7");
+  ws.getCell("H7").value = rotuloTurnoCabecalho("12x36 Dia");
+  ws.mergeCells("L7:O7");
+  ws.getCell("L7").value = rotuloTurnoCabecalho("12x36 Noite");
+  ws.mergeCells("P7:S7");
+  ws.getCell("P7").value = rotuloTurnoCabecalho("3º Turno");
+  ["H7", "L7", "P7"].forEach((c) => {
     const cell = ws.getCell(c);
-    cell.font = { bold: true };
-    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.font = { bold: true, size: 9 };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.fill = {
       type: "pattern",
       pattern: "solid",
@@ -273,12 +308,12 @@ export function gerarVersoWorksheet(
     };
   });
 
-  // Linha 9: rótulo de cada janela
+  // ─── Linha 8 — Rótulos das 12 janelas ────────────────────────────
   PTP_JANELAS.forEach((j, idx) => {
-    const col = colNumParaLetra(7 + idx);
-    const cell = ws.getCell(`${col}9`);
+    const col = colNumParaLetra(8 + idx); // H..S
+    const cell = ws.getCell(`${col}8`);
     cell.value = j.rotulo;
-    cell.font = { size: 8 };
+    cell.font = { size: 8, bold: true };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.fill = {
       type: "pattern",
@@ -286,17 +321,18 @@ export function gerarVersoWorksheet(
       fgColor: { argb: "FFF5F5F5" },
     };
   });
-  ws.getRow(9).height = 28;
+  ws.getRow(7).height = 30;
+  ws.getRow(8).height = 28;
 
-  // ─── PTP — 5 itens × 12 janelas ───────────────────────────────────
-  const PTP_LINHA_INI = 10;
+  // ─── Linhas 9..13 — 5 itens PTP × 12 janelas ─────────────────────
+  const PTP_LINHA_INI = 9;
   PTP_ITENS.forEach((itemDef, iIdx) => {
     const linha = PTP_LINHA_INI + iIdx;
-    ws.mergeCells(`A${linha}:F${linha}`);
-    const cellNome = ws.getCell(`A${linha}`);
+    ws.mergeCells(`B${linha}:G${linha}`);
+    const cellNome = ws.getCell(`B${linha}`);
     cellNome.value = itemDef.nome;
     cellNome.font = { bold: true, size: 10 };
-    cellNome.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+    cellNome.alignment = { vertical: "middle", horizontal: "left", wrapText: true, indent: 1 };
 
     PTP_JANELAS.forEach((j) => {
       const colNum = colunaPtpJanela(j.codigo);
@@ -316,30 +352,34 @@ export function gerarVersoWorksheet(
       }
       if (janela.statusJanela === "nao_rodou") {
         cell.value = "NR";
-        cell.font = { italic: true, color: { argb: "FF777777" } };
+        cell.font = { italic: true, color: { argb: "FF777777" }, bold: true };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFFEBEE" },
+        };
         return;
       }
-      // Defeitos: exibe quantidade real acumulada (>0). Se 0, célula vazia
-      // (status OK fica refletido na ausência de número, mantendo o padrão
-      // novo do processo). Não usar "X" e não multiplicar por 2.
+      // Defeitos: exibe quantidade real acumulada (>0). Se 0/sem ocorrência,
+      // célula vazia (não usar "X" e não multiplicar por 2).
       const it = janela.itens.find((x) => x.codigo === itemDef.codigo);
       const qtd = it?.quantidade ?? 0;
       if (qtd > 0) {
         cell.value = qtd;
-        cell.font = { bold: true, color: { argb: "FFC62828" } };
+        cell.font = { bold: true, color: { argb: "FFC62828" }, size: 11 };
       }
     });
   });
 
-  // ─── PTP — linha "ANÁLISE DE ÂNGULO" ──────────────────────────────
-  // Aderência (não defeito): por janela, mostra ✓ (1 verif.), ✓✓ (2 verif.),
+  // ─── Linha 14 — ANÁLISE DE ÂNGULO ────────────────────────────────
+  // Aderência (não defeito): por janela, mostra ✓ (1 verif.), ✓✓ (2),
   // vazio (nenhuma) ou NR (não rodou).
-  const LINHA_ANGULO = PTP_LINHA_INI + PTP_ITENS.length; // 15
-  ws.mergeCells(`A${LINHA_ANGULO}:F${LINHA_ANGULO}`);
-  const cellAng = ws.getCell(`A${LINHA_ANGULO}`);
+  const LINHA_ANGULO = 14;
+  ws.mergeCells(`B${LINHA_ANGULO}:G${LINHA_ANGULO}`);
+  const cellAng = ws.getCell(`B${LINHA_ANGULO}`);
   cellAng.value = "ANÁLISE DE ÂNGULO (2 verificações de 30 min)";
   cellAng.font = { bold: true, size: 9, italic: true };
-  cellAng.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+  cellAng.alignment = { vertical: "middle", horizontal: "left", wrapText: true, indent: 1 };
   cellAng.fill = {
     type: "pattern",
     pattern: "solid",
@@ -363,7 +403,7 @@ export function gerarVersoWorksheet(
     if (!janela) return;
     if (janela.statusJanela === "nao_rodou") {
       cell.value = "NR";
-      cell.font = { italic: true, color: { argb: "FF777777" } };
+      cell.font = { italic: true, color: { argb: "FF777777" }, bold: true };
       return;
     }
     const ang = janela.analiseAngulo;
@@ -373,17 +413,17 @@ export function gerarVersoWorksheet(
     const total = v1 + v2;
     if (total === 0) return;
     cell.value = total === 2 ? "✓✓" : "✓";
-    cell.font = { bold: true, color: { argb: "FF1565C0" } };
+    cell.font = { bold: true, color: { argb: "FF1565C0" }, size: 11 };
   });
 
-  // ─── PTP — linha "Visto" por janela ───────────────────────────────
-  const LINHA_VISTO = LINHA_ANGULO + 1; // 16
-  ws.mergeCells(`A${LINHA_VISTO}:F${LINHA_VISTO}`);
-  const cellVisto = ws.getCell(`A${LINHA_VISTO}`);
+  // ─── Linha 15 — Vistos por janela ────────────────────────────────
+  const LINHA_VISTO = 15;
+  ws.mergeCells(`B${LINHA_VISTO}:G${LINHA_VISTO}`);
+  const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
     "Operador(a), assinar a cada preenchimento e anotar observações no verso quando necessário.";
   cellVisto.font = { italic: true, size: 8 };
-  cellVisto.alignment = { wrapText: true, vertical: "middle" };
+  cellVisto.alignment = { wrapText: true, vertical: "middle", indent: 1 };
   PTP_JANELAS.forEach((j) => {
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_VISTO, colNum);
@@ -393,6 +433,8 @@ export function gerarVersoWorksheet(
       : null;
     if (codigosTurno && !codigosTurno.includes(j.codigo)) {
       cell.value = "Visto:";
+      cell.font = { size: 7 };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
       return;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
@@ -408,62 +450,85 @@ export function gerarVersoWorksheet(
       });
     }
   });
-  ws.getRow(LINHA_VISTO).height = 36;
+  ws.getRow(LINHA_VISTO).height = 38;
 
-  aplicarBordas(ws, `A8:R${LINHA_VISTO}`);
+  aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
 
-  // ─── Limpeza — cabeçalho ──────────────────────────────────────────
-  const LIMPEZA_INI = LINHA_VISTO + 2; // gap
-  ws.mergeCells(`A${LIMPEZA_INI}:M${LIMPEZA_INI}`);
-  const cabL = ws.getCell(`A${LIMPEZA_INI}`);
+  // ─── Linha 17 — Cabeçalho LIMPEZA ────────────────────────────────
+  const LIMPEZA_INI = 17;
+  ws.mergeCells(`B${LIMPEZA_INI}:K${LIMPEZA_INI}`);
+  const cabL = ws.getCell(`B${LIMPEZA_INI}`);
   cabL.value = "CHECKLIST OPERACIONAL DE LIMPEZA DA SALA DE ENVASE L3";
   cabL.font = { bold: true, size: 12 };
   cabL.alignment = { horizontal: "center", vertical: "middle" };
   cabL.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
-  ws.mergeCells(`N${LIMPEZA_INI}:P${LIMPEZA_INI}`);
-  ws.getCell(`N${LIMPEZA_INI}`).value = "✓ = Realizado / NA   |   ✗ = Não realizado";
-  ws.getCell(`N${LIMPEZA_INI}`).alignment = { horizontal: "center", vertical: "middle" };
-  ws.getCell(`N${LIMPEZA_INI}`).font = { size: 8 };
-  ws.mergeCells(`Q${LIMPEZA_INI}:R${LIMPEZA_INI}`);
-  ws.getCell(`Q${LIMPEZA_INI}`).value =
-    "Código Doc.: FM28 PSGQ07\nRev.: 00";
-  ws.getCell(`Q${LIMPEZA_INI}`).alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
-  ws.getCell(`Q${LIMPEZA_INI}`).font = { size: 8 };
 
-  // Cabeçalho da tabela de limpeza
-  const LIMPEZA_HDR = LIMPEZA_INI + 1;
-  ws.getCell(`A${LIMPEZA_HDR}`).value = "LOCAL";
-  ws.getCell(`B${LIMPEZA_HDR}`).value = "ITEM";
-  ws.mergeCells(`C${LIMPEZA_HDR}:D${LIMPEZA_HDR}`);
-  ws.getCell(`C${LIMPEZA_HDR}`).value = "SEÇÃO";
-  ws.mergeCells(`E${LIMPEZA_HDR}:M${LIMPEZA_HDR}`);
-  ws.getCell(`E${LIMPEZA_HDR}`).value = "DESCRIÇÃO";
-  ws.getCell(`N${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Dia");
-  ws.getCell(`O${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Noite");
-  ws.getCell(`P${LIMPEZA_HDR}`).value = rotuloTurnoCurto("3º Turno");
-  ws.mergeCells(`Q${LIMPEZA_HDR}:R${LIMPEZA_HDR}`);
-  ws.getCell(`Q${LIMPEZA_HDR}`).value = "Observações do líder";
-  ["A", "B", "C", "E", "N", "O", "P", "Q"].forEach((c) => {
+  ws.mergeCells(`L${LIMPEZA_INI}:N${LIMPEZA_INI}`);
+  ws.getCell(`L${LIMPEZA_INI}`).value = "✓ = Realizado / NA";
+  ws.getCell(`L${LIMPEZA_INI}`).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(`L${LIMPEZA_INI}`).font = { size: 9, bold: true };
+  ws.getCell(`L${LIMPEZA_INI}`).fill = {
+    type: "pattern", pattern: "solid", fgColor: { argb: "FFC8E6C9" },
+  };
+
+  ws.mergeCells(`O${LIMPEZA_INI}:Q${LIMPEZA_INI}`);
+  ws.getCell(`O${LIMPEZA_INI}`).value = "✗ = Não realizado";
+  ws.getCell(`O${LIMPEZA_INI}`).alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell(`O${LIMPEZA_INI}`).font = { size: 9, bold: true };
+  ws.getCell(`O${LIMPEZA_INI}`).fill = {
+    type: "pattern", pattern: "solid", fgColor: { argb: "FFFFCDD2" },
+  };
+
+  ws.mergeCells(`R${LIMPEZA_INI}:S${LIMPEZA_INI}`);
+  ws.getCell(`R${LIMPEZA_INI}`).value =
+    "Código Doc.: FM28 PSGQ07\nRev.: 00";
+  ws.getCell(`R${LIMPEZA_INI}`).alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
+  ws.getCell(`R${LIMPEZA_INI}`).font = { size: 8 };
+
+  // ─── Linha 18 — Header da tabela limpeza ─────────────────────────
+  const LIMPEZA_HDR = 18;
+  ws.mergeCells(`B${LIMPEZA_HDR}:B19`);
+  ws.getCell(`B${LIMPEZA_HDR}`).value = "LOCAL";
+  ws.mergeCells(`C${LIMPEZA_HDR}:C19`);
+  ws.getCell(`C${LIMPEZA_HDR}`).value = "ITEM";
+  ws.mergeCells(`D${LIMPEZA_HDR}:E19`);
+  ws.getCell(`D${LIMPEZA_HDR}`).value = "SEÇÃO";
+  ws.mergeCells(`F${LIMPEZA_HDR}:N19`);
+  ws.getCell(`F${LIMPEZA_HDR}`).value = "DESCRIÇÃO";
+  ws.mergeCells(`O${LIMPEZA_HDR}:O19`);
+  ws.getCell(`O${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Dia");
+  ws.mergeCells(`P${LIMPEZA_HDR}:P19`);
+  ws.getCell(`P${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Noite");
+  ws.mergeCells(`Q${LIMPEZA_HDR}:Q19`);
+  ws.getCell(`Q${LIMPEZA_HDR}`).value = rotuloTurnoCurto("3º Turno");
+  ws.mergeCells(`R${LIMPEZA_HDR}:S19`);
+  ws.getCell(`R${LIMPEZA_HDR}`).value = "Observações do líder";
+  ["B", "C", "D", "F", "O", "P", "Q", "R"].forEach((c) => {
     const cell = ws.getCell(`${c}${LIMPEZA_HDR}`);
     cell.font = { bold: true, size: 9 };
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
   });
 
-  // Itens da limpeza
-  const LIMPEZA_LINHA_INI = LIMPEZA_HDR + 1;
+  // ─── Linhas 20..40 — 21 itens limpeza ────────────────────────────
+  const LIMPEZA_LINHA_INI = 20;
   LIMPEZA_ITENS_DEF.forEach((it, idx) => {
     const linha = LIMPEZA_LINHA_INI + idx;
-    ws.getCell(`A${linha}`).value = it.grupo;
-    ws.getCell(`B${linha}`).value = it.codigo;
-    ws.mergeCells(`C${linha}:D${linha}`);
-    ws.getCell(`C${linha}`).value = it.secao;
-    ws.mergeCells(`E${linha}:M${linha}`);
-    ws.getCell(`E${linha}`).value = it.descricao;
+    ws.getCell(`B${linha}`).value = it.grupo;
+    ws.getCell(`C${linha}`).value = it.codigo;
+    ws.mergeCells(`D${linha}:E${linha}`);
+    ws.getCell(`D${linha}`).value = it.secao;
+    ws.mergeCells(`F${linha}:N${linha}`);
+    ws.getCell(`F${linha}`).value = it.descricao;
 
-    ["A", "B", "C", "E"].forEach((c) => {
+    ["B", "C", "D", "F"].forEach((c) => {
       const cell = ws.getCell(`${c}${linha}`);
-      cell.alignment = { vertical: "middle", wrapText: true, horizontal: c === "E" ? "left" : "center" };
+      cell.alignment = {
+        vertical: "middle",
+        wrapText: true,
+        horizontal: c === "F" ? "left" : "center",
+        indent: c === "F" ? 1 : 0,
+      };
       cell.font = { size: 9 };
     });
 
@@ -478,117 +543,121 @@ export function gerarVersoWorksheet(
       if (!respItem || !respItem.status) continue;
       if (respItem.status === "realizado" || respItem.status === "nao_aplicavel") {
         cell.value = "✓";
-        cell.font = { bold: true, color: { argb: "FF2E7D32" } };
+        cell.font = { bold: true, color: { argb: "FF2E7D32" }, size: 12 };
       } else {
         cell.value = "✗";
-        cell.font = { bold: true, color: { argb: "FFC62828" } };
+        cell.font = { bold: true, color: { argb: "FFC62828" }, size: 12 };
       }
     }
   });
 
-  const LIMPEZA_FIM = LIMPEZA_LINHA_INI + LIMPEZA_ITENS_DEF.length - 1;
-  aplicarBordas(ws, `A${LIMPEZA_HDR}:R${LIMPEZA_FIM}`);
+  const LIMPEZA_FIM = LIMPEZA_LINHA_INI + LIMPEZA_ITENS_DEF.length - 1; // 40
+  aplicarBordas(ws, `B${LIMPEZA_HDR}:Q${LIMPEZA_FIM}`);
 
-  // ─── Assinaturas líder × operador por turno ───────────────────────
-  const ASSIN_INI = LIMPEZA_FIM + 2;
-  ws.getRow(ASSIN_INI).height = 14;
-  ws.getRow(ASSIN_INI + 1).height = 60;
-  ws.getRow(ASSIN_INI + 2).height = 14;
-
-  const blocos: { turno: Turno; range: string; rangeAssOp: string }[] = [
-    { turno: "12x36 Dia", range: `A${ASSIN_INI}:F${ASSIN_INI + 2}`, rangeAssOp: `N${ASSIN_INI + 1}:N${ASSIN_INI + 1}` },
-    { turno: "12x36 Noite", range: `G${ASSIN_INI}:L${ASSIN_INI + 2}`, rangeAssOp: `O${ASSIN_INI + 1}:O${ASSIN_INI + 1}` },
-    { turno: "3º Turno", range: `M${ASSIN_INI}:R${ASSIN_INI + 2}`, rangeAssOp: `P${ASSIN_INI + 1}:P${ASSIN_INI + 1}` },
-  ];
-
-  blocos.forEach(({ turno, range }) => {
-    const [a, b] = range.split(":");
-    const m1 = /^([A-Z]+)(\d+)$/.exec(a)!;
-    const m2 = /^([A-Z]+)(\d+)$/.exec(b)!;
-    const colA = m1[1];
-    const rowTopo = +m1[2];
-    const colB = m2[1];
-    // Topo: rótulo do turno
-    ws.mergeCells(`${colA}${rowTopo}:${colB}${rowTopo}`);
-    ws.getCell(`${colA}${rowTopo}`).value = rotuloTurnoCurto(turno);
-    ws.getCell(`${colA}${rowTopo}`).font = { bold: true, size: 9 };
-    ws.getCell(`${colA}${rowTopo}`).alignment = { horizontal: "center", vertical: "middle" };
-    // Meio: assinatura do líder (área para imagem) + nome
-    ws.mergeCells(`${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`);
-    const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
-    const cellMeio = ws.getCell(`${colA}${rowTopo + 1}`);
-    cellMeio.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
-    cellMeio.font = { size: 9 };
-    if (lt?.liderNome) {
-      cellMeio.value = `_____________________________\n${lt.liderNome}`;
-    } else {
-      cellMeio.value = "_____________________________";
-    }
-    if (lt?.assinaturaLider?.dataUrl) {
-      inserirImagem(wb, ws, `${colA}${rowTopo + 1}:${colB}${rowTopo + 1}`, lt.assinaturaLider.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.55,
-        alturaFracao: 0.7,
-      });
-    }
-    // Base: legenda
-    ws.mergeCells(`${colA}${rowTopo + 2}:${colB}${rowTopo + 2}`);
-    ws.getCell(`${colA}${rowTopo + 2}`).value = "↑ Assinatura do líder ↑";
-    ws.getCell(`${colA}${rowTopo + 2}`).font = { italic: true, size: 8 };
-    ws.getCell(`${colA}${rowTopo + 2}`).alignment = { horizontal: "center" };
-  });
-
-  // Linha extra: assinaturas do operador POR TURNO COM DADO (modelo lazy).
-  const ASSIN_OP_LINHA = ASSIN_INI + 4;
-  ws.getRow(ASSIN_OP_LINHA).height = 50;
-  for (const lt of opts.limpezaTurnos) {
-    if (opts.turnoFiltro && opts.turnoFiltro !== lt.turno) continue;
-    const colNum = colunaLimpezaTurno(lt.turno);
-    const colLetra = colNumParaLetra(colNum);
-    const cell = ws.getCell(`${colLetra}${ASSIN_OP_LINHA}`);
-    const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
-    cell.value = nome ? `Assin. Oper. → ${nome}` : "Assin. Oper. →";
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.font = { size: 8 };
-    if (lt.assinaturaOperador?.dataUrl) {
-      inserirImagem(
-        wb,
-        ws,
-        `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`,
-        lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.85, alturaFracao: 0.85 },
-      );
-    }
-  }
-
-  // Observações livres do verso (PTP + Limpeza), agrupadas por turno
-  const OBS_INI = ASSIN_OP_LINHA + 2;
-  ws.mergeCells(`A${OBS_INI}:R${OBS_INI}`);
-  const cabO = ws.getCell(`A${OBS_INI}`);
-  cabO.value = "OBSERVAÇÕES DO VERSO (PTP + LIMPEZA)";
-  cabO.font = { bold: true, size: 11 };
-  cabO.alignment = { horizontal: "center", vertical: "middle" };
-  cabO.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFFF8E1" } };
-
+  // Bloco de observações livres do líder em R20:S40 — concatena obs PTP + Limpeza.
+  ws.mergeCells(`R${LIMPEZA_LINHA_INI}:S${LIMPEZA_FIM}`);
+  const cellObs = ws.getCell(`R${LIMPEZA_LINHA_INI}`);
   const linhasObs: string[] = [];
   for (const j of opts.ptpJanelas) {
+    if (opts.turnoFiltro) {
+      const codigos = janelasPtpDoTurno(opts.turnoFiltro, null as never);
+      if (!codigos.includes(j.janelaCodigo)) continue;
+    }
     if (j.observacao && j.observacao.trim()) {
       linhasObs.push(`[PTP ${j.janelaCodigo} ${j.janelaInicio}-${j.janelaFim}] ${j.observacao.trim()}`);
     }
   }
   for (const t of opts.limpezaTurnos) {
+    if (opts.turnoFiltro && opts.turnoFiltro !== t.turno) continue;
     if (t.observacao && t.observacao.trim()) {
       linhasObs.push(`[Limpeza ${rotuloTurnoCurto(t.turno)}] ${t.observacao.trim()}`);
     }
   }
-  if (linhasObs.length === 0) linhasObs.push("(sem observações registradas)");
-  linhasObs.forEach((txt, i) => {
-    const linha = OBS_INI + 1 + i;
-    ws.mergeCells(`A${linha}:R${linha}`);
-    const cell = ws.getCell(`A${linha}`);
-    cell.value = txt;
-    cell.alignment = { wrapText: true, vertical: "middle" };
+  cellObs.value = linhasObs.length
+    ? linhasObs.join("\n\n")
+    : "Operador, realize este checklist diariamente uma vez no turno. Qualquer dificuldade ou impedimento, registrar nesta área.";
+  cellObs.alignment = { wrapText: true, vertical: "top", horizontal: "left", indent: 1 };
+  cellObs.font = { size: 9 };
+  aplicarBordas(ws, `R${LIMPEZA_LINHA_INI}:S${LIMPEZA_FIM}`);
+
+  // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
+  const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
+  ws.getRow(LINHA_ASSIN_LIDER).height = 50;
+
+  const blocosLider: { turno: Turno; range: string }[] = [
+    { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
+    { turno: "12x36 Noite", range: `G${LINHA_ASSIN_LIDER}:J${LINHA_ASSIN_LIDER}` },
+    { turno: "3º Turno", range: `K${LINHA_ASSIN_LIDER}:N${LINHA_ASSIN_LIDER}` },
+  ];
+
+  // Rótulo da linha (B41)
+  ws.getCell(`B${LINHA_ASSIN_LIDER}`).value = "Líder:";
+  ws.getCell(`B${LINHA_ASSIN_LIDER}`).font = { bold: true, size: 9 };
+  ws.getCell(`B${LINHA_ASSIN_LIDER}`).alignment = { horizontal: "right", vertical: "middle" };
+
+  blocosLider.forEach(({ turno, range }) => {
+    const [a, b] = range.split(":");
+    const m1 = /^([A-Z]+)(\d+)$/.exec(a)!;
+    const m2 = /^([A-Z]+)(\d+)$/.exec(b)!;
+    const colA = m1[1];
+    const row = +m1[2];
+    const colB = m2[1];
+    ws.mergeCells(`${colA}${row}:${colB}${row}`);
+    const cell = ws.getCell(`${colA}${row}`);
+    const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
+    const nome = lt?.liderNome ?? "";
+    cell.value = `${rotuloTurnoCurto(turno)}    ____________________________\n${nome}`;
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.font = { size: 9 };
+    cell.border = BORDA_FINA;
+    if (lt?.assinaturaLider?.dataUrl) {
+      inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
+        centralizar: true,
+        larguraFracao: 0.55,
+        alturaFracao: 0.7,
+      });
+    }
+  });
+
+  // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
+  const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
+  ws.getRow(LINHA_ASSIN_OP).height = 50;
+
+  ws.mergeCells(`B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
+  const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
+  cellLeg.value = "↑ Assinatura dos líderes para validação ↑";
+  cellLeg.font = { italic: true, size: 9, bold: true };
+  cellLeg.alignment = { horizontal: "center", vertical: "middle" };
+
+  for (const lt of opts.limpezaTurnos) {
+    if (opts.turnoFiltro && opts.turnoFiltro !== lt.turno) continue;
+    const colNum = colunaLimpezaTurno(lt.turno);
+    const colLetra = colNumParaLetra(colNum);
+    const cell = ws.getCell(`${colLetra}${LINHA_ASSIN_OP}`);
+    const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
+    cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.font = { size: 8 };
+    cell.border = BORDA_FINA;
+    if (lt.assinaturaOperador?.dataUrl) {
+      inserirImagem(
+        wb,
+        ws,
+        `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
+        lt.assinaturaOperador.dataUrl,
+        { centralizar: true, larguraFracao: 0.85, alturaFracao: 0.85 },
+      );
+    }
+  }
+  // Garante borda nas células O/P/Q da linha 42 mesmo sem dado
+  ["O", "P", "Q"].forEach((c) => {
+    const cell = ws.getCell(`${c}${LINHA_ASSIN_OP}`);
+    if (!cell.value) {
+      cell.value = "Assin. Oper. →";
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = { size: 8 };
+    }
+    cell.border = BORDA_FINA;
   });
 
   return ws;
