@@ -57,7 +57,7 @@ function PtpListaPage() {
       <AppHeader
         titulo="PTP Garrafas"
         subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno ?? "—"}`}
-        voltarPara="/operador/verso"
+        voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
         {conflito && (
