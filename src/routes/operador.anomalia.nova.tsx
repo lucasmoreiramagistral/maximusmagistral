@@ -41,6 +41,8 @@ const CATEGORIAS: CategoriaAnomalia[] = [
   "Processo",
   "Segurança",
   "Limpeza / 5S",
+  "Operacional",
+  "Predial",
   "Outro",
 ];
 
