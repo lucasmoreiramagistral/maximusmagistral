@@ -29,9 +29,11 @@ const MODULOS = ["operador", "gestao", "manutencao", "admin"] as const;
 
 const PERFIS = ["operador", "gestao", "manutencao"] as const;
 
-const HIERARQUIAS_ADMIN = ["desenvolvedor", "gerente", "coordenador"] as const;
-
 const EMAIL_DOMAIN = "magistral.internal";
+
+// NOTA: Por decisão de produto, qualquer usuário autenticado com perfil
+// "gestao" pode administrar usuários. A validação fina por hierarquia
+// (desenvolvedor/gerente/coordenador) será reintroduzida em etapa futura.
 
 function normalizarLogin(login: string): string {
   return login
@@ -49,15 +51,15 @@ function loginParaEmail(login: string): string {
 }
 
 /**
- * Verifica se o chamador (autenticado via middleware) tem hierarquia
- * autorizada a administrar usuários. Lança 403 caso contrário.
+ * Verifica se o chamador é um usuário ativo do perfil "gestao".
+ * Não restringe por hierarquia (decisão de produto atual).
  */
 async function assertAdminGestao(userId: string): Promise<void> {
   const { data, error } = await supabaseAdmin
     .from("profiles")
-    .select("active, hierarquia" as string)
+    .select("active, perfil" as string)
     .eq("id", userId)
-    .maybeSingle<{ active: boolean; hierarquia: string }>();
+    .maybeSingle<{ active: boolean; perfil: string }>();
 
   if (error || !data) {
     throw new Response("Forbidden: profile não encontrado", { status: 403 });
@@ -65,8 +67,8 @@ async function assertAdminGestao(userId: string): Promise<void> {
   if (!data.active) {
     throw new Response("Forbidden: usuário inativo", { status: 403 });
   }
-  if (!HIERARQUIAS_ADMIN.includes(data.hierarquia as (typeof HIERARQUIAS_ADMIN)[number])) {
-    throw new Response("Forbidden: hierarquia insuficiente", { status: 403 });
+  if (data.perfil !== "gestao") {
+    throw new Response("Forbidden: apenas usuários de gestão", { status: 403 });
   }
 }
 
