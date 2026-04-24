@@ -614,14 +614,14 @@ export async function exportarTurnoExcel(
   preencherCabecalhoData(ws, folha.contexto.data);
 
   const turno = folha.contexto.turno;
-  const mapa = MAPA_TURNOS[turno];
+  const mapa = mapaDoTurno(turno);
   const concluidos = checklistsConcluidos(folha);
   for (const c of concluidos) {
     preencherRespostasChecklist(ws, c, mapa);
   }
 
   const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
+  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(turno)]);
 
   // Se houver checklist de Pós-setup com assinaturas digitais, embute imagens.
   const checklistAss = checklistComAssinaturas(concluidos);
@@ -665,13 +665,13 @@ export async function exportarFolhaDiaExcel(
   for (const f of candidatas) {
     if (turnosUsados.has(f.contexto.turno)) continue;
     turnosUsados.add(f.contexto.turno);
-    const mapa = MAPA_TURNOS[f.contexto.turno];
+    const mapa = mapaDoTurno(f.contexto.turno);
     const concluidos = checklistsConcluidos(f);
     for (const c of concluidos) {
       preencherRespostasChecklist(ws, c, mapa);
     }
     const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(f.contexto.turno)]);
     const checklistAss = checklistComAssinaturas(concluidos);
     if (checklistAss) {
       preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
@@ -719,13 +719,13 @@ export async function exportarTurnoComVersoExcel(
   preencherCabecalhoData(ws, folha.contexto.data);
 
   const turno = folha.contexto.turno;
-  const mapa = MAPA_TURNOS[turno];
+  const mapa = mapaDoTurno(turno);
   const concluidos = checklistsConcluidos(folha);
   for (const c of concluidos) {
     preencherRespostasChecklist(ws, c, mapa);
   }
   const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
+  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(turno)]);
   const checklistAss = checklistComAssinaturas(concluidos);
   if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
 
@@ -772,11 +772,11 @@ export async function exportarFrenteVersoCompletoExcel(
   for (const f of candidatas) {
     if (turnosUsados.has(f.contexto.turno)) continue;
     turnosUsados.add(f.contexto.turno);
-    const mapa = MAPA_TURNOS[f.contexto.turno];
+    const mapa = mapaDoTurno(f.contexto.turno);
     const concluidos = checklistsConcluidos(f);
     for (const c of concluidos) preencherRespostasChecklist(ws, c, mapa);
     const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(f.contexto.turno)]);
     const checklistAss = checklistComAssinaturas(concluidos);
     if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
     todosChecklistsConcluidos.push(...concluidos);
