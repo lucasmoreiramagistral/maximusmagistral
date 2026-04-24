@@ -1,14 +1,21 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
 import { storage } from "@/lib/checklist/storage";
 import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
+import { TODAS_AS_EQUIPES, TODOS_OS_TURNOS } from "@/lib/operacao/listas";
 
 const calcularDataFolha = calcularDataOperacional;
 
@@ -34,36 +41,22 @@ function ContextoPage() {
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
-  const [nomeOperador, setNomeOperador] = useState("");
+  // Pré-seleção a partir do cadastro (se houver), mas operador pode trocar.
+  const [turno, setTurno] = useState<Turno | "">(
+    (usuario?.turnoPadrao as Turno | undefined) ?? "",
+  );
+  const [equipe, setEquipe] = useState<Equipe | "">(
+    (usuario?.equipePadrao as Equipe | undefined) ?? "",
+  );
 
-  // Pré-carregar nome salvo do operador (por userId), se houver.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const key = nomeStorageKey(usuario?.userId);
-    if (!key) return;
-    const salvo = window.localStorage.getItem(key);
-    if (salvo) setNomeOperador(salvo);
-  }, [usuario?.userId]);
-
-  // Equipe e turno são FIXOS — vêm do profile do usuário logado e não são editáveis.
-  const turno = usuario?.turnoPadrao ?? null;
-  const equipe = usuario?.equipePadrao ?? null;
-
-  // Data calculada automaticamente a partir do turno/equipe — operador não pode editar.
-  const data = calcularDataFolha(equipe, turno);
+  // Data calculada automaticamente a partir do turno/equipe selecionados.
+  const data = turno && equipe ? calcularDataFolha(equipe, turno) : "";
 
   if (loading || !usuario) return <TelaCarregando />;
 
   const continuar = () => {
     if (!turno || !equipe) {
-      setErro(
-        "Sua conta não possui equipe/turno configurados. Procure a gestão.",
-      );
-      return;
-    }
-    const nomeLimpo = nomeOperador.trim();
-    if (!nomeLimpo) {
-      setErro("Digite seu nome no Operador responsável");
+      setErro("Selecione turno e equipe para continuar.");
       return;
     }
     const ctx: ContextoChecklist = {
@@ -74,13 +67,15 @@ function ContextoPage() {
       maquina: "Enchedora 3",
       area: "Envase",
       equipamento: "Enchedora Zegla 50V",
-      operadorResponsavel: nomeLimpo,
+      operadorResponsavel: usuario.nome,
     };
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(STORAGE_CTX, JSON.stringify(ctx));
+      // Mantém compat com o restante do app, que ainda lê o nome do operador
+      // por userId em localStorage.
       const nomeKey = nomeStorageKey(usuario.userId);
       if (nomeKey) {
-        window.localStorage.setItem(nomeKey, nomeLimpo);
+        window.localStorage.setItem(nomeKey, usuario.nome);
         window.dispatchEvent(
           new CustomEvent("fm-storage-update", { detail: { key: nomeKey } }),
         );
@@ -106,39 +101,67 @@ function ContextoPage() {
             <CampoFixo titulo="Equipamento" valor="Enchedora Zegla 50V" />
 
             <div>
-              <CampoFixo titulo="Data" valor={formatarDataBR(data)} />
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Data calculada automaticamente conforme seu turno. Não pode ser alterada.
-              </p>
-            </div>
-
-            <CampoFixo titulo="Turno" valor={turno ?? "—"} />
-
-            <div className="md:col-span-2">
-              <CampoFixo titulo="Equipe" valor={equipe ?? "—"} />
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                Equipe e turno definidos pela sua conta. Não podem ser alterados aqui.
-              </p>
-            </div>
-
-            <div className="md:col-span-2">
-              <Label htmlFor="operador-nome" className="text-base">
-                Operador responsável
+              <Label htmlFor="turno-select" className="text-base">
+                Turno
               </Label>
-              <Input
-                id="operador-nome"
-                value={nomeOperador}
-                onChange={(e) => {
-                  setNomeOperador(e.target.value);
+              <Select
+                value={turno}
+                onValueChange={(v) => {
+                  setTurno(v as Turno);
                   if (erro) setErro("");
                 }}
-                placeholder="Digite seu nome completo"
-                maxLength={100}
-                autoComplete="name"
-                className="mt-1.5 h-12 text-base font-semibold"
+              >
+                <SelectTrigger id="turno-select" className="mt-1.5 h-12 text-base font-semibold">
+                  <SelectValue placeholder="Selecione o turno" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TODOS_OS_TURNOS.map((t) => (
+                    <SelectItem key={t} value={t} className="text-base">
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="equipe-select" className="text-base">
+                Equipe
+              </Label>
+              <Select
+                value={equipe}
+                onValueChange={(v) => {
+                  setEquipe(v as Equipe);
+                  if (erro) setErro("");
+                }}
+              >
+                <SelectTrigger id="equipe-select" className="mt-1.5 h-12 text-base font-semibold">
+                  <SelectValue placeholder="Selecione a equipe" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TODAS_AS_EQUIPES.map((e) => (
+                    <SelectItem key={e} value={e} className="text-base">
+                      {e}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="md:col-span-2">
+              <CampoFixo
+                titulo="Data"
+                valor={data ? formatarDataBR(data) : "— selecione turno e equipe —"}
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
-                Obrigatório. Usado pela gestão industrial para controle de dados — sua assinatura digital ao final do dia confirma a autoria do checklist.
+                Data calculada automaticamente conforme o turno e equipe escolhidos.
+              </p>
+            </div>
+
+            <div className="md:col-span-2">
+              <CampoFixo titulo="Operador responsável" valor={usuario.nome} />
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Identificado pelo seu login. A assinatura digital ao final confirma a autoria.
               </p>
             </div>
           </div>
