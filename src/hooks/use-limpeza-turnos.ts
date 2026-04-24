@@ -128,24 +128,42 @@ export function useLimpezaTurnos(
             console.error("[useLimpezaTurnos] insertLimpezaEdicao falhou:", e);
           }
         }
-        // Propaga observação livre do turno para "Observações" da frente
-        // somente após o operador concluir (status >= aguardando_validacao).
+        // Propaga observações por ITEM (apenas itens "nao_realizado" com texto)
+        // para "Observações" da frente. Itens fora de NR ou sem texto têm sua
+        // linha apagada (upsert com texto vazio = DELETE).
+        // Também limpa a antiga obs "do turno inteiro" (origem_codigo = turno).
         const ehConclusao =
           saved.status === "aguardando_validacao" || saved.status === "validado";
         if (ehConclusao && opts) {
+          const ctx = {
+            folhaDiaKey: saved.folhaDiaKey,
+            dataOperacao: saved.dataOperacao,
+            linha: saved.linha || VERSO_CONTEXTO_FIXO.linha,
+            maquina: saved.maquina || VERSO_CONTEXTO_FIXO.maquina,
+            registradoPorLogin: opts.editadoPorLogin,
+            registradoPorNome: opts.editadoPorNome,
+          };
           try {
+            // 1) Limpa a obs legada/agregada do turno (se existir).
             await upsertObservacaoVerso({
-              folhaDiaKey: saved.folhaDiaKey,
-              dataOperacao: saved.dataOperacao,
-              linha: saved.linha || VERSO_CONTEXTO_FIXO.linha,
-              maquina: saved.maquina || VERSO_CONTEXTO_FIXO.maquina,
+              ...ctx,
               origemTipo: "limpeza",
               origemCodigo: saved.turno,
               origemLabel: labelLimpezaTurno(saved.turno),
-              texto: saved.observacao ?? "",
-              registradoPorLogin: opts.editadoPorLogin,
-              registradoPorNome: opts.editadoPorNome,
+              texto: "",
             });
+            // 2) Para cada item, sincroniza a obs por item.
+            for (const it of saved.itens) {
+              const texto =
+                it.status === "nao_realizado" ? (it.observacao ?? "") : "";
+              await upsertObservacaoVerso({
+                ...ctx,
+                origemTipo: "limpeza",
+                origemCodigo: origemCodigoLimpezaItem(saved.turno, it.codigo),
+                origemLabel: labelLimpezaItem(saved.turno, it.codigo),
+                texto,
+              });
+            }
           } catch (e) {
             console.error("[useLimpezaTurnos] upsertObservacaoVerso falhou:", e);
           }
