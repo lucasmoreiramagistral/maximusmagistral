@@ -13,10 +13,18 @@ import { buildFolhaKey } from "./supabase-storage";
 
 const KEYS = {
   rascunho: "fm-checklist:rascunho",
+  // Mapa { [folhaKey + "|" + momento]: Checklist } com TODOS os rascunhos
+  // em andamento por momento da folha. Permite ao operador alternar entre
+  // os 3 momentos sem perder respostas.
+  rascunhosPorMomento: "fm-checklist:rascunhos-por-momento",
   checklists: "fm-checklist:checklists",
   anomalias: "fm-checklist:anomalias",
   usuario: "fm-checklist:usuario",
 };
+
+function rascunhoKey(folhaKey: string, momento: string): string {
+  return `${folhaKey}|${momento}`;
+}
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -129,9 +137,42 @@ export const storage = {
   clearUsuario: () => remove(KEYS.usuario),
 
   // ─── Rascunho ───
+  // O slot "rascunho" é o "rascunho atual" (momento que o operador está
+  // visualizando). Em paralelo, mantemos um MAPA de rascunhos por momento
+  // da folha (rascunhosPorMomento) para que o operador possa alternar entre
+  // os 3 momentos sem perder o que já marcou.
   getRascunho: (): Checklist | null => read<Checklist | null>(KEYS.rascunho, null),
-  setRascunho: (c: Checklist) => write(KEYS.rascunho, c),
-  clearRascunho: () => remove(KEYS.rascunho),
+  setRascunho: (c: Checklist) => {
+    write(KEYS.rascunho, c);
+    // Também grava no mapa por momento, para permitir restaurar ao trocar.
+    const mapa = read<Record<string, Checklist>>(KEYS.rascunhosPorMomento, {});
+    const folhaKey = c.folhaKey ?? buildFolhaKey(c.contexto);
+    mapa[rascunhoKey(folhaKey, c.momento)] = c;
+    write(KEYS.rascunhosPorMomento, mapa);
+  },
+  clearRascunho: () => {
+    // Limpa apenas o slot "atual" + o slot daquele momento específico.
+    const atual = read<Checklist | null>(KEYS.rascunho, null);
+    remove(KEYS.rascunho);
+    if (atual) {
+      const mapa = read<Record<string, Checklist>>(KEYS.rascunhosPorMomento, {});
+      const folhaKey = atual.folhaKey ?? buildFolhaKey(atual.contexto);
+      delete mapa[rascunhoKey(folhaKey, atual.momento)];
+      write(KEYS.rascunhosPorMomento, mapa);
+    }
+  },
+  // Restaura como "rascunho atual" o rascunho previamente salvo de um momento
+  // específico (caso exista). Retorna o rascunho carregado, ou null.
+  restaurarRascunhoMomento: (
+    contexto: ContextoChecklist,
+    momento: string,
+  ): Checklist | null => {
+    const mapa = read<Record<string, Checklist>>(KEYS.rascunhosPorMomento, {});
+    const key = rascunhoKey(buildFolhaKey(contexto), momento);
+    const c = mapa[key] ?? null;
+    if (c) write(KEYS.rascunho, c);
+    return c;
+  },
 
   // ─── Checklists (cache local) ───
   getChecklists: (): Checklist[] => read<Checklist[]>(KEYS.checklists, []),
@@ -184,6 +225,12 @@ export const storage = {
     contexto: ContextoChecklist,
     momento: string,
   ): Checklist | null => {
+    // 1) primeiro consulta o MAPA por momento (preserva alternância entre os 3)
+    const mapa = read<Record<string, Checklist>>(KEYS.rascunhosPorMomento, {});
+    const mapKey = rascunhoKey(buildFolhaKey(contexto), momento);
+    const doMapa = mapa[mapKey];
+    if (doMapa) return doMapa;
+    // 2) fallback: slot "atual" (compat com rascunhos antigos sem mapa)
     const r = read<Checklist | null>(KEYS.rascunho, null);
     if (!r) return null;
     const key = r.folhaKey ?? buildFolhaKey(r.contexto);
