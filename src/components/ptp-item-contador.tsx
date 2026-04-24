@@ -71,6 +71,14 @@ export function PtpItemContador({
     setEntrada((prev) => Math.max(0, prev + delta));
   }, []);
 
+  // Mantemos a flag `disabled` em ref para que o interval em execução
+  // possa parar imediatamente se o componente for desabilitado durante o hold.
+  const disabledRef = useRef(!!disabled);
+  useEffect(() => {
+    disabledRef.current = !!disabled;
+    if (disabled) limparTimers();
+  }, [disabled, limparTimers]);
+
   const iniciarPressHold = useCallback(
     (delta: number) => {
       if (disabled) return;
@@ -80,6 +88,10 @@ export function PtpItemContador({
       // Após 500ms começa a repetir a cada 200ms (sem aceleração agressiva).
       timeoutRef.current = setTimeout(() => {
         intervalRef.current = setInterval(() => {
+          if (disabledRef.current) {
+            limparTimers();
+            return;
+          }
           aplicarDelta(delta);
         }, 200);
       }, 500);
