@@ -172,7 +172,7 @@ export function construirReferenciaFrente(
   const map = new Map<string, RefFrente>();
   for (const c of checklistsFiltrados) {
     const turno = c.contexto.turno;
-    if (!isTurnoVerso(turno)) continue; // 3º Turno não tem verso definido
+    // Todos os turnos têm verso (PTP + limpeza); sem filtro restritivo.
     const data = c.contexto.data;
     const key = chaveRef(data, turno);
     if (!map.has(key)) {
@@ -226,17 +226,17 @@ export function cruzarFrenteVerso(
     arr.push(j);
     ptpPorChave.set(k, arr);
   }
-  // Indexa limpeza por (data, turno)
+  // Indexa limpeza por (data, turno) — qualquer turno é válido agora.
   const limpPorChave = new Map<string, LimpezaTurno>();
   for (const l of limpeza) {
-    if (!isTurnoVerso(l.turno)) continue;
     limpPorChave.set(chaveRef(l.dataOperacao, l.turno), l);
   }
 
   return ref.map<LinhaAderencia>((r) => {
     const k = chaveRef(r.dataOperacao, r.turno);
     const ptpDoTurno = ptpPorChave.get(k) ?? [];
-    const ptpEsperadas = PTP_JANELAS_POR_TURNO[r.turno].length;
+    const escalaRef = escalaPorTurnoEquipe(r.turno, r.equipe as never);
+    const ptpEsperadas = janelasDeEscalaCacheada(escalaRef).length;
     const ptpRealizadas = ptpDoTurno.filter((j) => ptpConcluidaStatus(j.statusJanela))
       .length;
     const ptpPendentes = ptpEsperadas - ptpRealizadas;
@@ -371,7 +371,7 @@ export function calcularDiagnosticoPtp(
       const t = derivarTurnoDaJanela(j.janelaCodigo);
       return {
         dataOperacao: j.dataOperacao,
-        turno: (t ?? "12x36 Dia") as "12x36 Dia" | "12x36 Noite",
+        turno: (t ?? "12x36 Dia") as Turno,
         janelaCodigo: j.janelaCodigo,
         observacao: (j.observacao ?? "").trim(),
       };
@@ -463,9 +463,7 @@ export function filtrarLimpezaDoRecorte(
   limpeza: LimpezaTurno[],
 ): LimpezaTurno[] {
   const set = new Set(ref.map((r) => chaveRef(r.dataOperacao, r.turno)));
-  return limpeza.filter(
-    (l) => isTurnoVerso(l.turno) && set.has(chaveRef(l.dataOperacao, l.turno)),
-  );
+  return limpeza.filter((l) => set.has(chaveRef(l.dataOperacao, l.turno)));
 }
 
 export function registrosVersoForaDoRecorte(
@@ -479,9 +477,7 @@ export function registrosVersoForaDoRecorte(
     if (!t) return true;
     return !set.has(chaveRef(j.dataOperacao, t));
   });
-  const limpFora = limpeza.filter(
-    (l) => !isTurnoVerso(l.turno) || !set.has(chaveRef(l.dataOperacao, l.turno)),
-  );
+  const limpFora = limpeza.filter((l) => !set.has(chaveRef(l.dataOperacao, l.turno)));
   return { ptp: ptpFora, limpeza: limpFora };
 }
 
@@ -563,5 +559,3 @@ export function calcularAlertasVerso(args: {
   return alertas;
 }
 
-// ─── Re-export útil ──────────────────────────────────────────────────
-export const TURNOS_VERSO_LISTA = TURNOS_VERSO;
