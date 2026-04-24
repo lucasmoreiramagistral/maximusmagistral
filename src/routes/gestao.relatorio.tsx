@@ -890,6 +890,14 @@ function RelatorioPage() {
                           ])}
                       />
                     )}
+                    {/* ── Análise de Ângulo por Janela (aderência) ── */}
+                    {diagPtp.analiseAnguloPorJanela.length > 0 && (
+                      <div className="mt-4">
+                        <TabelaAnaliseAngulo
+                          linhas={diagPtp.analiseAnguloPorJanela}
+                        />
+                      </div>
+                    )}
                   </Bloco>
 
                   {/* BLOCO 11 — Diagnóstico Limpeza */}
