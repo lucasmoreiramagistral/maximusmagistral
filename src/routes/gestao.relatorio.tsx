@@ -203,7 +203,10 @@ function RelatorioPage() {
     () => calcularResumoVersoRelatorio(aderencia),
     [aderencia],
   );
-  const diagPtp = useMemo(() => calcularDiagnosticoPtp(ptpDoRecorte), [ptpDoRecorte]);
+  const diagPtp = useMemo(
+    () => calcularDiagnosticoPtp(ptpDoRecorte, referenciaFrente),
+    [ptpDoRecorte, referenciaFrente],
+  );
   const diagLimp = useMemo(
     () => calcularDiagnosticoLimpeza(limpezaDoRecorte, resumoVerso.limpezasEsperadas),
     [limpezaDoRecorte, resumoVerso.limpezasEsperadas],
