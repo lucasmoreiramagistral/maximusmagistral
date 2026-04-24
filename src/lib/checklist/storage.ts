@@ -225,6 +225,12 @@ export const storage = {
     contexto: ContextoChecklist,
     momento: string,
   ): Checklist | null => {
+    // 1) primeiro consulta o MAPA por momento (preserva alternância entre os 3)
+    const mapa = read<Record<string, Checklist>>(KEYS.rascunhosPorMomento, {});
+    const mapKey = rascunhoKey(buildFolhaKey(contexto), momento);
+    const doMapa = mapa[mapKey];
+    if (doMapa) return doMapa;
+    // 2) fallback: slot "atual" (compat com rascunhos antigos sem mapa)
     const r = read<Checklist | null>(KEYS.rascunho, null);
     if (!r) return null;
     const key = r.folhaKey ?? buildFolhaKey(r.contexto);
