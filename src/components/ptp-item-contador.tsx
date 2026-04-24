@@ -108,10 +108,10 @@ export function PtpItemContador({
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
         <p className="text-sm font-bold text-foreground">{nome}</p>
-        <span className="shrink-0 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
-          Total: {totalAcumulado}
+        <span className="shrink-0 rounded-lg bg-primary/10 px-3 py-1.5 text-base font-bold text-primary">
+          Total: <span className="text-xl tabular-nums">{totalAcumulado}</span>
         </span>
       </div>
 
