@@ -144,10 +144,21 @@ function ChecklistPage() {
       r.itemNumero === itemNumero ? { ...r, ...patch } : r,
     );
     const next: Checklist = { ...base, respostas: novas };
+    setStatusSalvamento("saving");
+    if (savedTimerRef.current) {
+      clearTimeout(savedTimerRef.current);
+      savedTimerRef.current = null;
+    }
     try {
       storage.setRascunho(next);
+      setStatusSalvamento("saved");
+      savedTimerRef.current = setTimeout(() => {
+        setStatusSalvamento("idle");
+        savedTimerRef.current = null;
+      }, 1500);
     } catch {
       // silencioso — re-render via useRascunho cobre o estado local
+      setStatusSalvamento("idle");
     }
     // limpa o estado de erro daquele item ao interagir
     setItensComErro((prev) => {
