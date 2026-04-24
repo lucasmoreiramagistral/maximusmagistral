@@ -52,7 +52,6 @@ import {
 import { useGuard } from "@/hooks/use-guard";
 import {
   HIERARQUIAS,
-  HIERARQUIAS_ADMIN_GESTAO,
   MODULOS_ACESSO,
   type Hierarquia,
   type ModuloAcesso,
@@ -114,12 +113,8 @@ function UsuariosPage() {
   const { usuario, loading: authLoading } = useGuard("gestao");
   const navigate = useNavigate();
 
-  const podeAdministrar = useMemo(
-    () =>
-      !!usuario?.hierarquia &&
-      HIERARQUIAS_ADMIN_GESTAO.includes(usuario.hierarquia),
-    [usuario],
-  );
+  const podeAdministrar = !!usuario;
+
 
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -133,15 +128,9 @@ function UsuariosPage() {
   const [confirmStatus, setConfirmStatus] = useState<UsuarioRow | null>(null);
   const [salvandoStatus, setSalvandoStatus] = useState(false);
 
-  // Redireciona se não tiver hierarquia suficiente
-  useEffect(() => {
-    if (authLoading) return;
-    if (!usuario) return;
-    if (!podeAdministrar) {
-      toast.error("Apenas coordenador, gerente ou desenvolvedor podem acessar esta área.");
-      navigate({ to: "/gestao" });
-    }
-  }, [authLoading, usuario, podeAdministrar, navigate]);
+  // Liberação temporária: qualquer usuário que entra pela sessão gestão
+  // pode acessar esta tela nesta etapa.
+
 
   const carregar = async () => {
     setLoading(true);
