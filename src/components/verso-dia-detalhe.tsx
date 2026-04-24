@@ -29,6 +29,7 @@ import {
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
 import { calcularResumoVerso } from "@/lib/verso/resumo";
+import { derivarEscalaDaJanela } from "@/lib/verso/reporting";
 import {
   useEdicoesVerso,
   type EdicaoVersoLimpeza,
@@ -230,7 +231,7 @@ function PtpGrid({
           const turnosComDado = Array.from(
             new Set(
               Array.from(janelasPorCodigo.values())
-                .map((j) => j.turno as Turno | undefined)
+                .map((j) => derivarEscalaDaJanela(j.janelaCodigo)?.turno)
                 .filter((t): t is Turno => Boolean(t)),
             ),
           );
@@ -241,7 +242,10 @@ function PtpGrid({
             : (["12x36 Dia", "12x36 Noite"] as Turno[]);
           return turnosRender.map((turno) => {
             const codigos = Array.from(janelasPorCodigo.values())
-              .filter((j) => (j.turno as Turno | undefined) === turno || !j.turno)
+              .filter((j) => {
+                const t = derivarEscalaDaJanela(j.janelaCodigo)?.turno;
+                return t === turno || !t;
+              })
               .map((j) => j.janelaCodigo);
             const codigosUnicos = Array.from(new Set(codigos));
             return (
