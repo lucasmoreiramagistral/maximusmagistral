@@ -503,26 +503,28 @@ export function gerarVersoWorksheet(
     ws.getCell(`${colA}${rowTopo + 2}`).alignment = { horizontal: "center" };
   });
 
-  // Linha extra: assinaturas do operador por turno (limpeza)
+  // Linha extra: assinaturas do operador POR TURNO COM DADO (modelo lazy).
   const ASSIN_OP_LINHA = ASSIN_INI + 4;
-  // Linha extra: assinaturas do operador POR TURNO COM DADO (lazy).
+  ws.getRow(ASSIN_OP_LINHA).height = 50;
   for (const lt of opts.limpezaTurnos) {
-    const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
-    const colNum = colunaLimpezaTurno(turno);
+    if (opts.turnoFiltro && opts.turnoFiltro !== lt.turno) continue;
+    const colNum = colunaLimpezaTurno(lt.turno);
     const colLetra = colNumParaLetra(colNum);
     const cell = ws.getCell(`${colLetra}${ASSIN_OP_LINHA}`);
-    const nome = (lt?.operadorNome || lt?.operadorLogin || "").trim();
+    const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
     cell.value = nome ? `Assin. Oper. → ${nome}` : "Assin. Oper. →";
     cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     cell.font = { size: 8 };
-    if (lt?.assinaturaOperador?.dataUrl) {
-      inserirImagem(wb, ws, `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`, lt.assinaturaOperador.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.85,
-        alturaFracao: 0.85,
-      });
+    if (lt.assinaturaOperador?.dataUrl) {
+      inserirImagem(
+        wb,
+        ws,
+        `${colLetra}${ASSIN_OP_LINHA}:${colLetra}${ASSIN_OP_LINHA}`,
+        lt.assinaturaOperador.dataUrl,
+        { centralizar: true, larguraFracao: 0.85, alturaFracao: 0.85 },
+      );
     }
-  });
+  }
 
   // Observações livres do verso (PTP + Limpeza), agrupadas por turno
   const OBS_INI = ASSIN_OP_LINHA + 2;
