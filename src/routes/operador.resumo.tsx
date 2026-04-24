@@ -37,8 +37,8 @@ function ResumoPage() {
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
-    if (!rascunho) navigate({ to: "/operador" });
-  }, [usuario, loading, rascunho, navigate]);
+    if (!rascunho && !salvando) navigate({ to: "/operador/momento" });
+  }, [usuario, loading, rascunho, salvando, navigate]);
 
   if (loading || !usuario) return <TelaCarregando />;
   if (!rascunho) return null;
@@ -110,7 +110,7 @@ function ResumoPage() {
       enfileirar("checklist", concluido);
       finalizarLocalmente(concluido);
       setSalvando(false);
-      navigate({ to: "/operador/confirmacao" });
+      navigate({ to: "/operador/momento" });
       return;
     }
 
@@ -127,13 +127,13 @@ function ResumoPage() {
         }
       }
       finalizarLocalmente(concluido);
-      navigate({ to: "/operador/confirmacao" });
+      navigate({ to: "/operador/momento" });
     } catch (e) {
       console.error("[concluir checklist] erro de rede, enfileirando:", e);
       // operador nunca vê erro de rede — enfileira e segue
       enfileirar("checklist", concluido);
       finalizarLocalmente(concluido);
-      navigate({ to: "/operador/confirmacao" });
+      navigate({ to: "/operador/momento" });
     } finally {
       setSalvando(false);
     }
