@@ -224,6 +224,16 @@ export function PtpItemContador({
         <Button
           type="button"
           variant="outline"
+          disabled={disabled || entrada === 0}
+          onClick={() => setEntrada(0)}
+          className="h-12 sm:w-auto"
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Limpar
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
           onClick={onDesfazerUltimo}
           disabled={disabled || !podeDesfazer}
           className="h-12 sm:w-auto"
