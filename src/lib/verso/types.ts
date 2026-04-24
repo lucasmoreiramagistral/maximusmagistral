@@ -100,6 +100,11 @@ export interface LimpezaItem {
   secao: string;
   descricao: string;
   status: LimpezaItemStatus | null; // null = ainda não respondido
+  /**
+   * Observação por item — obrigatória quando status = "nao_realizado".
+   * É propagada para o campo "Observações" da frente como uma linha por item NR.
+   */
+  observacao?: string | null;
 }
 
 export type LimpezaTurnoStatus =

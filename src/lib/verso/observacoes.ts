@@ -245,3 +245,13 @@ export function labelPtpJanela(janelaCodigo: string): string {
 export function labelLimpezaTurno(turno: Turno): string {
   return `LIMPEZA ${turno}`;
 }
+
+/** Helper: monta o origem_label de um item específico da limpeza marcado como NR. */
+export function labelLimpezaItem(turno: Turno, codigoItem: number): string {
+  return `LIMPEZA ${turno} item ${codigoItem}`;
+}
+
+/** Helper: chave única (origem_codigo) para a obs de um item da limpeza. */
+export function origemCodigoLimpezaItem(turno: Turno, codigoItem: number): string {
+  return `${turno}__item${codigoItem}`;
+}
