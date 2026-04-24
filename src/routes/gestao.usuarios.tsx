@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Loader2,
@@ -111,10 +111,11 @@ function modulosSugeridos(perfil: Perfil): ModuloAcesso[] {
 
 function UsuariosPage() {
   const { usuario, loading: authLoading } = useGuard("gestao");
-  const navigate = useNavigate();
 
+  // Acesso: qualquer pessoa que entra pela sessão gestão pode usar.
+  // (No futuro, restringir via has_modulo()/hierarquia quando o multi-módulo
+  //  estiver ligado no useGuard.)
   const podeAdministrar = !!usuario;
-
 
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,10 +128,6 @@ function UsuariosPage() {
   // Dialog de confirmação de status
   const [confirmStatus, setConfirmStatus] = useState<UsuarioRow | null>(null);
   const [salvandoStatus, setSalvandoStatus] = useState(false);
-
-  // Liberação temporária: qualquer usuário que entra pela sessão gestão
-  // pode acessar esta tela nesta etapa.
-
 
   const carregar = async () => {
     setLoading(true);
