@@ -639,6 +639,21 @@ export function calcularAlertasVerso(args: {
     });
   }
 
+  // ── Análise de Ângulo: alertas de aderência (não é defeito) ──
+  if (resumo.analiseAnguloEsperadas > 0) {
+    if (resumo.taxaAnaliseAngulo < 40) {
+      alertas.push({
+        texto: `Aderência crítica na Análise de Ângulo: ${resumo.taxaAnaliseAngulo}% das verificações realizadas (${resumo.analiseAnguloRealizadas}/${resumo.analiseAnguloEsperadas}).`,
+        destaque: "destructive",
+      });
+    } else if (resumo.taxaAnaliseAngulo < 70) {
+      alertas.push({
+        texto: `Aderência baixa na Análise de Ângulo: ${resumo.taxaAnaliseAngulo}% das verificações realizadas (${resumo.analiseAnguloRealizadas}/${resumo.analiseAnguloEsperadas}).`,
+        destaque: "warning",
+      });
+    }
+  }
+
   const topPtp = diagPtp.topItens[0];
   if (topPtp && topPtp.ocorrencias > 0) {
     alertas.push({
