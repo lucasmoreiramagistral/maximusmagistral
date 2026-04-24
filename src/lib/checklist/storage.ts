@@ -13,10 +13,18 @@ import { buildFolhaKey } from "./supabase-storage";
 
 const KEYS = {
   rascunho: "fm-checklist:rascunho",
+  // Mapa { [folhaKey + "|" + momento]: Checklist } com TODOS os rascunhos
+  // em andamento por momento da folha. Permite ao operador alternar entre
+  // os 3 momentos sem perder respostas.
+  rascunhosPorMomento: "fm-checklist:rascunhos-por-momento",
   checklists: "fm-checklist:checklists",
   anomalias: "fm-checklist:anomalias",
   usuario: "fm-checklist:usuario",
 };
+
+function rascunhoKey(folhaKey: string, momento: string): string {
+  return `${folhaKey}|${momento}`;
+}
 
 function isBrowser() {
   return typeof window !== "undefined";
