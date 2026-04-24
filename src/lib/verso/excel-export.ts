@@ -309,9 +309,10 @@ export function gerarVersoWorksheet(
       const janela = opts.ptpJanelas.find(
         (x) => x.janelaCodigo === j.codigo,
       );
-      // Filtro de turno: se setado, só preenche janelas daquele turno.
-      const codigosTurno = opts.turnoFiltro && opts.turnoFiltro !== "3º Turno"
-        ? PTP_JANELAS_POR_TURNO[opts.turnoFiltro as "12x36 Dia" | "12x36 Noite"]
+      // Filtro de turno: se setado, só preenche janelas daquele turno
+      // (mapeadas por horário real via fonte única).
+      const codigosTurno = opts.turnoFiltro
+        ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
         : null;
       if (codigosTurno && !codigosTurno.includes(j.codigo)) return;
 
@@ -352,8 +353,8 @@ export function gerarVersoWorksheet(
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_VISTO, colNum);
     const janela = opts.ptpJanelas.find((x) => x.janelaCodigo === j.codigo);
-    const codigosTurno = opts.turnoFiltro && opts.turnoFiltro !== "3º Turno"
-      ? PTP_JANELAS_POR_TURNO[opts.turnoFiltro as "12x36 Dia" | "12x36 Noite"]
+    const codigosTurno = opts.turnoFiltro
+      ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
       : null;
     if (codigosTurno && !codigosTurno.includes(j.codigo)) {
       cell.value = "Visto:";
@@ -431,16 +432,15 @@ export function gerarVersoWorksheet(
       cell.font = { size: 9 };
     });
 
-    // Marca os 3 turnos
-    TURNOS_ORDEM.forEach((turno) => {
-      if (opts.turnoFiltro && opts.turnoFiltro !== turno) return;
-      const colNum = colunaLimpezaTurno(turno);
+    // Marca os turnos COM DADO REGISTRADO (modelo lazy — não pré-cria).
+    for (const lt of opts.limpezaTurnos) {
+      if (opts.turnoFiltro && opts.turnoFiltro !== lt.turno) continue;
+      const colNum = colunaLimpezaTurno(lt.turno);
       const cell = ws.getCell(linha, colNum);
       cell.alignment = { horizontal: "center", vertical: "middle" };
-      const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
-      if (!lt || lt.status === "pendente" || lt.status === "rascunho") return;
+      if (lt.status === "pendente" || lt.status === "rascunho") continue;
       const respItem = lt.itens.find((x) => x.codigo === it.codigo);
-      if (!respItem || !respItem.status) return;
+      if (!respItem || !respItem.status) continue;
       if (respItem.status === "realizado" || respItem.status === "nao_aplicavel") {
         cell.value = "✓";
         cell.font = { bold: true, color: { argb: "FF2E7D32" } };
@@ -448,7 +448,7 @@ export function gerarVersoWorksheet(
         cell.value = "✗";
         cell.font = { bold: true, color: { argb: "FFC62828" } };
       }
-    });
+    }
   });
 
   const LIMPEZA_FIM = LIMPEZA_LINHA_INI + LIMPEZA_ITENS_DEF.length - 1;
@@ -505,8 +505,8 @@ export function gerarVersoWorksheet(
 
   // Linha extra: assinaturas do operador por turno (limpeza)
   const ASSIN_OP_LINHA = ASSIN_INI + 4;
-  ws.getRow(ASSIN_OP_LINHA).height = 50;
-  TURNOS_ORDEM.forEach((turno) => {
+  // Linha extra: assinaturas do operador POR TURNO COM DADO (lazy).
+  for (const lt of opts.limpezaTurnos) {
     const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
     const colNum = colunaLimpezaTurno(turno);
     const colLetra = colNumParaLetra(colNum);
