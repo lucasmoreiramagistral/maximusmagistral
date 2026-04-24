@@ -8,6 +8,8 @@ import {
   FileText,
   ClipboardList,
   Pencil,
+  Loader2,
+  Check,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
