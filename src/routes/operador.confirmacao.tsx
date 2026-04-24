@@ -56,7 +56,7 @@ function ConfirmacaoPage() {
 
         <div className="mt-8 flex flex-col gap-3 md:flex-row md:justify-center">
           <Button asChild size="lg" className="h-14 text-base font-semibold md:px-8">
-            <Link to="/operador/contexto">Novo checklist</Link>
+            <Link to="/operador/momento">Voltar aos momentos</Link>
           </Button>
           <Button
             asChild
@@ -64,7 +64,7 @@ function ConfirmacaoPage() {
             size="lg"
             className="h-14 text-base font-semibold md:px-8"
           >
-            <Link to="/operador">Voltar para início</Link>
+            <Link to="/operador">Início</Link>
           </Button>
         </div>
       </div>
