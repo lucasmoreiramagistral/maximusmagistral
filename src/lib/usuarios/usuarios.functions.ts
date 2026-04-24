@@ -106,7 +106,7 @@ const alterarStatusSchema = z.object({
 // ───────────────────── Server Functions ─────────────────────
 
 export const listarUsuarios = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
     await assertAdminGestao(context.userId);
 
@@ -126,7 +126,7 @@ export const listarUsuarios = createServerFn({ method: "GET" })
   });
 
 export const criarUsuario = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: unknown) => criarUsuarioSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
@@ -211,7 +211,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
   });
 
 export const editarUsuario = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: unknown) => editarUsuarioSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
@@ -253,7 +253,7 @@ export const editarUsuario = createServerFn({ method: "POST" })
   });
 
 export const alterarStatusUsuario = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: unknown) => alterarStatusSchema.parse(input))
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
