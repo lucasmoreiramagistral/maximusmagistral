@@ -256,6 +256,21 @@ export function cruzarFrenteVerso(
     ).length;
     const ptpNaoRodou = ptpDoTurno.filter((j) => j.statusJanela === "nao_rodou").length;
 
+    // ── Análise de Ângulo: só conta janelas que rodaram (≠ nao_rodou) ──
+    let analiseAnguloEsperadas = 0;
+    let analiseAnguloRealizadas = 0;
+    for (const j of ptpDoTurno) {
+      if (j.statusJanela === "nao_rodou") continue;
+      analiseAnguloEsperadas += 2;
+      const a = j.analiseAngulo;
+      if (a?.v1Realizada) analiseAnguloRealizadas += 1;
+      if (a?.v2Realizada) analiseAnguloRealizadas += 1;
+    }
+    const taxaAnaliseAngulo =
+      analiseAnguloEsperadas === 0
+        ? 0
+        : Math.round((analiseAnguloRealizadas / analiseAnguloEsperadas) * 100);
+
     const limp = limpPorChave.get(k);
     const limpezaStatus: LimpezaTurnoStatus | "ausente" = limp ? limp.status : "ausente";
 
@@ -270,6 +285,9 @@ export function cruzarFrenteVerso(
       ptpNaoRodou,
       limpezaStatus,
       situacao: avaliarSituacao(ptpEsperadas, ptpRealizadas, limpezaStatus),
+      analiseAnguloEsperadas,
+      analiseAnguloRealizadas,
+      taxaAnaliseAngulo,
     };
   });
 }
