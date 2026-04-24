@@ -190,7 +190,6 @@ interface TurnoEditorProps {
 
 function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
   const [itens, setItens] = useState<LimpezaItem[]>(turno.itens);
-  const [observacao, setObservacao] = useState<string>(turno.observacao ?? "");
   const [assinaturaOp, setAssinaturaOp] = useState<string | null>(null);
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
@@ -203,7 +202,6 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
 
   useEffect(() => {
     setItens(turno.itens);
-    setObservacao(turno.observacao ?? "");
     if (jaConcluiuSnapshot === null) {
       setJaConcluiuSnapshot(
         turno.status === "aguardando_validacao" || turno.status === "validado",
@@ -226,7 +224,24 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
   }, [itens]);
 
   const setStatus = (codigo: number, status: LimpezaItemStatus) => {
-    setItens((prev) => prev.map((i) => (i.codigo === codigo ? { ...i, status } : i)));
+    setItens((prev) =>
+      prev.map((i) =>
+        i.codigo === codigo
+          ? {
+              ...i,
+              status,
+              // Ao sair de "nao_realizado", limpa a observação do item.
+              observacao: status === "nao_realizado" ? (i.observacao ?? "") : null,
+            }
+          : i,
+      ),
+    );
+  };
+
+  const setObservacaoItem = (codigo: number, texto: string) => {
+    setItens((prev) =>
+      prev.map((i) => (i.codigo === codigo ? { ...i, observacao: texto } : i)),
+    );
   };
 
   const handleConcluirOperador = async () => {
