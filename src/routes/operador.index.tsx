@@ -5,10 +5,12 @@ import {
   AlertTriangle,
   History,
   Play,
-  Layers,
   CheckCircle2,
   BookOpen,
   PenLine,
+  Pencil,
+  ClipboardList,
+  Droplets,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -21,6 +23,7 @@ import { storage, buildFolhaKey } from "@/lib/checklist/storage";
 import { formatarDataHora } from "@/lib/checklist/format";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type { Checklist, ContextoChecklist } from "@/lib/checklist/types";
+import { checklistEmEdicao, limparModoEdicao } from "@/lib/checklist/edicao";
 import {
   buildFolhaDiaKey,
   calcularDataOperacional,
@@ -66,6 +69,15 @@ function OperadorHome() {
 
   const turnoLogado = (turno ?? null) as TurnoAtivo | null;
 
+  // Detecta se o rascunho atual é uma edição de um checklist já concluído.
+  // Quando é edição, não exibimos o aviso padrão "Você tem um checklist em
+  // andamento" — exibimos um aviso específico com Cancelar/Continuar.
+  const ehEdicao = useMemo(() => {
+    if (!rascunho) return false;
+    if (typeof window === "undefined") return false;
+    return checklistEmEdicao() === rascunho.id;
+  }, [rascunho]);
+
   // ─── Cálculo do "tudo concluído" e pendências para o líder ───
   const {
     tudoConcluido,
@@ -73,6 +85,8 @@ function OperadorHome() {
     limpezaOk,
     checklistOk,
     pendenciasLider,
+    checklistAguardandoLider,
+    limpezaAguardandoLider,
   } = useMemo(() => {
     if (!turnoLogado || !equipe) {
       return {
@@ -81,6 +95,8 @@ function OperadorHome() {
         limpezaOk: false,
         checklistOk: false,
         pendenciasLider: 0,
+        checklistAguardandoLider: false,
+        limpezaAguardandoLider: false,
       };
     }
 
@@ -98,8 +114,8 @@ function OperadorHome() {
     const limpezaTurno = limpeza.turnos.find((t) => t.turno === turnoLogado);
     const _limpezaOk = limpezaTurno?.status === "validado";
     // Limpeza aguardando validação do líder?
-    const limpezaAguardandoLider =
-      limpezaTurno?.status === "aguardando_validacao" ? 1 : 0;
+    const _limpezaAguardandoLider =
+      limpezaTurno?.status === "aguardando_validacao";
 
     // Checklist: 3 momentos concluídos no folhaKey do dia +
     // assinatura do OPERADOR no Pós-setup (líder valida depois).
@@ -133,17 +149,20 @@ function OperadorHome() {
       todosMomentosConcluidos && Boolean(posSetup?.assinaturaOperador);
 
     // Pós-setup do operador assinado mas sem assinatura do líder?
-    const checklistAguardandoLider =
-      Boolean(posSetup?.assinaturaOperador) && !posSetup?.assinaturaLider
-        ? 1
-        : 0;
+    const _checklistAguardandoLider =
+      Boolean(posSetup?.assinaturaOperador) && !posSetup?.assinaturaLider;
+
+    const _pendenciasLider =
+      (_limpezaAguardandoLider ? 1 : 0) + (_checklistAguardandoLider ? 1 : 0);
 
     return {
       tudoConcluido: _ptpOk && _limpezaOk && _checklistOk,
       ptpOk: _ptpOk,
       limpezaOk: _limpezaOk,
       checklistOk: _checklistOk,
-      pendenciasLider: limpezaAguardandoLider + checklistAguardandoLider,
+      pendenciasLider: _pendenciasLider,
+      checklistAguardandoLider: _checklistAguardandoLider,
+      limpezaAguardandoLider: _limpezaAguardandoLider,
     };
   }, [
     turnoLogado,
@@ -162,6 +181,17 @@ function OperadorHome() {
     }
     navigate({ to: "/operador/anomalia/nova" });
   };
+
+  // Cancela edição em andamento: limpa rascunho + flag de modo edição
+  const cancelarEdicao = () => {
+    storage.clearRascunho();
+    limparModoEdicao();
+  };
+
+  // Monta lista de pendências do líder (para descrição do card)
+  const itensPendentesLider: string[] = [];
+  if (checklistAguardandoLider) itensPendentesLider.push("Checklist completo aguardando assinatura");
+  if (limpezaAguardandoLider) itensPendentesLider.push("Limpeza aguardando assinatura");
 
   return (
     <div className="min-h-screen bg-background">
@@ -208,7 +238,8 @@ function OperadorHome() {
           </div>
         )}
 
-        {!tudoConcluido && rascunho && (
+        {/* Aviso quando há rascunho em ANDAMENTO (novo checklist, ainda não concluído) */}
+        {!tudoConcluido && rascunho && !ehEdicao && (
           <div className="mb-6 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 md:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
@@ -236,6 +267,35 @@ function OperadorHome() {
           </div>
         )}
 
+        {/* Aviso específico quando o rascunho é uma EDIÇÃO de checklist já concluído */}
+        {!tudoConcluido && rascunho && ehEdicao && (
+          <div className="mb-6 rounded-xl border-2 border-primary/40 bg-primary-soft/40 p-4 md:p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                  <Pencil className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-foreground">
+                    Continuar alterando os dados do checklist?
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {rascunho.momento} · edição iniciada em {formatarDataHora(rascunho.criadoEm)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={cancelarEdicao}>
+                  Cancelar
+                </Button>
+                <Button asChild>
+                  <Link to="/operador/checklist">Continuar</Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {pendenciasLider > 0 && (
           <Link
             to="/operador/validacao-lider"
@@ -248,10 +308,19 @@ function OperadorHome() {
               <p className="text-xl font-bold text-foreground md:text-2xl">
                 Validação de Relatório pelo Líder
               </p>
-              <p className="mt-1 text-sm text-muted-foreground md:text-base">
-                {pendenciasLider} item(ns) aguardando assinatura do líder —
-                checklist operacional e/ou limpeza da sala de envase. Toque
-                aqui para o líder assinar tudo de uma vez.
+              <ul className="mt-2 space-y-1">
+                {itensPendentesLider.map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-2 text-sm text-foreground md:text-base"
+                  >
+                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-sm text-muted-foreground md:text-base">
+                Toque aqui para o líder assinar tudo de uma vez.
               </p>
             </div>
             <div className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
@@ -275,11 +344,18 @@ function OperadorHome() {
             descricao="Registrar manualmente uma anomalia"
           />
           <BotaoAcao
-            to="/operador/verso"
-            icon={<Layers className="h-8 w-8" />}
-            titulo="Verso da folha"
-            descricao="PTP e limpeza da sala de envase"
-            badge={ptpOk && limpezaOk ? "Concluído" : undefined}
+            to="/operador/verso/ptp"
+            icon={<ClipboardList className="h-8 w-8" />}
+            titulo="PTP Enchedora L3"
+            descricao="Monitoramento por janelas de horário"
+            badge={ptpOk ? "Concluído" : undefined}
+          />
+          <BotaoAcao
+            to="/operador/verso/limpeza"
+            icon={<Droplets className="h-8 w-8" />}
+            titulo="Checklist limpeza sala envase L3"
+            descricao="Checklist operacional de limpeza"
+            badge={limpezaOk ? "Concluído" : undefined}
           />
           <BotaoAcao
             to="/operador/it"
