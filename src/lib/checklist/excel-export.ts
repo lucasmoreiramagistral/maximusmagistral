@@ -17,6 +17,7 @@ import {
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
+import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
 const SHEET_NAME = "ENCHEDORA 3";
 
@@ -44,11 +45,24 @@ interface MapaTurno {
   cellAssinaturaLider: string;
 }
 
-const MAPA_TURNOS: Record<Turno, MapaTurno> = {
-  "12x36 Dia":   { colValor: "D", colHora: "E", cellAssinatura: "D28", cellAssinaturaLider: "D29" },
-  "12x36 Noite": { colValor: "F", colHora: "G", cellAssinatura: "F28", cellAssinaturaLider: "F29" },
-  "3º Turno":    { colValor: "H", colHora: "I", cellAssinatura: "H28", cellAssinaturaLider: "H29" },
+/**
+ * Mapa POSICIONAL do Excel da frente — 3 colunas físicas oficiais.
+ * Os 6 turnos são distribuídos pela `colunaPosicional` de cada escala:
+ *   coluna 1 (D/E, D28/D29) → 12x36 Dia, 1º Turno, Comercial
+ *   coluna 2 (F/G, F28/F29) → 12x36 Noite, 2º Turno
+ *   coluna 3 (H/I, H28/H29) → 3º Turno
+ */
+const MAPA_TURNOS: Record<1 | 2 | 3, MapaTurno> = {
+  1: { colValor: "D", colHora: "E", cellAssinatura: "D28", cellAssinaturaLider: "D29" },
+  2: { colValor: "F", colHora: "G", cellAssinatura: "F28", cellAssinaturaLider: "F29" },
+  3: { colValor: "H", colHora: "I", cellAssinatura: "H28", cellAssinaturaLider: "H29" },
 };
+
+/** Resolve o mapa do Excel a partir do turno via coluna posicional. */
+function mapaDoTurno(turno: Turno): MapaTurno {
+  const col = colunaPosicionalDoTurno(turno) ?? 1;
+  return MAPA_TURNOS[col];
+}
 
 const ABREV_RESPOSTA: Record<string, string> = {
   Conforme: "C",
@@ -258,13 +272,19 @@ function checklistComAssinaturas(checklists: Checklist[]): Checklist | null {
 }
 
 /** Snapshot dos rótulos originais das células de assinatura, antes de
- *  qualquer escrita, para que possamos reescrever sem duplicar. */
-function snapshotRotulosAssinatura(ws: ExcelJS.Worksheet): Record<Turno, string> {
+ *  qualquer escrita, para que possamos reescrever sem duplicar.
+ *  Indexado por coluna posicional (1|2|3), não por turno. */
+function snapshotRotulosAssinatura(ws: ExcelJS.Worksheet): Record<1 | 2 | 3, string> {
   return {
-    "12x36 Dia": String(ws.getCell(MAPA_TURNOS["12x36 Dia"].cellAssinatura).value ?? ""),
-    "12x36 Noite": String(ws.getCell(MAPA_TURNOS["12x36 Noite"].cellAssinatura).value ?? ""),
-    "3º Turno": String(ws.getCell(MAPA_TURNOS["3º Turno"].cellAssinatura).value ?? ""),
+    1: String(ws.getCell(MAPA_TURNOS[1].cellAssinatura).value ?? ""),
+    2: String(ws.getCell(MAPA_TURNOS[2].cellAssinatura).value ?? ""),
+    3: String(ws.getCell(MAPA_TURNOS[3].cellAssinatura).value ?? ""),
   };
+}
+
+/** Resolve a coluna posicional (1|2|3) a partir do turno, com fallback em 1. */
+function colunaDoTurno(turno: Turno): 1 | 2 | 3 {
+  return colunaPosicionalDoTurno(turno) ?? 1;
 }
 
 function construirValorCelula(
@@ -594,14 +614,14 @@ export async function exportarTurnoExcel(
   preencherCabecalhoData(ws, folha.contexto.data);
 
   const turno = folha.contexto.turno;
-  const mapa = MAPA_TURNOS[turno];
+  const mapa = mapaDoTurno(turno);
   const concluidos = checklistsConcluidos(folha);
   for (const c of concluidos) {
     preencherRespostasChecklist(ws, c, mapa);
   }
 
   const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
+  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(turno)]);
 
   // Se houver checklist de Pós-setup com assinaturas digitais, embute imagens.
   const checklistAss = checklistComAssinaturas(concluidos);
@@ -645,13 +665,13 @@ export async function exportarFolhaDiaExcel(
   for (const f of candidatas) {
     if (turnosUsados.has(f.contexto.turno)) continue;
     turnosUsados.add(f.contexto.turno);
-    const mapa = MAPA_TURNOS[f.contexto.turno];
+    const mapa = mapaDoTurno(f.contexto.turno);
     const concluidos = checklistsConcluidos(f);
     for (const c of concluidos) {
       preencherRespostasChecklist(ws, c, mapa);
     }
     const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(f.contexto.turno)]);
     const checklistAss = checklistComAssinaturas(concluidos);
     if (checklistAss) {
       preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
@@ -699,13 +719,13 @@ export async function exportarTurnoComVersoExcel(
   preencherCabecalhoData(ws, folha.contexto.data);
 
   const turno = folha.contexto.turno;
-  const mapa = MAPA_TURNOS[turno];
+  const mapa = mapaDoTurno(turno);
   const concluidos = checklistsConcluidos(folha);
   for (const c of concluidos) {
     preencherRespostasChecklist(ws, c, mapa);
   }
   const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[turno]);
+  preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(turno)]);
   const checklistAss = checklistComAssinaturas(concluidos);
   if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
 
@@ -752,11 +772,11 @@ export async function exportarFrenteVersoCompletoExcel(
   for (const f of candidatas) {
     if (turnosUsados.has(f.contexto.turno)) continue;
     turnosUsados.add(f.contexto.turno);
-    const mapa = MAPA_TURNOS[f.contexto.turno];
+    const mapa = mapaDoTurno(f.contexto.turno);
     const concluidos = checklistsConcluidos(f);
     for (const c of concluidos) preencherRespostasChecklist(ws, c, mapa);
     const nomeOp = concluidos.map(nomeDoOperador).find((n) => n.length > 0) ?? "";
-    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[f.contexto.turno]);
+    preencherAssinaturaOperador(ws, mapa, nomeOp, rotulos[colunaDoTurno(f.contexto.turno)]);
     const checklistAss = checklistComAssinaturas(concluidos);
     if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
     todosChecklistsConcluidos.push(...concluidos);
