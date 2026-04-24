@@ -47,8 +47,18 @@ function ChecklistPage() {
   const [abrindoAnomaliaItem, setAbrindoAnomaliaItem] = useState<number | null>(null);
   const [modoEdicao, setModoEdicao] = useState(false);
 
+  // Indicador de salvamento: "idle" | "saving" | "saved"
+  const [statusSalvamento, setStatusSalvamento] = useState<"idle" | "saving" | "saved">("idle");
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // refs por itemNumero para scroll
   const cardRefs = useRef<Record<number, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    return () => {
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
