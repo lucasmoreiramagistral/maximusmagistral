@@ -3,6 +3,7 @@ import type {
   LimpezaItem,
   LimpezaTurno,
   LimpezaTurnoStatus,
+  PtpAnaliseAngulo,
   PtpItem,
   PtpJanela,
   PtpJanelaStatus,
@@ -22,6 +23,7 @@ export interface PtpJanelaRow {
   janela_fim: string;
   status_janela: PtpJanelaStatus;
   itens_json: PtpItem[];
+  analise_angulo_json?: PtpAnaliseAngulo | null;
   observacao: string | null;
   operador_login: string | null;
   operador_nome: string | null;
@@ -48,6 +50,7 @@ export function ptpJanelaFromRow(r: PtpJanelaRow): PtpJanela {
     janelaFim: r.janela_fim,
     statusJanela: r.status_janela,
     itens: Array.isArray(r.itens_json) ? r.itens_json : [],
+    analiseAngulo: r.analise_angulo_json ?? null,
     observacao: r.observacao,
     operadorLogin: r.operador_login,
     operadorNome: r.operador_nome,
@@ -75,6 +78,7 @@ export function ptpJanelaToRow(j: PtpJanela, userId: string | null): PtpJanelaRo
     janela_fim: j.janelaFim,
     status_janela: j.statusJanela,
     itens_json: j.itens,
+    analise_angulo_json: j.analiseAngulo ?? null,
     observacao: j.observacao ?? null,
     operador_login: j.operadorLogin ?? null,
     operador_nome: j.operadorNome ?? null,
