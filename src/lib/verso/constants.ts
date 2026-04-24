@@ -1,5 +1,10 @@
 import type { LimpezaItem, PtpItem, PtpItemCodigo } from "./types";
 import type { Turno } from "@/lib/checklist/types";
+import {
+  escalaPorTurnoEquipe,
+  janelasPtpDaEscala,
+  type Escala,
+} from "@/lib/operacao/escalas";
 
 // ─── Contexto fixo ───────────────────────────────────────────────────
 export const VERSO_CONTEXTO_FIXO = {
@@ -54,19 +59,31 @@ export function criarItensPtpVazios(): PtpItem[] {
   }));
 }
 
-// ─── Limpeza — turnos ativos na UI ──────────────────────────────────
-// O 3º Turno permanece no DOMÍNIO (banco/tipos) para compat. futura,
-// mas não é exposto na UI atualmente.
-export const TURNOS_ATIVOS_LIMPEZA: Turno[] = ["12x36 Dia", "12x36 Noite"];
+// ─── Limpeza — modelo LAZY ──────────────────────────────────────────
+// NÃO existe mais lista fixa de turnos pré-criados.
+// A limpeza é criada SOB DEMANDA quando o operador da escala ativa
+// abre/preenche limpeza. Para a UI/relatórios consumirem turnos com dado,
+// derivar dos próprios registros existentes.
 
-// ─── Mapeamento PTP → turno ──────────────────────────────────────────
-// Conforme planilha oficial:
-// - 12x36 Dia    → J01..J06 (06:00 → 18:00)
-// - 12x36 Noite  → J07..J12 (18:00 → 06:00 do dia seguinte)
-export const PTP_JANELAS_POR_TURNO: Record<"12x36 Dia" | "12x36 Noite", string[]> = {
-  "12x36 Dia": ["J01", "J02", "J03", "J04", "J05", "J06"],
-  "12x36 Noite": ["J07", "J08", "J09", "J10", "J11", "J12"],
-};
+// ─── Mapeamento PTP → janelas (via fonte única) ─────────────────────
+// Substitui o antigo PTP_JANELAS_POR_TURNO (literal Dia/Noite).
+// Usa SEMPRE a fonte única em escalas.ts; janela parcial conta.
+//
+// Importante: uma janela isolada não define escala — o contexto ativo
+// do operador/folha sempre manda. Para inferir janelas a partir de uma
+// escala completa, usar `janelasPtpDaEscala()` direto da fonte única.
+export function janelasPtpDoTurno(
+  turno: Turno | null | undefined,
+  equipe?: Turno | string | null,
+): string[] {
+  // O 2º parâmetro aceita equipe; se vier ausente, o helper aplica fallback
+  // de legado por nome de turno (ver escalaPorTurnoEquipe).
+  const escala: Escala | null = escalaPorTurnoEquipe(
+    turno,
+    (equipe as never) ?? null,
+  );
+  return janelasPtpDaEscala(escala);
+}
 
 // ─── Limpeza — 21 itens (texto OFICIAL) ──────────────────────────────
 export const LIMPEZA_ITENS_DEF: Omit<LimpezaItem, "status">[] = [
