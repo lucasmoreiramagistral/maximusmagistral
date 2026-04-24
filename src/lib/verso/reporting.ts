@@ -3,8 +3,12 @@ import {
   LIMPEZA_ITENS_DEF,
   PTP_ITENS,
   PTP_JANELAS,
-  PTP_JANELAS_POR_TURNO,
 } from "./constants";
+import {
+  escalaPorTurnoEquipe,
+  janelasPtpDaEscala,
+  type Escala,
+} from "@/lib/operacao/escalas";
 import type {
   LimpezaItem,
   LimpezaTurno,
@@ -18,8 +22,8 @@ import type {
 export interface RefFrente {
   /** YYYY-MM-DD */
   dataOperacao: string;
-  /** "12x36 Dia" | "12x36 Noite" — apenas turnos com PTP/Limpeza definidos */
-  turno: "12x36 Dia" | "12x36 Noite";
+  /** Qualquer Turno válido — todos os turnos agora têm verso (PTP + limpeza). */
+  turno: Turno;
   equipe: string;
   linha: string;
   maquina: string;
@@ -34,7 +38,7 @@ export type SituacaoVerso =
 
 export interface LinhaAderencia {
   dataOperacao: string;
-  turno: "12x36 Dia" | "12x36 Noite";
+  turno: Turno;
   equipe: string;
   ptpEsperadas: number;
   ptpRealizadas: number;
@@ -72,7 +76,7 @@ export interface DiagnosticoPtp {
   porJanela: { chave: string; total: number; rotulo: string }[];
   comObservacao: {
     dataOperacao: string;
-    turno: "12x36 Dia" | "12x36 Noite";
+    turno: Turno;
     janelaCodigo: string;
     observacao: string;
   }[];
@@ -101,21 +105,59 @@ export interface ForaDoRecorte {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-const TURNOS_VERSO: ReadonlyArray<"12x36 Dia" | "12x36 Noite"> = [
-  "12x36 Dia",
-  "12x36 Noite",
-];
-
-function isTurnoVerso(turno: Turno): turno is "12x36 Dia" | "12x36 Noite" {
-  return turno === "12x36 Dia" || turno === "12x36 Noite";
+/**
+ * Lista de janelas PTP cobertas por uma escala, com cache.
+ * Usado em vários laços; evita recomputar a cada item.
+ */
+const _janelasPorEscalaIdCache = new Map<string, string[]>();
+function janelasDeEscalaCacheada(escala: Escala | null): string[] {
+  if (!escala) return [];
+  const cache = _janelasPorEscalaIdCache.get(escala.id);
+  if (cache) return cache;
+  const lista = janelasPtpDaEscala(escala);
+  _janelasPorEscalaIdCache.set(escala.id, lista);
+  return lista;
 }
 
-export function derivarTurnoDaJanela(
+/**
+ * Deriva a escala/turno a partir de uma janela PTP.
+ *
+ * IMPORTANTE: o contexto ativo do operador/folha sempre manda. Esta função
+ * é apenas um fallback para indexação de relatórios consolidados, quando
+ * não temos contexto: devolve a primeira escala que cobre essa janela.
+ *
+ * @param janelaCodigo "J01".."J12"
+ * @param escalaAtiva  se vier, valida que a janela é coberta por essa escala
+ *                     e devolve a própria; caso contrário retorna null.
+ */
+export function derivarEscalaDaJanela(
   janelaCodigo: string,
-): "12x36 Dia" | "12x36 Noite" | null {
-  if (PTP_JANELAS_POR_TURNO["12x36 Dia"].includes(janelaCodigo)) return "12x36 Dia";
-  if (PTP_JANELAS_POR_TURNO["12x36 Noite"].includes(janelaCodigo)) return "12x36 Noite";
+  escalaAtiva?: Escala | null,
+): Escala | null {
+  if (escalaAtiva) {
+    const cobertura = janelasDeEscalaCacheada(escalaAtiva);
+    return cobertura.includes(janelaCodigo) ? escalaAtiva : null;
+  }
+  // Fallback: percorre escalas conhecidas e devolve a primeira que cobre.
+  // Mantém a lista derivada da fonte única para não duplicar literais.
+  for (const turno of [
+    "12x36 Dia",
+    "12x36 Noite",
+    "Comercial",
+    "1º Turno",
+    "2º Turno",
+    "3º Turno",
+  ] as Turno[]) {
+    const escala = escalaPorTurnoEquipe(turno, null);
+    if (!escala) continue;
+    if (janelasDeEscalaCacheada(escala).includes(janelaCodigo)) return escala;
+  }
   return null;
+}
+
+/** Versão "só turno" para call sites que só precisam do turno. */
+function derivarTurnoDaJanela(janelaCodigo: string): Turno | null {
+  return derivarEscalaDaJanela(janelaCodigo)?.turno ?? null;
 }
 
 function chaveRef(data: string, turno: string): string {
