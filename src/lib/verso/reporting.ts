@@ -91,6 +91,23 @@ export interface DiagnosticoPtp {
     janelaCodigo: string;
     observacao: string;
   }[];
+  /**
+   * Análise de Ângulo por janela — métrica de aderência/verificação.
+   * NÃO é defeito, NÃO conta como ocorrência.
+   * O `turno` aqui vem do contexto da frente (RefFrente) — janela isolada
+   * não define turno com segurança. Fallback: derivarTurnoDaJanela.
+   */
+  analiseAnguloPorJanela: {
+    dataOperacao: string;
+    turno: Turno;
+    janelaCodigo: string;
+    janelaRotulo: string;
+    v1Realizada: boolean;
+    v2Realizada: boolean;
+    realizadas: number;
+    esperadas: number;
+    status: "completa" | "parcial" | "pendente" | "nao_rodou";
+  }[];
 }
 
 export interface DiagnosticoLimpeza {
