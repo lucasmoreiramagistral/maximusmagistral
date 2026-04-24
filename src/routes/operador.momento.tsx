@@ -336,20 +336,30 @@ function MomentoPage() {
                     <p className="text-xl font-bold leading-tight text-foreground">{m}</p>
                     <p className="mt-2 text-sm text-muted-foreground">{total} itens</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {rascunho && !preenchido && (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning-foreground">
-                          <Clock className="h-3 w-3" /> Em andamento
-                        </span>
-                      )}
-                      {preenchido ? (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success">
-                          <CheckCircle2 className="h-3 w-3" /> Concluído — {total}/{total} itens
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                          <Clock className="h-3 w-3" /> Pendente — 0/{total} itens
-                        </span>
-                      )}
+                      {(() => {
+                        const respondidos = rascunho
+                          ? rascunho.respostas.filter((r) => r.resposta !== null).length
+                          : 0;
+                        if (preenchido) {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-success-soft px-2 py-0.5 text-xs font-semibold text-success">
+                              <CheckCircle2 className="h-3 w-3" /> Concluído — {total}/{total} itens
+                            </span>
+                          );
+                        }
+                        if (rascunho && respondidos > 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning-foreground">
+                              <Clock className="h-3 w-3" /> Em andamento — {respondidos}/{total} itens
+                            </span>
+                          );
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                            <Clock className="h-3 w-3" /> Pendente — 0/{total} itens
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                   <p className="inline-flex items-center gap-1 text-sm font-semibold text-primary">
