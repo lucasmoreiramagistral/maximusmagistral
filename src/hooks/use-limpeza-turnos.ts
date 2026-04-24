@@ -3,7 +3,6 @@ import { useConnectionStatus, useOfflineQueue } from "./use-connection-status";
 import { versoStorage } from "@/lib/verso/storage";
 import {
   ConflitoVersaoError,
-  createLimpezaTurnosPadrao,
   fetchLimpezaTurnos,
   insertLimpezaEdicao,
   upsertLimpezaTurno,
@@ -43,28 +42,21 @@ export function useLimpezaTurnos(
   const [error, setError] = useState<string | null>(null);
   const [conflito, setConflito] = useState(false);
 
-  const mergeWithDefaults = useCallback(
-    (remotos: LimpezaTurno[]): LimpezaTurno[] => {
-      const defaults = createLimpezaTurnosPadrao(folhaDiaKey, dataOperacao);
-      return defaults.map((d) => {
-        const found = remotos.find((r) => r.turno === d.turno);
-        return found ?? d;
-      });
-    },
-    [folhaDiaKey, dataOperacao],
-  );
+  // Modelo LAZY: NÃO pré-criar registros para todos os turnos.
+  // O hook devolve apenas o que existe (local + remoto). O consumidor
+  // (UI/relatório) cria registro sob demanda via createLimpezaTurnoPadrao
+  // quando o operador da escala ativa abre/preenche limpeza.
 
   const refetch = useCallback(async () => {
     setError(null);
     setLoading(true);
     try {
       const local = versoStorage.getLimpezaTurnos(folhaDiaKey);
-      if (local.length > 0) setTurnos(mergeWithDefaults(local));
-      else setTurnos(mergeWithDefaults([]));
+      setTurnos(local);
 
       if (isOnline) {
         const remotos = await fetchLimpezaTurnos(folhaDiaKey);
-        setTurnos(mergeWithDefaults(remotos));
+        setTurnos(remotos);
         versoStorage.bulkSetLimpezaTurnos(folhaDiaKey, remotos);
       }
     } catch (e) {
@@ -73,7 +65,7 @@ export function useLimpezaTurnos(
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, isOnline, mergeWithDefaults]);
+  }, [folhaDiaKey, isOnline]);
 
   useEffect(() => {
     void refetch();

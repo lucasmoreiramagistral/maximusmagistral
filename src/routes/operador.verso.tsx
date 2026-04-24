@@ -16,14 +16,14 @@ import {
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import {
-  PTP_JANELAS_POR_TURNO,
+  janelasPtpDoTurno,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import { formatarDataHora } from "@/lib/checklist/format";
 import { toast } from "sonner";
 
-type TurnoAtivo = "12x36 Dia" | "12x36 Noite";
+type TurnoAtivo = "12x36 Dia" | "12x36 Noite" | "Comercial" | "1º Turno" | "2º Turno" | "3º Turno";
 
 export const Route = createFileRoute("/operador/verso")({
   head: () => ({
@@ -65,12 +65,10 @@ function VersoHome() {
 
   if (loading || !usuario) return <TelaCarregando />;
 
-  const turnoLogado = (turno === "12x36 Dia" || turno === "12x36 Noite"
-    ? turno
-    : null) as TurnoAtivo | null;
+  const turnoLogado = (turno ?? null) as TurnoAtivo | null;
 
-  // PTP: conta só as janelas do turno do operador (6 janelas).
-  const codigosPtpDoTurno = turnoLogado ? PTP_JANELAS_POR_TURNO[turnoLogado] : [];
+  // PTP: conta só as janelas do turno do operador via fonte única.
+  const codigosPtpDoTurno = janelasPtpDoTurno(turno, equipe as never);
   const totalPtpTurno = codigosPtpDoTurno.length;
   const ptpConcluidasTurno = ptp.janelas.filter(
     (j) =>
@@ -233,7 +231,7 @@ function BlocoValidacaoTurno({
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
-  const codigosDoTurno = PTP_JANELAS_POR_TURNO[turnoAlvo];
+  const codigosDoTurno = janelasPtpDoTurno(turnoAlvo, null as never);
 
   // PTP do turno (6 janelas)
   const janelasDoTurno = useMemo(

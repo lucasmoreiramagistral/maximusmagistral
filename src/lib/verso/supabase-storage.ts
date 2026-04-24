@@ -10,7 +10,6 @@ import {
 } from "./mappers";
 import {
   PTP_JANELAS,
-  TURNOS_ATIVOS_LIMPEZA,
   VERSO_CONTEXTO_FIXO,
   criarItensLimpezaVazios,
   criarItensPtpVazios,
@@ -175,11 +174,20 @@ export function createPtpJanelasPadrao(folhaDiaKey: string, dataOperacao: string
   }));
 }
 
-export function createLimpezaTurnosPadrao(
+/**
+ * Modelo LAZY: cria UM registro padrão de limpeza para o turno informado.
+ *
+ * Substitui o antigo `createLimpezaTurnosPadrao` que pré-criava registros
+ * para todos os turnos da lista fixa. Agora só existe registro de limpeza
+ * para o turno em que o operador efetivamente abriu/preencheu — evitando
+ * lixo operacional para turnos que não trabalharam naquele dia.
+ */
+export function createLimpezaTurnoPadrao(
   folhaDiaKey: string,
   dataOperacao: string,
-): LimpezaTurno[] {
-  return TURNOS_ATIVOS_LIMPEZA.map<LimpezaTurno>((turno: Turno) => ({
+  turno: Turno,
+): LimpezaTurno {
+  return {
     id: genVersoId(`limp-${dataOperacao}-${turno.replace(/\s/g, "_")}`),
     folhaDiaKey,
     dataOperacao,
@@ -190,7 +198,7 @@ export function createLimpezaTurnosPadrao(
     turno,
     status: "pendente",
     itens: criarItensLimpezaVazios(),
-  }));
+  };
 }
 
 // ─── Débitos técnicos documentados ───────────────────────────────────
@@ -199,5 +207,3 @@ export function createLimpezaTurnosPadrao(
 //   "Gerar Relatório".
 // TODO(verso/excel): adicionar nova aba/planilha PTP + Limpeza no
 //   template Excel FM09 quando a gestão for exportar a folha completa.
-// TODO(verso/3o turno): para reativar o 3º Turno na UI, basta incluir
-//   "3º Turno" em TURNOS_ATIVOS_LIMPEZA.
