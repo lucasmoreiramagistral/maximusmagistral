@@ -347,33 +347,65 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
                 {titulo}
               </h3>
               <div className="space-y-2">
-                {lista.map((it) => (
-                  <div
-                    key={it.codigo}
-                    className="rounded-xl border border-border bg-card p-3"
-                  >
-                    <p className="text-sm text-foreground">
-                      <span className="mr-2 font-bold">{it.codigo}.</span>
-                      {it.descricao}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {(["realizado", "nao_realizado", "nao_aplicavel"] as const).map(
-                        (s) => (
-                          <Button
-                            key={s}
-                            type="button"
-                            size="sm"
-                            variant={it.status === s ? "default" : "outline"}
-                            onClick={() => setStatus(it.codigo, s)}
-                            className="h-9"
-                          >
-                            {LABEL_LIMPEZA_ITEM_STATUS[s]}
-                          </Button>
-                        ),
-                      )}
+                {lista.map((it) => {
+                  const ehNR = it.status === "nao_realizado";
+                  return (
+                    <div
+                      key={it.codigo}
+                      className={`rounded-xl border bg-card p-3 transition-colors ${
+                        ehNR ? "border-destructive/50 bg-destructive/5" : "border-border"
+                      }`}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-foreground">
+                            <span className="mr-2 font-bold">{it.codigo}.</span>
+                            {it.descricao}
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {(["realizado", "nao_realizado", "nao_aplicavel"] as const).map(
+                              (s) => (
+                                <Button
+                                  key={s}
+                                  type="button"
+                                  size="sm"
+                                  variant={it.status === s ? "default" : "outline"}
+                                  onClick={() => setStatus(it.codigo, s)}
+                                  className="h-9"
+                                >
+                                  {LABEL_LIMPEZA_ITEM_STATUS[s]}
+                                </Button>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                        {ehNR && (
+                          <div className="md:w-[340px] md:shrink-0">
+                            <Label
+                              htmlFor={`obs-item-${it.codigo}`}
+                              className="text-xs font-semibold text-destructive"
+                            >
+                              Motivo / observação *
+                            </Label>
+                            <Textarea
+                              id={`obs-item-${it.codigo}`}
+                              value={it.observacao ?? ""}
+                              onChange={(e) =>
+                                setObservacaoItem(it.codigo, e.target.value)
+                              }
+                              placeholder="Por que não foi realizado?"
+                              rows={3}
+                              className="mt-1 border-destructive/40"
+                            />
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              Vai para "Observações" da frente da folha.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ))}
