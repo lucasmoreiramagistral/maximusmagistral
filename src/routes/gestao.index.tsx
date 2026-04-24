@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ClipboardList, AlertTriangle, Filter, FileBarChart2, Loader2, BookOpen } from "lucide-react";
+import {
+  ClipboardList,
+  AlertTriangle,
+  Filter,
+  FileBarChart2,
+  Loader2,
+  BookOpen,
+  UserPlus,
+} from "lucide-react";
+import { HIERARQUIAS_ADMIN_GESTAO } from "@/lib/checklist/types";
 import { AppHeader } from "@/components/app-header";
 import { useChecklistsRemote, useAnomaliasRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
