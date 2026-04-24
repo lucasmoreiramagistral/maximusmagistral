@@ -178,9 +178,10 @@ function MomentoPage() {
   const iniciar = async (momento: MomentoChecklist) => {
     if (!contexto || !usuario || bloqueioOutraEquipe) return;
 
-    // 1) rascunho local do mesmo momento → continuar
+    // 1) rascunho local do mesmo momento → continuar (restaura como slot "atual")
     const rascunho = storage.getChecklistEmAndamentoMesmoMomento(contexto, momento);
     if (rascunho) {
+      storage.restaurarRascunhoMomento(contexto, momento);
       setDialogoRascunho({ open: true, momento });
       return;
     }
@@ -217,6 +218,7 @@ function MomentoPage() {
   };
 
   const continuarRascunho = () => {
+    // o slot "atual" já foi restaurado em iniciar(); só navega.
     setDialogoRascunho({ open: false, momento: null });
     navigate({ to: "/operador/checklist" });
   };
