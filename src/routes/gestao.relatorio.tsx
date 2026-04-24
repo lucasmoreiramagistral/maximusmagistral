@@ -807,6 +807,34 @@ function RelatorioPage() {
                             : undefined
                         }
                       />
+                      {/* ── Análise de Ângulo (aderência/verificação — não é defeito) ── */}
+                      <Kpi
+                        titulo="Análise de Ângulo"
+                        valor={`${resumoVerso.analiseAnguloRealizadas} / ${resumoVerso.analiseAnguloEsperadas}`}
+                        sub="verificações realizadas"
+                      />
+                      <Kpi
+                        titulo="% Aderência Ângulo"
+                        valor={`${resumoVerso.taxaAnaliseAngulo}%`}
+                        destaque={
+                          resumoVerso.analiseAnguloEsperadas === 0
+                            ? undefined
+                            : resumoVerso.taxaAnaliseAngulo >= 70
+                              ? "success"
+                              : resumoVerso.taxaAnaliseAngulo >= 40
+                                ? "warning"
+                                : "destructive"
+                        }
+                      />
+                      <Kpi
+                        titulo="Pendências Ângulo"
+                        valor={resumoVerso.analiseAnguloPendentes}
+                        destaque={
+                          resumoVerso.analiseAnguloPendentes > 0
+                            ? "warning"
+                            : undefined
+                        }
+                      />
                     </div>
                   </Bloco>
 
