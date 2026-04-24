@@ -8,6 +8,7 @@ import {
   Layers,
   CheckCircle2,
   BookOpen,
+  PenLine,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -65,10 +66,22 @@ function OperadorHome() {
 
   const turnoLogado = (turno ?? null) as TurnoAtivo | null;
 
-  // ─── Cálculo do "tudo concluído" ───
-  const { tudoConcluido, ptpOk, limpezaOk, checklistOk } = useMemo(() => {
+  // ─── Cálculo do "tudo concluído" e pendências para o líder ───
+  const {
+    tudoConcluido,
+    ptpOk,
+    limpezaOk,
+    checklistOk,
+    pendenciasLider,
+  } = useMemo(() => {
     if (!turnoLogado || !equipe) {
-      return { tudoConcluido: false, ptpOk: false, limpezaOk: false, checklistOk: false };
+      return {
+        tudoConcluido: false,
+        ptpOk: false,
+        limpezaOk: false,
+        checklistOk: false,
+        pendenciasLider: 0,
+      };
     }
 
     // PTP: 100% das janelas da escala (qualquer turno)
@@ -81,12 +94,15 @@ function OperadorHome() {
     ).length;
     const _ptpOk = registradas === codigosTurno.length;
 
-    // Limpeza: turno do operador validado
+    // Limpeza: turno do operador validado pelo líder
     const limpezaTurno = limpeza.turnos.find((t) => t.turno === turnoLogado);
     const _limpezaOk = limpezaTurno?.status === "validado";
+    // Limpeza aguardando validação do líder?
+    const limpezaAguardandoLider =
+      limpezaTurno?.status === "aguardando_validacao" ? 1 : 0;
 
     // Checklist: 3 momentos concluídos no folhaKey do dia +
-    // assinaturas no Pós-setup
+    // assinatura do OPERADOR no Pós-setup (líder valida depois).
     const contextoDoDia: ContextoChecklist = {
       data,
       turno: turnoLogado,
@@ -96,8 +112,6 @@ function OperadorHome() {
     };
     const folhaKeyDia = buildFolhaKey(contextoDoDia);
     const localChecklists = storage.getChecklists();
-    // Combina cache local + remoto (evita falsos negativos quando ainda
-    // não houve refresh de uma das fontes).
     const todosChecklists: Checklist[] = [
       ...localChecklists,
       ...checklistsRemote.filter(
@@ -116,15 +130,20 @@ function OperadorHome() {
     );
     const posSetup = concluidoDe("Pós-setup");
     const _checklistOk =
-      todosMomentosConcluidos &&
-      Boolean(posSetup?.assinaturaOperador) &&
-      Boolean(posSetup?.assinaturaLider);
+      todosMomentosConcluidos && Boolean(posSetup?.assinaturaOperador);
+
+    // Pós-setup do operador assinado mas sem assinatura do líder?
+    const checklistAguardandoLider =
+      Boolean(posSetup?.assinaturaOperador) && !posSetup?.assinaturaLider
+        ? 1
+        : 0;
 
     return {
       tudoConcluido: _ptpOk && _limpezaOk && _checklistOk,
       ptpOk: _ptpOk,
       limpezaOk: _limpezaOk,
       checklistOk: _checklistOk,
+      pendenciasLider: limpezaAguardandoLider + checklistAguardandoLider,
     };
   }, [
     turnoLogado,
