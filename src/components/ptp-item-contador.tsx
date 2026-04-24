@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Minus, Plus, RotateCcw, Trash2, Undo2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, RotateCcw, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -115,67 +114,89 @@ export function PtpItemContador({
         </span>
       </div>
 
-      {/* Campo de entrada */}
+      {/* Controle grande: seta vermelha < número > seta verde */}
       <div className="mb-2">
         <label className="text-xs font-medium text-muted-foreground">
           Quantidade para adicionar
         </label>
-        <div className="mt-1 flex items-center gap-2">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            value={entrada}
-            onChange={(e) => {
-              const n = parseInt(e.target.value, 10);
-              setEntrada(Number.isFinite(n) && n > 0 ? n : 0);
-            }}
-            disabled={disabled}
-            className="h-12 text-center text-xl font-bold"
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled || entrada === 0}
-            onClick={() => setEntrada(0)}
-            className="h-12 shrink-0"
-          >
-            <Trash2 className="h-4 w-4" />
-            <span className="ml-1 hidden sm:inline">Limpar</span>
-          </Button>
-        </div>
-      </div>
-
-      {/* Botões de ajuste com press-and-hold */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "-1", delta: -1, icon: Minus },
-          { label: "+1", delta: 1, icon: Plus },
-          { label: "+5", delta: 5, icon: Plus },
-          { label: "+10", delta: 10, icon: Plus },
-        ].map(({ label, delta }) => (
+        <div className="mt-1 flex items-center justify-center gap-3">
           <button
-            key={label}
             type="button"
-            disabled={disabled}
+            disabled={disabled || entrada === 0}
             onPointerDown={(e) => {
               e.preventDefault();
-              iniciarPressHold(delta);
+              iniciarPressHold(-1);
             }}
             onPointerUp={limparTimers}
             onPointerLeave={limparTimers}
             onPointerCancel={limparTimers}
-            className={`h-12 rounded-md border-2 text-base font-bold transition-all ${
+            className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-2 transition-all ${
+              disabled || entrada === 0
+                ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                : "border-destructive bg-destructive/10 text-destructive hover:bg-destructive/20 active:scale-95 active:bg-destructive/30"
+            }`}
+            aria-label="Diminuir"
+          >
+            <ChevronLeft className="h-12 w-12" strokeWidth={3} />
+          </button>
+
+          <div className="flex h-20 min-w-[5rem] flex-1 items-center justify-center rounded-2xl border-2 border-border bg-background px-4 text-4xl font-bold text-foreground tabular-nums">
+            {entrada}
+          </div>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              iniciarPressHold(1);
+            }}
+            onPointerUp={limparTimers}
+            onPointerLeave={limparTimers}
+            onPointerCancel={limparTimers}
+            className={`flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl border-2 transition-all ${
+              disabled
+                ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
+                : "border-emerald-600 bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 active:scale-95 active:bg-emerald-500/30 dark:text-emerald-400"
+            }`}
+            aria-label="Aumentar"
+          >
+            <ChevronRight className="h-12 w-12" strokeWidth={3} />
+          </button>
+        </div>
+        <p className="mt-1 text-center text-[11px] text-muted-foreground">
+          Toque para ±1 · Segure para repetir
+        </p>
+      </div>
+
+      {/* Atalhos rápidos +5 / +10 e Limpar */}
+      <div className="grid grid-cols-3 gap-2">
+        {[5, 10].map((n) => (
+          <button
+            key={n}
+            type="button"
+            disabled={disabled}
+            onClick={() => aplicarDelta(n)}
+            className={`h-11 rounded-md border-2 text-sm font-bold transition-all ${
               disabled
                 ? "cursor-not-allowed border-border bg-muted text-muted-foreground"
                 : "border-border bg-background text-foreground hover:border-primary/50 active:scale-95 active:bg-primary/10"
             }`}
-            aria-label={`Ajustar ${label}`}
+            aria-label={`Adicionar ${n}`}
           >
-            {label}
+            +{n}
           </button>
         ))}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled || entrada === 0}
+          onClick={() => setEntrada(0)}
+          className="h-11"
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Limpar
+        </Button>
       </div>
 
       {/* Ações principais */}
