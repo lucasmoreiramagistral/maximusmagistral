@@ -1,5 +1,6 @@
 import type { Checklist, Equipe, RespostaItem, Turno } from "./types";
 import { storage } from "./storage";
+import { escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
 
 // ─────────────────────────────────────────────────────────────────
 // Retomada: calcula o índice do primeiro item ainda sem resposta.
@@ -51,30 +52,51 @@ export interface JanelaTurno {
   fim: Date;
 }
 
-/** Determina se a equipe é de turno noturno (atravessa meia-noite). */
-function ehTurnoNoite(equipe: Equipe, turno: Turno): boolean {
-  if (equipe === "Valderlan" || equipe === "Bruno") return true;
-  if (turno === "12x36 Noite") return true;
-  return false;
-}
-
-/** Janela de edição (em "wallclock" Manaus) para a folha do checklist. */
+/**
+ * Janela de edição (em "wallclock" Manaus) para a folha do checklist.
+ *
+ * Usa fonte única em escalas.ts. Para qualquer escala:
+ *   - inicio = horario_inicio - 10 min do dia da folha
+ *   - fim    = horario_fim + 10 min (no dia seguinte se atravessa meia-noite)
+ *
+ * Fallback: se a escala não for encontrada (dado legado), usa janela ampla
+ * de 24h a partir da data da folha para não bloquear edição de registros antigos.
+ */
 export function janelaEdicaoTurno(
   dataFolha: string,
   equipe: Equipe,
   turno: Turno,
 ): JanelaTurno {
-  if (ehTurnoNoite(equipe, turno)) {
-    // 17:50 do dia da folha → 06:10 do dia seguinte
+  const escala = escalaPorTurnoEquipe(turno, equipe);
+
+  if (!escala) {
     return {
-      inicio: dataHoraManaus(dataFolha, 17, 50),
-      fim: dataHoraManaus(somarUmDia(dataFolha), 6, 10),
+      inicio: dataHoraManaus(dataFolha, 0, 0),
+      fim: dataHoraManaus(somarUmDia(dataFolha), 0, 0),
     };
   }
-  // Dia: 05:50 → 18:10
+
+  const [hIni, mIni] = escala.horarioInicio.split(":").map(Number);
+  const [hFim, mFim] = escala.horarioFim.split(":").map(Number);
+
+  // 10 min de folga em cada extremo
+  const totalIni = hIni * 60 + mIni - 10;
+  const totalFim = hFim * 60 + mFim + 10;
+
+  const iniH = Math.floor(totalIni / 60);
+  const iniM = totalIni % 60;
+  const fimH = Math.floor(totalFim / 60);
+  const fimM = totalFim % 60;
+
+  if (escala.atravessaMeiaNoite) {
+    return {
+      inicio: dataHoraManaus(dataFolha, iniH, iniM),
+      fim: dataHoraManaus(somarUmDia(dataFolha), fimH, fimM),
+    };
+  }
   return {
-    inicio: dataHoraManaus(dataFolha, 5, 50),
-    fim: dataHoraManaus(dataFolha, 18, 10),
+    inicio: dataHoraManaus(dataFolha, iniH, iniM),
+    fim: dataHoraManaus(dataFolha, fimH, fimM),
   };
 }
 

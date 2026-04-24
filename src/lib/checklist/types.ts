@@ -34,8 +34,23 @@ export interface RespostaItem {
   anomaliaId?: string;
 }
 
-export type Turno = "12x36 Dia" | "12x36 Noite" | "3º Turno";
-export type Equipe = "Karolainny" | "Valderlan" | "Nilson" | "Bruno";
+export type Turno =
+  | "12x36 Dia"
+  | "12x36 Noite"
+  | "Comercial"
+  | "1º Turno"
+  | "2º Turno"
+  | "3º Turno";
+
+export type Equipe =
+  | "Karolainny"
+  | "Valderlan"
+  | "Nilson"
+  | "Bruno"
+  | "Comercial"
+  | "1º Turno"
+  | "2º Turno"
+  | "3º Turno";
 
 export interface ContextoChecklist {
   data: string; // YYYY-MM-DD
