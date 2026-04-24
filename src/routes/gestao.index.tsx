@@ -100,6 +100,15 @@ function GestaoHome() {
             titulo="Inteligência das ITs"
             descricao="Uso das instruções · pontos para reforço de treinamento"
           />
+          {usuario.hierarquia &&
+            HIERARQUIAS_ADMIN_GESTAO.includes(usuario.hierarquia) && (
+              <BotaoLink
+                to="/gestao/usuarios"
+                icon={<UserPlus className="h-8 w-8" />}
+                titulo="Cadastrar Usuário"
+                descricao="Gerenciar usuários · hierarquia · módulos de acesso"
+              />
+            )}
         </div>
 
         <p className="mt-8 text-sm text-muted-foreground">
