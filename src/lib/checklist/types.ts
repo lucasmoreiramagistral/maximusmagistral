@@ -122,6 +122,8 @@ export type CategoriaAnomalia =
   | "Processo"
   | "Segurança"
   | "Limpeza / 5S"
+  | "Operacional"
+  | "Predial"
   | "Outro";
 
 export type CriticidadeAnomalia = "Baixa" | "Média" | "Alta" | "Crítica";
