@@ -11,7 +11,7 @@ import {
 } from "@/lib/operacao/data-operacional";
 import {
   LABEL_PTP_STATUS,
-  PTP_JANELAS_POR_TURNO,
+  janelasPtpDoTurno,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 import type { PtpJanela, PtpJanelaStatus } from "@/lib/verso/types";
@@ -46,14 +46,9 @@ function PtpListaPage() {
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
-  // Filtra janelas por turno do operador logado.
-  // 12x36 Dia   → J01..J06 (06:00 → 18:00)
-  // 12x36 Noite → J07..J12 (18:00 → 06:00)
-  const codigosDoTurno =
-    turno === "12x36 Dia" || turno === "12x36 Noite"
-      ? PTP_JANELAS_POR_TURNO[turno]
-      : null;
-  const janelasVisiveis = codigosDoTurno
+  // Filtra janelas pelo HORÁRIO REAL da escala (turno+equipe).
+  const codigosDoTurno = janelasPtpDoTurno(turno, equipe as never);
+  const janelasVisiveis = codigosDoTurno.length
     ? janelas.filter((j) => codigosDoTurno.includes(j.janelaCodigo))
     : janelas;
 

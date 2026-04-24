@@ -8,10 +8,8 @@ import {
 import {
   LABEL_LIMPEZA_STATUS,
   PTP_JANELAS,
-  TURNOS_ATIVOS_LIMPEZA,
 } from "@/lib/verso/constants";
 import type { ResumoVerso } from "@/lib/verso/resumo";
-import type { Turno } from "@/lib/checklist/types";
 
 const TOTAL_JANELAS = PTP_JANELAS.length;
 
@@ -132,16 +130,17 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
           </TooltipContent>
         </Tooltip>
 
-        {TURNOS_ATIVOS_LIMPEZA.map((turno: Turno) => {
-          const status = turno === "12x36 Dia" ? limpeza.dia : limpeza.noite;
+        {(["dia", "noite"] as const).map((slot) => {
+          const status = slot === "dia" ? limpeza.dia : limpeza.noite;
+          if (!status) return null;
           const { tone, Icon } = tonLimpeza(status);
           return (
             <span
-              key={turno}
+              key={slot}
               className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${tonClasses(tone)}`}
             >
               <Icon className="h-3.5 w-3.5" />
-              Limpeza {turno === "12x36 Dia" ? "Dia" : "Noite"}: {labelLimpeza(status)}
+              Limpeza {slot === "dia" ? "Dia" : "Noite"}: {labelLimpeza(status)}
             </span>
           );
         })}

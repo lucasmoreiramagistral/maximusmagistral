@@ -23,8 +23,6 @@ import {
   LABEL_PTP_STATUS,
   LIMPEZA_ITENS_DEF,
   PTP_JANELAS,
-  PTP_JANELAS_POR_TURNO,
-  TURNOS_ATIVOS_LIMPEZA,
 } from "@/lib/verso/constants";
 import {
   fetchLimpezaTurnos,
@@ -227,41 +225,62 @@ function PtpGrid({
       </p>
 
       <div className="mt-4 space-y-4">
-        {(["12x36 Dia", "12x36 Noite"] as const).map((turno) => (
-          <div key={turno}>
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-              {turno}
-            </p>
-            <div className="overflow-hidden rounded-xl border border-border">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2">Janela</th>
-                    <th className="px-3 py-2">Horário</th>
-                    <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
-                    <th className="px-3 py-2">Operador</th>
-                    <th className="px-3 py-2">Assinatura</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {PTP_JANELAS_POR_TURNO[turno].map((cod) => {
-                    const def = PTP_JANELAS.find((d) => d.codigo === cod)!;
-                    const j = janelasPorCodigo.get(cod);
-                    return (
-                      <PtpRow
-                        key={cod}
-                        codigo={cod}
-                        rotulo={def.rotulo}
-                        janela={j}
-                      />
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ))}
+        {(() => {
+          // Modelo LAZY: derivar turnos com dado a partir das janelas reais.
+          const turnosComDado = Array.from(
+            new Set(
+              Array.from(janelasPorCodigo.values())
+                .map((j) => j.turno as Turno | undefined)
+                .filter((t): t is Turno => Boolean(t)),
+            ),
+          );
+          // Fallback: se não souber inferir turno, mostra "12x36 Dia/Noite"
+          // (compat retroativa com folhas antigas).
+          const turnosRender: Turno[] = turnosComDado.length
+            ? turnosComDado
+            : (["12x36 Dia", "12x36 Noite"] as Turno[]);
+          return turnosRender.map((turno) => {
+            const codigos = Array.from(janelasPorCodigo.values())
+              .filter((j) => (j.turno as Turno | undefined) === turno || !j.turno)
+              .map((j) => j.janelaCodigo);
+            const codigosUnicos = Array.from(new Set(codigos));
+            return (
+              <div key={turno}>
+                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {turno}
+                </p>
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                      <tr>
+                        <th className="px-3 py-2">Janela</th>
+                        <th className="px-3 py-2">Horário</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
+                        <th className="px-3 py-2">Operador</th>
+                        <th className="px-3 py-2">Assinatura</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {codigosUnicos.map((cod: string) => {
+                        const def = PTP_JANELAS.find((d) => d.codigo === cod);
+                        const j = janelasPorCodigo.get(cod);
+                        return (
+                          <PtpRow
+                            key={cod}
+                            codigo={cod}
+                            rotulo={def?.rotulo ?? cod}
+                            janela={j}
+                          />
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          });
+        })()}
       </div>
     </div>
   );
@@ -373,10 +392,9 @@ function LimpezaTurnos({
       </p>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {TURNOS_ATIVOS_LIMPEZA.map((turno) => {
-          const t = turnoPorCodigo.get(turno);
-          return <LimpezaCard key={turno} turno={turno} dado={t} />;
-        })}
+        {Array.from(turnoPorCodigo.entries()).map(([turno, t]) => (
+          <LimpezaCard key={turno} turno={turno} dado={t} />
+        ))}
       </div>
     </div>
   );

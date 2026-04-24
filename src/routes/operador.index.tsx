@@ -26,7 +26,7 @@ import {
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import {
-  PTP_JANELAS_POR_TURNO,
+  janelasPtpDoTurno,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 
@@ -43,7 +43,7 @@ export const Route = createFileRoute("/operador/")({
   component: OperadorHome,
 });
 
-type TurnoAtivo = "12x36 Dia" | "12x36 Noite";
+type TurnoAtivo = "12x36 Dia" | "12x36 Noite" | "Comercial" | "1º Turno" | "2º Turno" | "3º Turno";
 
 function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
@@ -63,9 +63,7 @@ function OperadorHome() {
   const ptp = usePtpJanelas(folhaDiaKey, data);
   const limpeza = useLimpezaTurnos(folhaDiaKey, data);
 
-  const turnoLogado = (turno === "12x36 Dia" || turno === "12x36 Noite"
-    ? turno
-    : null) as TurnoAtivo | null;
+  const turnoLogado = (turno ?? null) as TurnoAtivo | null;
 
   // ─── Cálculo do "tudo concluído" ───
   const { tudoConcluido, ptpOk, limpezaOk, checklistOk } = useMemo(() => {
@@ -73,8 +71,8 @@ function OperadorHome() {
       return { tudoConcluido: false, ptpOk: false, limpezaOk: false, checklistOk: false };
     }
 
-    // PTP: 6/6 janelas do turno
-    const codigosTurno = PTP_JANELAS_POR_TURNO[turnoLogado];
+    // PTP: 100% das janelas da escala (qualquer turno)
+    const codigosTurno = janelasPtpDoTurno(turnoLogado, equipe as never);
     const registradas = ptp.janelas.filter(
       (j) =>
         codigosTurno.includes(j.janelaCodigo) &&

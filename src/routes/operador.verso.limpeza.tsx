@@ -18,9 +18,9 @@ import {
 import {
   LABEL_LIMPEZA_ITEM_STATUS,
   LABEL_LIMPEZA_STATUS,
-  TURNOS_ATIVOS_LIMPEZA,
   VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
+import { createLimpezaTurnoPadrao } from "@/lib/verso/supabase-storage";
 import type {
   LimpezaItem,
   LimpezaItemStatus,
@@ -64,23 +64,11 @@ function LimpezaPage() {
   if (loading || !usuario || l2) return <TelaCarregando />;
 
   if (turnoSelecionado) {
-    const t = turnos.find((x) => x.turno === turnoSelecionado);
-    if (!t) {
-      return (
-        <div className="min-h-screen bg-background">
-          <AppHeader
-            titulo="Limpeza Sala de Envase"
-            subtitulo={`Folha do dia ${formatarDataBR(data)}`}
-            voltarPara="/operador/verso"
-          />
-          <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
-            <div className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              Turno não encontrado para esta folha operacional.
-            </div>
-          </main>
-        </div>
-      );
-    }
+    // Modelo LAZY: se ainda não existe registro para esse turno na folha,
+    // cria um registro padrão local em memória para o operador editar.
+    const t =
+      turnos.find((x) => x.turno === turnoSelecionado) ??
+      createLimpezaTurnoPadrao(folhaDiaKey, data, turnoSelecionado);
     return (
       <TurnoEditor
         turno={t}
@@ -110,7 +98,7 @@ function LimpezaPage() {
         </p>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {TURNOS_ATIVOS_LIMPEZA.filter((tn) => tn === turnoLogado).map((tn) => {
+          {turnoLogado && [turnoLogado].map((tn) => {
             const t = turnos.find((x) => x.turno === tn);
             return (
               <button
