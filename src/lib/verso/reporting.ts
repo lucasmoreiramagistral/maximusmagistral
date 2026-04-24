@@ -47,6 +47,11 @@ export interface LinhaAderencia {
   ptpNaoRodou: number;
   limpezaStatus: LimpezaTurnoStatus | "ausente";
   situacao: SituacaoVerso;
+  // ── Análise de Ângulo (aderência por turno) ──
+  analiseAnguloEsperadas: number;
+  analiseAnguloRealizadas: number;
+  /** 0..100 — quando esperadas=0, retorna 0. */
+  taxaAnaliseAngulo: number;
 }
 
 export interface ResumoVersoRelatorio {
