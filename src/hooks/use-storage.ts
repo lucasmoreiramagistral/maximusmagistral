@@ -2,7 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { storage } from "@/lib/checklist/storage";
 import { fetchAnomalias, fetchChecklists } from "@/lib/checklist/supabase-storage";
-import type { Anomalia, Checklist, Equipe, Turno, Usuario } from "@/lib/checklist/types";
+import type {
+  Anomalia,
+  Checklist,
+  Equipe,
+  Hierarquia,
+  ModuloAcesso,
+  Turno,
+  Usuario,
+} from "@/lib/checklist/types";
 
 interface ProfileRow {
   id: string;
@@ -13,6 +21,11 @@ interface ProfileRow {
   equipe_padrao: Equipe | null;
   turno_padrao: Turno | null;
   active: boolean;
+  // Campos novos da Etapa 1 — types.ts ainda não regenerado, por isso opcionais.
+  matricula?: string | null;
+  hierarquia?: Hierarquia | null;
+  modulos_acesso?: ModuloAcesso[] | null;
+  somente_leitura?: boolean | null;
 }
 
 // ──────────────────── Auth Store (singleton) ────────────────────
@@ -67,6 +80,10 @@ const authStore = {
           equipePadrao: row.equipe_padrao,
           turnoPadrao: row.turno_padrao,
           userId: row.id,
+          matricula: row.matricula ?? null,
+          hierarquia: (row.hierarquia ?? "operador") as Hierarquia,
+          modulosAcesso: row.modulos_acesso ?? [row.perfil as ModuloAcesso],
+          somenteLeitura: row.somente_leitura ?? false,
         },
         false,
       );

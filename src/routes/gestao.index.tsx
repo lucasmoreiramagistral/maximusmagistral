@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ClipboardList, AlertTriangle, Filter, FileBarChart2, Loader2, BookOpen } from "lucide-react";
+import {
+  ClipboardList,
+  AlertTriangle,
+  Filter,
+  FileBarChart2,
+  Loader2,
+  BookOpen,
+  UserPlus,
+} from "lucide-react";
+import { HIERARQUIAS_ADMIN_GESTAO } from "@/lib/checklist/types";
 import { AppHeader } from "@/components/app-header";
 import { useChecklistsRemote, useAnomaliasRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
@@ -91,6 +100,15 @@ function GestaoHome() {
             titulo="Inteligência das ITs"
             descricao="Uso das instruções · pontos para reforço de treinamento"
           />
+          {usuario.hierarquia &&
+            HIERARQUIAS_ADMIN_GESTAO.includes(usuario.hierarquia) && (
+              <BotaoLink
+                to="/gestao/usuarios"
+                icon={<UserPlus className="h-8 w-8" />}
+                titulo="Cadastrar Usuário"
+                descricao="Gerenciar usuários · hierarquia · módulos de acesso"
+              />
+            )}
         </div>
 
         <p className="mt-8 text-sm text-muted-foreground">

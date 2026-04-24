@@ -172,6 +172,45 @@ export interface AnomaliaAtualizacao {
 
 export type Perfil = "operador" | "gestao" | "manutencao";
 
+/**
+ * Hierarquia organizacional (8 níveis). Usada para autorizar ações
+ * administrativas (ex.: cadastro de usuários). Não substitui `perfil`,
+ * que define qual módulo principal o usuário usa no login.
+ */
+export type Hierarquia =
+  | "desenvolvedor"
+  | "gerente"
+  | "coordenador"
+  | "supervisor"
+  | "lider"
+  | "assistente"
+  | "operador"
+  | "externo";
+
+/** Módulos de acesso. Hoje apenas `perfil` é usado pelo login/useGuard;
+ *  `modulosAcesso` é salvo para o futuro (multi-módulo). */
+export type ModuloAcesso = "operador" | "gestao" | "manutencao" | "admin";
+
+export const HIERARQUIAS: Hierarquia[] = [
+  "desenvolvedor",
+  "gerente",
+  "coordenador",
+  "supervisor",
+  "lider",
+  "assistente",
+  "operador",
+  "externo",
+];
+
+export const MODULOS_ACESSO: ModuloAcesso[] = ["operador", "gestao", "manutencao", "admin"];
+
+/** Hierarquias autorizadas a cadastrar/editar usuários. */
+export const HIERARQUIAS_ADMIN_GESTAO: Hierarquia[] = [
+  "desenvolvedor",
+  "gerente",
+  "coordenador",
+];
+
 export interface Usuario {
   perfil: Perfil;
   nome: string;
@@ -182,4 +221,12 @@ export interface Usuario {
   turnoPadrao?: Turno | null;
   /** uuid do auth.users (quando logado via Supabase). */
   userId?: string;
+  /** Matrícula opcional (única quando preenchida). */
+  matricula?: string | null;
+  /** Nível hierárquico — default 'operador'. */
+  hierarquia?: Hierarquia;
+  /** Módulos liberados (ainda não consumido por useGuard — débito técnico). */
+  modulosAcesso?: ModuloAcesso[];
+  /** Se true, ações de escrita devem ser bloqueadas no frontend. */
+  somenteLeitura?: boolean;
 }
