@@ -119,18 +119,23 @@ function ChecklistPage() {
   const pendentes = total - respondidos;
   const progresso = total === 0 ? 0 : (respondidos / total) * 100;
 
-  // Atualiza UI imediatamente + persiste rascunho em background (não bloqueia o clique)
+  // Atualiza UI imediatamente + persiste rascunho em background (não bloqueia o clique).
+  // CRÍTICO: lê o rascunho MAIS RECENTE do storage antes de aplicar o patch,
+  // para evitar race condition entre cliques rápidos consecutivos (cada clique
+  // dispara setRascunho, mas o `rascunho` do hook só se atualiza no próximo tick).
   const atualizarRespostaPorNumero = (itemNumero: number, patch: Partial<RespostaItem>) => {
     if (!rascunho) return;
-    const novas = rascunho.respostas.map((r) =>
+    const atual = storage.getRascunho() ?? rascunho;
+    // só aceita o storage se for o mesmo checklist (mesmo id)
+    const base = atual.id === rascunho.id ? atual : rascunho;
+    const novas = base.respostas.map((r) =>
       r.itemNumero === itemNumero ? { ...r, ...patch } : r,
     );
-    const next: Checklist = { ...rascunho, respostas: novas };
-    // persistência defensiva — não quebra o fluxo se falhar
+    const next: Checklist = { ...base, respostas: novas };
     try {
       storage.setRascunho(next);
     } catch {
-      // silencioso — o estado local já refletiu a mudança via re-render do hook useRascunho no próximo tick
+      // silencioso — re-render via useRascunho cobre o estado local
     }
     // limpa o estado de erro daquele item ao interagir
     setItensComErro((prev) => {

@@ -179,8 +179,16 @@ function MomentoPage() {
     if (!contexto || !usuario || bloqueioOutraEquipe) return;
 
     // 1) rascunho local do mesmo momento → continuar (restaura como slot "atual")
-    const rascunho = storage.getChecklistEmAndamentoMesmoMomento(contexto, momento);
-    if (rascunho) {
+    const rascunhoLocal = storage.getChecklistEmAndamentoMesmoMomento(contexto, momento);
+    console.log("[momento.iniciar]", {
+      momento,
+      folhaKey: buildFolhaKey(contexto),
+      encontrouRascunho: !!rascunhoLocal,
+      respostasMarcadas: rascunhoLocal
+        ? rascunhoLocal.respostas.filter((r) => r.resposta !== null).length
+        : 0,
+    });
+    if (rascunhoLocal) {
       storage.restaurarRascunhoMomento(contexto, momento);
       setDialogoRascunho({ open: true, momento });
       return;
@@ -207,6 +215,7 @@ function MomentoPage() {
       }
 
       // 3) novo
+      console.log("[momento.iniciar] criando NOVO checklist para", momento);
       const novo = criarChecklist(momento);
       storage.setRascunho(novo);
       navigate({ to: "/operador/checklist" });
