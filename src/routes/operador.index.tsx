@@ -189,7 +189,7 @@ function OperadorHome() {
                 <ul className="mt-4 space-y-2 text-sm">
                   <li className="flex items-start gap-2 text-foreground">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                    Checklist operacional assinado (operador + líder)
+                    Checklist operacional assinado pelo operador
                   </li>
                   <li className="flex items-start gap-2 text-foreground">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
@@ -234,6 +234,30 @@ function OperadorHome() {
               </div>
             </div>
           </div>
+        )}
+
+        {pendenciasLider > 0 && (
+          <Link
+            to="/operador/validacao-lider"
+            className="mb-6 flex flex-col gap-4 rounded-2xl border-2 border-primary/50 bg-primary-soft/40 p-5 shadow-md transition-all hover:border-primary hover:shadow-lg active:scale-[0.99] md:flex-row md:items-center md:p-6"
+          >
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <PenLine className="h-8 w-8" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xl font-bold text-foreground md:text-2xl">
+                Validação de Relatório pelo Líder
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground md:text-base">
+                {pendenciasLider} item(ns) aguardando assinatura do líder —
+                checklist operacional e/ou limpeza da sala de envase. Toque
+                aqui para o líder assinar tudo de uma vez.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">
+              {pendenciasLider} pendente{pendenciasLider > 1 ? "s" : ""}
+            </div>
+          </Link>
         )}
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
