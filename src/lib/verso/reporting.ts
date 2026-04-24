@@ -62,6 +62,12 @@ export interface ResumoVersoRelatorio {
   limpezasValidadas: number;
   limpezasAguardandoLider: number;
   limpezasPendentesOuRascunho: number;
+  // ── Análise de Ângulo (aderência/verificação — NÃO é defeito) ──
+  analiseAnguloEsperadas: number;
+  analiseAnguloRealizadas: number;
+  analiseAnguloPendentes: number;
+  /** 0..100 — quando esperadas=0, retorna 0. */
+  taxaAnaliseAngulo: number;
 }
 
 export interface DiagnosticoPtp {
