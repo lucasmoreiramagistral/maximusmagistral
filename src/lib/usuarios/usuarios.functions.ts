@@ -184,14 +184,14 @@ export const criarUsuario = createServerFn({ method: "POST" })
     // Trigger handle_new_user já criou o profile a partir de user_metadata.
     // Aplicamos overrides (equipe/turno padrão + criado_por + somente_leitura)
     // diretamente via supabaseAdmin.
-    const { error: updErr } = await supabaseAdmin
-      .from("profiles")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: updErr } = await (supabaseAdmin.from("profiles") as any)
       .update({
         equipe_padrao: data.equipePadrao ?? null,
         turno_padrao: data.turnoPadrao ?? null,
         somente_leitura: somenteLeitura,
         criado_por: context.userId,
-      } as Record<string, unknown>)
+      })
       .eq("id", created.user.id);
 
     if (updErr) {
@@ -227,8 +227,8 @@ export const editarUsuario = createServerFn({ method: "POST" })
 
     const somenteLeitura = data.hierarquia === "externo";
 
-    const { error } = await supabaseAdmin
-      .from("profiles")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabaseAdmin.from("profiles") as any)
       .update({
         nome: data.nome,
         perfil: data.perfil,
@@ -238,7 +238,7 @@ export const editarUsuario = createServerFn({ method: "POST" })
         equipe_padrao: data.equipePadrao ?? null,
         turno_padrao: data.turnoPadrao ?? null,
         somente_leitura: somenteLeitura,
-      } as Record<string, unknown>)
+      })
       .eq("id", data.id);
 
     if (error) {
@@ -260,9 +260,9 @@ export const alterarStatusUsuario = createServerFn({ method: "POST" })
       return { ok: false as const, erro: "Você não pode inativar a si mesmo" };
     }
 
-    const { error } = await supabaseAdmin
-      .from("profiles")
-      .update({ active: data.active } as Record<string, unknown>)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabaseAdmin.from("profiles") as any)
+      .update({ active: data.active })
       .eq("id", data.id);
 
     if (error) {
