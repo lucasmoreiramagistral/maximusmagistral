@@ -209,14 +209,11 @@ export function gerarVersoWorksheet(
   ws.getCell("A3").value = `DATA: ${formatarDataBR(opts.dataOperacao)}`;
   ws.getCell("A3").font = { bold: true };
 
-  ws.mergeCells("G3:I3");
-  ws.getCell("G3").value = "X = SEM OCORRÊNCIA";
+  ws.mergeCells("G3:L3");
+  ws.getCell("G3").value = "n° = quantidade real de ocorrências";
   ws.getCell("G3").alignment = { horizontal: "center" };
-  ws.mergeCells("J3:L3");
-  ws.getCell("J3").value = "n° = HOUVE OCORRÊNCIA";
-  ws.getCell("J3").alignment = { horizontal: "center" };
   ws.mergeCells("M3:R3");
-  ws.getCell("M3").value = "NR = NÃO RODOU";
+  ws.getCell("M3").value = "NR = NÃO RODOU   |   ✓ = verificação realizada";
   ws.getCell("M3").alignment = { horizontal: "center" };
 
   // Operadores por COLUNA POSICIONAL (1/2/3) — extrai por turno do PTP
@@ -256,7 +253,7 @@ export function gerarVersoWorksheet(
   ws.mergeCells("A8:F9");
   const cabPtp = ws.getCell("A8");
   cabPtp.value =
-    "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Marque a quantidade quando houver ocorrência)";
+    "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Informe a quantidade quando houver ocorrência)";
   cabPtp.alignment = { wrapText: true, horizontal: "center", vertical: "middle" };
   cabPtp.font = { bold: true, size: 9 };
   cabPtp.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
@@ -309,8 +306,6 @@ export function gerarVersoWorksheet(
       const janela = opts.ptpJanelas.find(
         (x) => x.janelaCodigo === j.codigo,
       );
-      // Filtro de turno: se setado, só preenche janelas daquele turno
-      // (mapeadas por horário real via fonte única).
       const codigosTurno = opts.turnoFiltro
         ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
         : null;
@@ -324,25 +319,65 @@ export function gerarVersoWorksheet(
         cell.font = { italic: true, color: { argb: "FF777777" } };
         return;
       }
-      if (janela.statusJanela === "sem_ocorrencia") {
-        cell.value = "X";
-        cell.font = { bold: true, color: { argb: "FF2E7D32" } };
-        return;
-      }
-      // houve_ocorrencia: pega quantidade do item
+      // Defeitos: exibe quantidade real acumulada (>0). Se 0, célula vazia
+      // (status OK fica refletido na ausência de número, mantendo o padrão
+      // novo do processo). Não usar "X" e não multiplicar por 2.
       const it = janela.itens.find((x) => x.codigo === itemDef.codigo);
-      if (it && it.status === "houve_ocorrencia" && it.quantidade > 0) {
-        cell.value = it.quantidade;
+      const qtd = it?.quantidade ?? 0;
+      if (qtd > 0) {
+        cell.value = qtd;
         cell.font = { bold: true, color: { argb: "FFC62828" } };
-      } else {
-        cell.value = "X";
-        cell.font = { bold: true, color: { argb: "FF2E7D32" } };
       }
     });
   });
 
+  // ─── PTP — linha "ANÁLISE DE ÂNGULO" ──────────────────────────────
+  // Aderência (não defeito): por janela, mostra ✓ (1 verif.), ✓✓ (2 verif.),
+  // vazio (nenhuma) ou NR (não rodou).
+  const LINHA_ANGULO = PTP_LINHA_INI + PTP_ITENS.length; // 15
+  ws.mergeCells(`A${LINHA_ANGULO}:F${LINHA_ANGULO}`);
+  const cellAng = ws.getCell(`A${LINHA_ANGULO}`);
+  cellAng.value = "ANÁLISE DE ÂNGULO (2 verificações de 30 min)";
+  cellAng.font = { bold: true, size: 9, italic: true };
+  cellAng.alignment = { vertical: "middle", horizontal: "left", wrapText: true };
+  cellAng.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFFFF8E1" },
+  };
+  PTP_JANELAS.forEach((j) => {
+    const colNum = colunaPtpJanela(j.codigo);
+    const cell = ws.getCell(LINHA_ANGULO, colNum);
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.fill = {
+      type: "pattern",
+      pattern: "solid",
+      fgColor: { argb: "FFFFF8E1" },
+    };
+
+    const janela = opts.ptpJanelas.find((x) => x.janelaCodigo === j.codigo);
+    const codigosTurno = opts.turnoFiltro
+      ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
+      : null;
+    if (codigosTurno && !codigosTurno.includes(j.codigo)) return;
+    if (!janela) return;
+    if (janela.statusJanela === "nao_rodou") {
+      cell.value = "NR";
+      cell.font = { italic: true, color: { argb: "FF777777" } };
+      return;
+    }
+    const ang = janela.analiseAngulo;
+    if (!ang) return;
+    const v1 = ang.v1Realizada ? 1 : 0;
+    const v2 = ang.v2Realizada ? 1 : 0;
+    const total = v1 + v2;
+    if (total === 0) return;
+    cell.value = total === 2 ? "✓✓" : "✓";
+    cell.font = { bold: true, color: { argb: "FF1565C0" } };
+  });
+
   // ─── PTP — linha "Visto" por janela ───────────────────────────────
-  const LINHA_VISTO = PTP_LINHA_INI + PTP_ITENS.length; // 15
+  const LINHA_VISTO = LINHA_ANGULO + 1; // 16
   ws.mergeCells(`A${LINHA_VISTO}:F${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`A${LINHA_VISTO}`);
   cellVisto.value =

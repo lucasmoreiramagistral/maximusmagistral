@@ -69,9 +69,9 @@ export interface DiagnosticoPtp {
   topItens: {
     codigo: string;
     nome: string;
-    marcacoes: number;
-    ocorrencias: number; // marcações × 2
-    label: string; // "X marcações (2X ocorrências)"
+    /** Total acumulado real de ocorrências (soma das quantidades). */
+    ocorrencias: number;
+    label: string; // "X ocorrências"
   }[];
   porJanela: { chave: string; total: number; rotulo: string }[];
   comObservacao: {
@@ -329,7 +329,7 @@ export function calcularDiagnosticoPtp(
     .map((s) => ({ chave: LABEL_PTP[s], total: statusMap.get(s) ?? 0 }))
     .filter((r) => r.total > 0);
 
-  // Top itens (marcações + ocorrências = ×2)
+  // Top itens — soma direta das quantidades reais (sem multiplicar por 2).
   const itensMap = new Map<string, number>();
   for (const j of ptpDoRecorte) {
     if (j.statusJanela !== "houve_ocorrencia") continue;
@@ -338,18 +338,16 @@ export function calcularDiagnosticoPtp(
     }
   }
   const topItens = PTP_ITENS.map((def) => {
-    const marcacoes = itensMap.get(def.codigo) ?? 0;
-    const ocorrencias = marcacoes * 2;
+    const ocorrencias = itensMap.get(def.codigo) ?? 0;
     return {
       codigo: def.codigo,
       nome: def.nome,
-      marcacoes,
       ocorrencias,
-      label: `${marcacoes} marcações (${ocorrencias} ocorrências)`,
+      label: `${ocorrencias} ocorrência${ocorrencias === 1 ? "" : "s"}`,
     };
   })
-    .filter((r) => r.marcacoes > 0)
-    .sort((a, b) => b.marcacoes - a.marcacoes);
+    .filter((r) => r.ocorrencias > 0)
+    .sort((a, b) => b.ocorrencias - a.ocorrencias);
 
   // Por janela J01..J12 — só conta janelas com ocorrência
   const porJanelaMap = new Map<string, number>();
@@ -520,7 +518,7 @@ export function calcularAlertasVerso(args: {
   }
 
   const topPtp = diagPtp.topItens[0];
-  if (topPtp && topPtp.marcacoes > 0) {
+  if (topPtp && topPtp.ocorrencias > 0) {
     alertas.push({
       texto: `Item PTP recorrente: ${topPtp.nome} — ${topPtp.label}.`,
       destaque: "info",

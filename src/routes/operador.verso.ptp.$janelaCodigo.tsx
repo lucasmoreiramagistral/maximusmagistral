@@ -2,11 +2,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { SignaturePad } from "@/components/signature-pad";
+import { PtpItemContador } from "@/components/ptp-item-contador";
 import { useGuard } from "@/hooks/use-guard";
 import { usePtpJanelas } from "@/hooks/use-ptp-janelas";
 import {
@@ -14,9 +16,17 @@ import {
   calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
-import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import {
+  VERSO_CONTEXTO_FIXO,
+  criarAnaliseAnguloVazia,
+} from "@/lib/verso/constants";
 import { deriveStatusJanela, recalcularStatusItens } from "@/lib/verso/format";
-import type { PtpItem, PtpJanela } from "@/lib/verso/types";
+import type {
+  PtpAnaliseAngulo,
+  PtpItem,
+  PtpJanela,
+  PtpLancamento,
+} from "@/lib/verso/types";
 import { formatarDataHora } from "@/lib/checklist/format";
 import { toast } from "sonner";
 
@@ -46,15 +56,15 @@ function PtpJanelaDetalhe() {
   );
 
   const [itens, setItens] = useState<PtpItem[]>([]);
+  const [analiseAngulo, setAnaliseAngulo] = useState<PtpAnaliseAngulo>(
+    criarAnaliseAnguloVazia(),
+  );
   const [naoRodou, setNaoRodou] = useState(false);
   const [observacao, setObservacao] = useState("");
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [motivoEdicao, setMotivoEdicao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  // Snapshot do status no momento em que a tela carrega.
-  // O bloco "Motivo da edição" só deve aparecer se a janela JÁ ESTAVA
-  // concluída quando o operador abriu a tela — não logo após concluir.
   const [jaConcluidaSnapshot, setJaConcluidaSnapshot] = useState<boolean | null>(
     null,
   );
@@ -62,16 +72,18 @@ function PtpJanelaDetalhe() {
   useEffect(() => {
     if (!janelaBase) return;
     setItens(janelaBase.itens);
+    setAnaliseAngulo(janelaBase.analiseAngulo ?? criarAnaliseAnguloVazia());
     setNaoRodou(janelaBase.statusJanela === "nao_rodou");
     setObservacao(janelaBase.observacao ?? "");
-    setAssinatura(null); // sempre exigir nova assinatura ao concluir
+    setAssinatura(null);
     if (jaConcluidaSnapshot === null) {
       setJaConcluidaSnapshot(
         janelaBase.statusJanela !== "pendente" &&
           janelaBase.statusJanela !== "rascunho",
       );
     }
-  }, [janelaBase?.id, janelaBase?.updatedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [janelaBase?.id, janelaBase?.updatedAt]);
 
   if (loading || !usuario) return <TelaCarregando />;
   if (!janelaBase) {
@@ -93,58 +105,144 @@ function PtpJanelaDetalhe() {
 
   const jaConcluida =
     janelaBase.statusJanela !== "pendente" && janelaBase.statusJanela !== "rascunho";
-  // Snapshot fixo no mount — usado para decidir se exigimos motivo de edição.
   const exigeMotivoEdicao = jaConcluidaSnapshot === true;
 
-  /**
-   * Define a quantidade de marcações de um item (0..6).
-   * Cada marcação representa 2 ocorrências da anomalia, conforme padrão
-   * oficial da folha física do PTP (6 quadradinhos por item, valendo 2 cada).
-   */
-  const setMarcacoes = (codigo: string, novaQtd: number) => {
+  /** Adiciona quantidade real ao total acumulado de um item, registrando histórico. */
+  const adicionarOcorrencia = (codigo: string, quantidade: number) => {
     if (naoRodou) return;
-    const qtd = Math.max(0, Math.min(6, novaQtd));
+    if (quantidade <= 0) return;
+    const lanc: PtpLancamento = {
+      quantidade,
+      horario: new Date().toISOString(),
+      tipo: "lancamento",
+      operadorLogin: usuario.usuario,
+      operadorNome: usuario.nome,
+      operadorUserId: usuario.userId ?? null,
+    };
     setItens((prev) =>
       recalcularStatusItens(
-        prev.map((i) => (i.codigo === codigo ? { ...i, quantidade: qtd } : i)),
+        prev.map((i) =>
+          i.codigo === codigo
+            ? {
+                ...i,
+                quantidade: (i.quantidade || 0) + quantidade,
+                historico: [...(i.historico ?? []), lanc],
+              }
+            : i,
+        ),
       ),
     );
   };
 
-  /**
-   * Toggle do quadradinho na posição `pos` (1..6).
-   * - Se a posição já estava marcada, desmarca todas dela em diante.
-   * - Se ainda não estava, marca todas até essa posição (preenchimento sequencial).
-   * Esse comportamento espelha como o operador preencheria a folha de papel.
-   */
-  const toggleQuadradinho = (codigo: string, pos: number) => {
+  /** Remove o último lançamento POSITIVO do histórico (só desfaz o que foi adicionado). */
+  const desfazerUltimo = (codigo: string) => {
     if (naoRodou) return;
-    const item = itens.find((i) => i.codigo === codigo);
-    if (!item) return;
-    const atual = item.quantidade || 0;
-    const nova = atual >= pos ? pos - 1 : pos;
-    setMarcacoes(codigo, nova);
+    setItens((prev) =>
+      recalcularStatusItens(
+        prev.map((i) => {
+          if (i.codigo !== codigo) return i;
+          const hist = [...(i.historico ?? [])];
+          // procura o último com quantidade > 0 (lancamento normal)
+          for (let idx = hist.length - 1; idx >= 0; idx--) {
+            if (hist[idx].quantidade > 0) {
+              const removido = hist.splice(idx, 1)[0];
+              return {
+                ...i,
+                quantidade: Math.max(0, (i.quantidade || 0) - removido.quantidade),
+                historico: hist,
+              };
+            }
+          }
+          return i;
+        }),
+      ),
+    );
   };
+
+  /** Zera o total registrando uma correção negativa (preserva histórico). */
+  const zerarTotal = (codigo: string) => {
+    if (naoRodou) return;
+    setItens((prev) =>
+      recalcularStatusItens(
+        prev.map((i) => {
+          if (i.codigo !== codigo) return i;
+          const total = i.quantidade || 0;
+          if (total === 0) return i;
+          const correcao: PtpLancamento = {
+            quantidade: -total,
+            horario: new Date().toISOString(),
+            tipo: "correcao_zerar",
+            motivo: "Correção do operador (zerar total)",
+            operadorLogin: usuario.usuario,
+            operadorNome: usuario.nome,
+            operadorUserId: usuario.userId ?? null,
+          };
+          return {
+            ...i,
+            quantidade: 0,
+            historico: [...(i.historico ?? []), correcao],
+          };
+        }),
+      ),
+    );
+  };
+
+  const itemPodeDesfazer = (it: PtpItem): boolean =>
+    (it.historico ?? []).some((l) => l.quantidade > 0);
 
   const toggleNaoRodou = (v: boolean) => {
     setNaoRodou(v);
     if (v) {
-      setItens((prev) => prev.map((i) => ({ ...i, quantidade: 0, status: "sem_ocorrencia" })));
+      // não apaga histórico, só zera quantidade visível e marca correção em itens com total
+      setItens((prev) =>
+        prev.map((i) => {
+          if ((i.quantidade || 0) === 0) {
+            return { ...i, quantidade: 0, status: "sem_ocorrencia" };
+          }
+          const correcao: PtpLancamento = {
+            quantidade: -i.quantidade,
+            horario: new Date().toISOString(),
+            tipo: "correcao_zerar",
+            motivo: "Linha não rodou nesta janela",
+            operadorLogin: usuario.usuario,
+            operadorNome: usuario.nome,
+            operadorUserId: usuario.userId ?? null,
+          };
+          return {
+            ...i,
+            quantidade: 0,
+            status: "sem_ocorrencia",
+            historico: [...(i.historico ?? []), correcao],
+          };
+        }),
+      );
+      setAnaliseAngulo(criarAnaliseAnguloVazia());
     }
+  };
+
+  const toggleVerificacaoAngulo = (qual: "v1" | "v2", checked: boolean) => {
+    if (naoRodou) return;
+    const agora = new Date().toISOString();
+    setAnaliseAngulo((prev) => ({
+      ...prev,
+      [`${qual}Realizada`]: checked,
+      [`${qual}Em`]: checked ? agora : null,
+      [`${qual}PorLogin`]: checked ? usuario.usuario : null,
+      [`${qual}PorNome`]: checked ? usuario.nome : null,
+      [`${qual}PorUserId`]: checked ? usuario.userId ?? null : null,
+    }));
   };
 
   const montarPayload = (concluir: boolean): PtpJanela => {
     const agora = new Date().toISOString();
+    // Status: NÃO conta análise de ângulo. Só os 5 defeitos.
     const status = concluir ? deriveStatusJanela(itens, naoRodou) : "rascunho";
     return {
       ...janelaBase,
       itens,
+      analiseAngulo,
       observacao: observacao.trim() || null,
       statusJanela: status,
-      // operadorLogin = login da CONTA logada (representa a equipe).
-      // operadorNome = "Operador" (genérico) — qualquer um da equipe pode estar
-      // operando; o líder logado fica registrado em ultimaEdicaoPorLogin/Nome
-      // e nas tabelas de auditoria.
       operadorLogin: concluir ? usuario.usuario : janelaBase.operadorLogin ?? usuario.usuario,
       operadorNome: concluir ? "Operador" : janelaBase.operadorNome ?? "Operador",
       operadorUserId: usuario.userId ?? janelaBase.operadorUserId ?? null,
@@ -233,64 +331,85 @@ function PtpJanelaDetalhe() {
           <Switch checked={naoRodou} onCheckedChange={toggleNaoRodou} />
         </div>
 
-        {/* Aviso de regra */}
+        {/* Aviso de regra nova */}
         <div className="mb-3 rounded-xl border-2 border-primary/30 bg-primary/5 p-3 text-sm">
           <p className="font-semibold text-foreground">
-            Cada marcação na folha equivale a 2 ocorrências da anomalia.
+            Informe a quantidade real quando houver ocorrência.
           </p>
           <p className="text-xs text-muted-foreground">
-            Toque em um quadradinho para marcar/desmarcar. Limite de 6 marcações por item (= 12 ocorrências).
+            Use os botões para ajustar a quantidade e clique em "Adicionar ao
+            total" para registrar. Pressione e segure para aumentar mais rápido.
           </p>
         </div>
 
-        {/* Itens — interface fiel ao papel: 6 quadradinhos clicáveis por item */}
+        {/* Itens — contador acumulativo */}
         <div className={`space-y-3 ${naoRodou ? "opacity-50" : ""}`}>
-          {itens.map((it) => {
-            const marcacoes = it.quantidade || 0;
-            const ocorrencias = marcacoes * 2;
-            return (
-              <div
-                key={it.codigo}
-                className="rounded-xl border border-border bg-card p-4"
-              >
-                <div className="mb-2 flex items-start justify-between gap-3">
-                  <p className="text-sm font-bold text-foreground">{it.nome}</p>
-                  <span className="shrink-0 rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                    {marcacoes}/6 · {ocorrencias} ocorr.
-                  </span>
-                </div>
+          {itens.map((it) => (
+            <PtpItemContador
+              key={it.codigo}
+              nome={it.nome}
+              totalAcumulado={it.quantidade || 0}
+              disabled={naoRodou}
+              onAdicionar={(q) => adicionarOcorrencia(it.codigo, q)}
+              onDesfazerUltimo={() => desfazerUltimo(it.codigo)}
+              onZerarTotal={() => zerarTotal(it.codigo)}
+              podeDesfazer={itemPodeDesfazer(it)}
+            />
+          ))}
+        </div>
 
-                <div className="flex flex-wrap items-center gap-2">
-                  {[1, 2, 3, 4, 5, 6].map((pos) => {
-                    const ativo = marcacoes >= pos;
-                    return (
-                      <button
-                        key={pos}
-                        type="button"
-                        aria-label={`Marcação ${pos} de ${it.nome}`}
-                        aria-pressed={ativo}
-                        onClick={() => toggleQuadradinho(it.codigo, pos)}
-                        disabled={naoRodou}
-                        className={`flex h-12 w-12 items-center justify-center rounded-md border-2 text-base font-bold transition-all ${
-                          ativo
-                            ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                            : "border-border bg-background text-muted-foreground hover:border-primary/50"
-                        } ${naoRodou ? "cursor-not-allowed" : "active:scale-95"}`}
-                      >
-                        {ativo ? "✓" : "2"}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <p className="mt-2 text-[11px] text-muted-foreground">
-                  Cada marcação = 2 ocorrências · Equivale a{" "}
-                  <strong className="text-foreground">{ocorrencias}</strong>{" "}
-                  ocorrência{ocorrencias === 1 ? "" : "s"}
-                </p>
-              </div>
-            );
-          })}
+        {/* Análise de ângulo */}
+        <div
+          className={`mt-4 rounded-xl border-2 border-accent/40 bg-accent/5 p-4 ${
+            naoRodou ? "opacity-50" : ""
+          }`}
+        >
+          <p className="text-sm font-bold text-foreground">ANÁLISE DE ÂNGULO</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            2 verificações por janela (cada uma representa 30 min). Não conta
+            como ocorrência — é verificação de aderência.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {(["v1", "v2"] as const).map((qual, idx) => {
+              const realizada =
+                qual === "v1" ? analiseAngulo.v1Realizada : analiseAngulo.v2Realizada;
+              const em = qual === "v1" ? analiseAngulo.v1Em : analiseAngulo.v2Em;
+              const por =
+                qual === "v1"
+                  ? analiseAngulo.v1PorNome
+                  : analiseAngulo.v2PorNome;
+              return (
+                <label
+                  key={qual}
+                  className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${
+                    realizada
+                      ? "border-accent bg-accent/10"
+                      : "border-border bg-background"
+                  } ${naoRodou ? "cursor-not-allowed" : ""}`}
+                >
+                  <Checkbox
+                    checked={realizada}
+                    onCheckedChange={(c) =>
+                      toggleVerificacaoAngulo(qual, c === true)
+                    }
+                    disabled={naoRodou}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">
+                      Verificação {idx + 1} — 30 min
+                    </p>
+                    {realizada && em && (
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {formatarDataHora(em)}
+                        {por ? ` · ${por}` : ""}
+                      </p>
+                    )}
+                  </div>
+                </label>
+              );
+            })}
+          </div>
         </div>
 
         {/* Observação */}
@@ -318,7 +437,7 @@ function PtpJanelaDetalhe() {
           </div>
         )}
 
-        {/* Motivo da edição (só se já estava concluída quando a tela carregou) */}
+        {/* Motivo da edição */}
         {exigeMotivoEdicao && (
           <div className="mt-5">
             <Label htmlFor="motivo" className="text-base">
@@ -335,8 +454,7 @@ function PtpJanelaDetalhe() {
           </div>
         )}
 
-        {/* Assinatura — sempre "Operador" (genérico). Qualquer um da equipe
-            pode estar operando, não necessariamente o líder logado. */}
+        {/* Assinatura */}
         <div className="mt-5">
           <SignaturePad
             value={assinatura}

@@ -1,4 +1,4 @@
-import type { LimpezaItem, PtpItem, PtpItemCodigo } from "./types";
+import type { LimpezaItem, PtpAnaliseAngulo, PtpItem, PtpItemCodigo } from "./types";
 import type { Turno } from "@/lib/checklist/types";
 import {
   escalaPorTurnoEquipe,
@@ -26,12 +26,12 @@ export const PTP_JANELAS: PtpJanelaDef[] = [
   { codigo: "J01", inicio: "06:00", fim: "08:00", rotulo: "06:00 às 08:00" },
   { codigo: "J02", inicio: "08:00", fim: "10:00", rotulo: "08:00 às 10:00" },
   { codigo: "J03", inicio: "10:00", fim: "12:00", rotulo: "10:00 às 12:00" },
-  { codigo: "J04", inicio: "12:00", fim: "14:20", rotulo: "12:00 às 14:20" },
-  { codigo: "J05", inicio: "14:20", fim: "16:00", rotulo: "14:20 às 16:00" },
+  { codigo: "J04", inicio: "12:00", fim: "14:00", rotulo: "12:00 às 14:00" },
+  { codigo: "J05", inicio: "14:00", fim: "16:00", rotulo: "14:00 às 16:00" },
   { codigo: "J06", inicio: "16:00", fim: "18:00", rotulo: "16:00 às 18:00" },
   { codigo: "J07", inicio: "18:00", fim: "20:00", rotulo: "18:00 às 20:00" },
-  { codigo: "J08", inicio: "20:00", fim: "22:40", rotulo: "20:00 às 22:40" },
-  { codigo: "J09", inicio: "22:40", fim: "00:00", rotulo: "22:40 às 00:00" },
+  { codigo: "J08", inicio: "20:00", fim: "22:00", rotulo: "20:00 às 22:00" },
+  { codigo: "J09", inicio: "22:00", fim: "00:00", rotulo: "22:00 às 00:00" },
   { codigo: "J10", inicio: "00:00", fim: "02:00", rotulo: "00:00 às 02:00" },
   { codigo: "J11", inicio: "02:00", fim: "04:00", rotulo: "02:00 às 04:00" },
   { codigo: "J12", inicio: "04:00", fim: "06:00", rotulo: "04:00 às 06:00" },
@@ -56,7 +56,15 @@ export function criarItensPtpVazios(): PtpItem[] {
     nome: d.nome,
     quantidade: 0,
     status: "sem_ocorrencia",
+    historico: [],
   }));
+}
+
+export function criarAnaliseAnguloVazia(): PtpAnaliseAngulo {
+  return {
+    v1Realizada: false,
+    v2Realizada: false,
+  };
 }
 
 // ─── Limpeza — modelo LAZY ──────────────────────────────────────────
