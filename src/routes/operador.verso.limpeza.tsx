@@ -250,6 +250,15 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
       toast.error(`Responda todos os 21 itens (${naoRespondidos} pendente(s)).`);
       return;
     }
+    const nrSemObs = itens.filter(
+      (i) => i.status === "nao_realizado" && !(i.observacao ?? "").trim(),
+    );
+    if (nrSemObs.length > 0) {
+      toast.error(
+        `Descreva o motivo nos itens não realizados (${nrSemObs.map((i) => i.codigo).join(", ")}).`,
+      );
+      return;
+    }
     if (!assinaturaOp) {
       toast.error("Assine para concluir o turno.");
       return;
@@ -261,10 +270,17 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
     setSalvando(true);
     try {
       const agora = new Date().toISOString();
+      // Normaliza obs por item: só itens NR mantêm texto.
+      const itensNorm: LimpezaItem[] = itens.map((i) => ({
+        ...i,
+        observacao:
+          i.status === "nao_realizado" ? (i.observacao ?? "").trim() : null,
+      }));
       const payload: LimpezaTurno = {
         ...turno,
-        itens,
-        observacao: observacao.trim() || null,
+        itens: itensNorm,
+        // Obs do turno foi descontinuada — agora é por item.
+        observacao: null,
         // Se já estava validado e o operador editou, limpar validação do líder.
         status: "aguardando_validacao",
         operadorLogin: usuario.usuario,
