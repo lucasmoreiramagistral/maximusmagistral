@@ -287,7 +287,18 @@ function ChecklistPage() {
     return { ok: erros.length === 0, itens: erros, mensagem };
   };
 
-  const concluirMomento = () => {
+  // Garante que tudo foi gravado no storage antes de navegar.
+  // Como `setRascunho` é síncrono (localStorage), basta aguardar o flush
+  // do estado "saving" → "saved" antes de seguir.
+  const aguardarPersistencia = (): Promise<void> => {
+    return new Promise((resolve) => {
+      if (statusSalvamento !== "saving") return resolve();
+      // pequeno yield para garantir flush do último setRascunho
+      setTimeout(resolve, 50);
+    });
+  };
+
+  const concluirMomento = async () => {
     const r = validarTudo();
     if (!r.ok) {
       setItensComErro(new Set(r.itens));
@@ -304,10 +315,12 @@ function ChecklistPage() {
     }
     setItensComErro(new Set());
     setErroGlobal("");
+    await aguardarPersistencia();
     navigate({ to: "/operador/resumo" });
   };
 
-  const voltarMomentos = () => {
+  const voltarMomentos = async () => {
+    await aguardarPersistencia();
     navigate({ to: "/operador/momento" });
   };
 
