@@ -419,6 +419,36 @@ function ChecklistPage() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// Indicador de salvamento (Salvando… / Salvo)
+// ─────────────────────────────────────────────────────────────────
+
+function IndicadorSalvamento({ status }: { status: "idle" | "saving" | "saved" }) {
+  if (status === "idle") return null;
+  if (status === "saving") {
+    return (
+      <span
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground"
+      >
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Salvando…
+      </span>
+    );
+  }
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      className="flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-xs font-medium text-success animate-in fade-in"
+    >
+      <Check className="h-3.5 w-3.5" />
+      Salvo
+    </span>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // Card de item (corrido)
 // ─────────────────────────────────────────────────────────────────
 
