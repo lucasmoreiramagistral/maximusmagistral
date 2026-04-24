@@ -347,9 +347,12 @@ function ChecklistPage() {
                 <span className="ml-2 text-muted-foreground">· {pendentes} pendente(s)</span>
               )}
             </p>
-            <p className="text-xs text-muted-foreground md:text-sm">
-              {Math.round(progresso)}%
-            </p>
+            <div className="flex items-center gap-3">
+              <IndicadorSalvamento status={statusSalvamento} />
+              <p className="text-xs text-muted-foreground md:text-sm">
+                {Math.round(progresso)}%
+              </p>
+            </div>
           </div>
           <Progress value={progresso} className="mt-2 h-2" />
         </div>
