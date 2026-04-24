@@ -321,6 +321,24 @@ export function calcularResumoVersoRelatorio(
       a.limpezaStatus === "ausente",
   ).length;
 
+  // ── Análise de Ângulo: agregação no período ──
+  const analiseAnguloEsperadas = aderencia.reduce(
+    (s, a) => s + a.analiseAnguloEsperadas,
+    0,
+  );
+  const analiseAnguloRealizadas = aderencia.reduce(
+    (s, a) => s + a.analiseAnguloRealizadas,
+    0,
+  );
+  const analiseAnguloPendentes = Math.max(
+    0,
+    analiseAnguloEsperadas - analiseAnguloRealizadas,
+  );
+  const taxaAnaliseAngulo =
+    analiseAnguloEsperadas === 0
+      ? 0
+      : Math.round((analiseAnguloRealizadas / analiseAnguloEsperadas) * 100);
+
   return {
     turnosFrente,
     turnosVersoCompleto,
@@ -334,6 +352,10 @@ export function calcularResumoVersoRelatorio(
     limpezasValidadas,
     limpezasAguardandoLider,
     limpezasPendentesOuRascunho,
+    analiseAnguloEsperadas,
+    analiseAnguloRealizadas,
+    analiseAnguloPendentes,
+    taxaAnaliseAngulo,
   };
 }
 
