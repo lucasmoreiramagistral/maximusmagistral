@@ -33,7 +33,6 @@ function ResumoPage() {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [assinaturaOperador, setAssinaturaOperador] = useState<string | null>(null);
-  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
@@ -64,18 +63,15 @@ function ResumoPage() {
     if (!usuario) return;
     setErro(null);
 
-    // Validações de assinatura no fechamento do dia (Pós-setup)
+    // Assinatura do operador é exigida no fechamento do dia (Pós-setup).
+    // A assinatura do líder NÃO é mais obrigatória aqui — o líder valida
+    // depois, na tela "Validação de Relatório pelo Líder" (home do operador).
     let dadosAssinaturas: {
       assinaturaOperador?: AssinaturaDigital;
-      assinaturaLider?: AssinaturaDigital;
     } = {};
     if (exigeAssinaturas) {
       if (!assinaturaOperador) {
         setErro("O operador precisa assinar antes de concluir o checklist do dia.");
-        return;
-      }
-      if (!assinaturaLider) {
-        setErro("O líder precisa assinar antes de concluir o checklist do dia.");
         return;
       }
       const agora = new Date().toISOString();
@@ -83,11 +79,6 @@ function ResumoPage() {
         assinaturaOperador: {
           dataUrl: assinaturaOperador,
           nome: usuario.nome,
-          assinadoEm: agora,
-        },
-        assinaturaLider: {
-          dataUrl: assinaturaLider,
-          nome: "Líder",
           assinadoEm: agora,
         },
       };
@@ -241,35 +232,26 @@ function ResumoPage() {
             </div>
             <p className="mb-5 text-sm text-muted-foreground">
               Como este é o <strong>último momento</strong> do checklist do dia,
-              o operador e o líder precisam assinar para concluir.
+              o operador precisa assinar para concluir. A assinatura do líder
+              será coletada depois, na tela{" "}
+              <strong>"Validação de Relatório pelo Líder"</strong> da home.
             </p>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <div className="space-y-2">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                    Operador
-                  </p>
-                  <p className="text-base font-bold text-foreground">
-                    {rascunho.contexto.operadorResponsavel?.trim() || usuario.nome}
-                  </p>
-                </div>
-                <SignaturePad
-                  label="Assinatura do operador"
-                  ajuda="Assine no quadro abaixo com o dedo"
-                  value={assinaturaOperador}
-                  onChange={setAssinaturaOperador}
-                />
+            <div className="max-w-xl">
+              <div className="mb-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  Operador
+                </p>
+                <p className="text-base font-bold text-foreground">
+                  {rascunho.contexto.operadorResponsavel?.trim() || usuario.nome}
+                </p>
               </div>
-
-              <div className="space-y-2">
-                <SignaturePad
-                  label="Assinatura do líder"
-                  ajuda="Líder assina aqui com o dedo"
-                  value={assinaturaLider}
-                  onChange={setAssinaturaLider}
-                />
-              </div>
+              <SignaturePad
+                label="Assinatura do operador"
+                ajuda="Assine no quadro abaixo com o dedo"
+                value={assinaturaOperador}
+                onChange={setAssinaturaOperador}
+              />
             </div>
           </div>
         )}
