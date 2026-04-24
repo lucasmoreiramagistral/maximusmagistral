@@ -84,7 +84,7 @@ function LimpezaPage() {
       <AppHeader
         titulo="Limpeza Sala de Envase"
         subtitulo={`Folha do dia ${formatarDataBR(data)}`}
-        voltarPara="/operador/verso"
+        voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
         {conflito && (
