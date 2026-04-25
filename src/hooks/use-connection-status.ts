@@ -98,6 +98,52 @@ function genFilaId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+async function sincronizarObservacaoPtp(janela: PtpJanela, login?: string, nome?: string): Promise<void> {
+  const finalizada = ["sem_ocorrencia", "houve_ocorrencia", "nao_rodou"].includes(janela.statusJanela);
+  if (!finalizada) return;
+  await upsertObservacaoVerso({
+    folhaDiaKey: janela.folhaDiaKey,
+    dataOperacao: janela.dataOperacao,
+    linha: janela.linha || VERSO_CONTEXTO_FIXO.linha,
+    maquina: janela.maquina || VERSO_CONTEXTO_FIXO.maquina,
+    origemTipo: "ptp",
+    origemCodigo: janela.janelaCodigo,
+    origemLabel: labelPtpJanela(janela.janelaCodigo),
+    texto: janela.observacao ?? "",
+    registradoPorLogin: login || janela.operadorLogin || janela.ultimaEdicaoPorLogin || "offline",
+    registradoPorNome: nome || janela.operadorNome || janela.ultimaEdicaoPorNome || "Operador",
+  });
+}
+
+async function sincronizarObservacoesLimpeza(turno: LimpezaTurno, login?: string, nome?: string): Promise<void> {
+  const finalizada = turno.status === "aguardando_validacao" || turno.status === "validado";
+  if (!finalizada) return;
+  const ctx = {
+    folhaDiaKey: turno.folhaDiaKey,
+    dataOperacao: turno.dataOperacao,
+    linha: turno.linha || VERSO_CONTEXTO_FIXO.linha,
+    maquina: turno.maquina || VERSO_CONTEXTO_FIXO.maquina,
+    registradoPorLogin: login || turno.operadorLogin || turno.ultimaEdicaoPorLogin || "offline",
+    registradoPorNome: nome || turno.operadorNome || turno.ultimaEdicaoPorNome || "Operador",
+  };
+  await upsertObservacaoVerso({
+    ...ctx,
+    origemTipo: "limpeza",
+    origemCodigo: turno.turno,
+    origemLabel: labelLimpezaTurno(turno.turno),
+    texto: "",
+  });
+  for (const it of turno.itens) {
+    await upsertObservacaoVerso({
+      ...ctx,
+      origemTipo: "limpeza",
+      origemCodigo: origemCodigoLimpezaItem(turno.turno, it.codigo),
+      origemLabel: labelLimpezaItem(turno.turno, it.codigo),
+      texto: it.status === "nao_realizado" ? it.observacao ?? "" : "",
+    });
+  }
+}
+
 /** Conta apenas itens "ao vivo" — exclui conflito e itens que estouraram tentativas. */
 function countAtivos(fila: FilaItem[]): number {
   return fila.filter(
