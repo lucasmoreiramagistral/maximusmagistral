@@ -805,11 +805,16 @@ export async function exportarTurnoComVersoExcel(
   const checklistAss = checklistComAssinaturas(concluidos);
   if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
 
-  const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
+  // Carrega verso antes para reaproveitar nas Observações da frente.
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
+  const versoTurno = {
+    ptpJanelas,
+    limpezaTurnos: limpezaTurnos.filter((lt) => lt.turno === turno),
+  };
+  const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO (filtrada pelo turno)
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
   gerarVersoWorksheet(wb, {
     dataOperacao: folha.contexto.data,
     ptpJanelas,
