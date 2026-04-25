@@ -482,11 +482,14 @@ function coletarObservacoesPorTurno(
       if (it.status !== "nao_realizado") continue;
       const texto = (it.observacao ?? "").trim();
       const def = LIMPEZA_ITENS_DEF.find((d) => d.codigo === it.codigo);
-      const rotulo = def ? `${def.grupo} — ${def.secao}` : `Item ${it.codigo}`;
-      const linha = texto
-        ? `Limpeza ${it.codigo} (${rotulo}) — Não realizado: ${texto}`
-        : `Limpeza ${it.codigo} (${rotulo}) — Não realizado`;
-      addItemObs(lt.turno, linha);
+      addObsVerso({
+        turno: lt.turno,
+        operador: (lt.operadorLogin || lt.operadorNome || "—").trim(),
+        tipo: "Limpeza",
+        item: `${it.codigo} - ${def ? `${def.grupo} / ${def.secao}` : it.descricao || "Item"}`,
+        observacao: texto || "Não realizado",
+        horario: formatarHoraBR(lt.updatedAt ?? lt.operadorAssinouEm ?? lt.createdAt),
+      });
     }
   }
 
@@ -514,10 +517,14 @@ function coletarObservacoesPorTurno(
       if (!texto) continue;
       const turno = turnoDeJanela.get(j.janelaCodigo);
       if (!turno) continue;
-      addItemObs(
+      addObsVerso({
         turno,
-        `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
-      );
+        operador: (j.operadorLogin || j.operadorNome || "—").trim(),
+        tipo: "PTP",
+        item: `${j.janelaCodigo} - ${j.janelaInicio} às ${j.janelaFim}`,
+        observacao: texto,
+        horario: formatarHoraBR(j.updatedAt ?? j.assinadoEm ?? j.createdAt),
+      });
     }
   }
 
