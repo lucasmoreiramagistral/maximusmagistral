@@ -688,7 +688,16 @@ export async function exportarTurnoExcel(
     preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
   }
 
-  const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
+  // Carrega verso (PTP + Limpeza) do dia para incluir obs do verso nas Observações.
+  const verso = await carregarVersoDoDia(folha).catch(() => ({
+    ptpJanelas: [],
+    limpezaTurnos: [],
+  }));
+  const versoTurno = {
+    ptpJanelas: verso.ptpJanelas,
+    limpezaTurnos: verso.limpezaTurnos.filter((lt) => lt.turno === turno),
+  };
+  const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   const segmentos = montarSegmentosObservacoes(grupos);
   preencherObservacoesSegmentadas(ws, segmentos);
 
