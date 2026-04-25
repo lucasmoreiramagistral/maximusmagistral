@@ -173,15 +173,15 @@ function dataUrlParaBase64(dataUrl: string): string | null {
   }
 }
 
-function base64ParaBytes(base64: string): Uint8Array | null {
+function base64ParaArrayBuffer(base64: string): ArrayBuffer | null {
   try {
     const limpo = base64.replace(/\s/g, "");
     const bin = atob(limpo);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
+    return bytes.buffer;
   } catch (e) {
-    console.error("[checklist/excel] base64ParaBytes falhou:", e);
+    console.error("[checklist/excel] base64ParaArrayBuffer falhou:", e);
     return null;
   }
 }
@@ -196,10 +196,10 @@ function inserirAssinaturaImagem(
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
-  const bytes = base64ParaBytes(base64);
-  if (!bytes) return;
+  const buffer = base64ParaArrayBuffer(base64);
+  if (!buffer) return;
   const imageId = wb.addImage({
-    buffer: bytes as unknown as ExcelJS.Buffer,
+    buffer: buffer as unknown as ExcelJS.Buffer,
     extension: "png",
   });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
