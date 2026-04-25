@@ -534,7 +534,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 118;
+  ws.getRow(LINHA_VISTO).height = 132;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -556,16 +556,16 @@ export async function gerarVersoWorksheet(
     }
     const nome = (janela?.assinaturaOperador?.nome || janela?.operadorNome || janela?.operadorLogin || "").trim();
     if (janela?.assinaturaOperador?.dataUrl) {
-      cell.value = nome ? `Visto..:\n${nome}` : "Visto..:";
-      cell.font = { size: 6, color: { argb: "FF333333" } };
-      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.value = "Visto:";
+      cell.font = { size: 7, bold: true, color: { argb: "FF333333" } };
+      cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
       const colLetra = colNumParaLetra(colNum);
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.98, alturaFracao: 0.68, inicioYFracao: 0.12 },
+        { larguraFracao: 1, alturaFracao: 0.76, inicioYFracao: 0.24 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
