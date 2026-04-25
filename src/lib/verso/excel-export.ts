@@ -307,9 +307,9 @@ export async function gerarVersoWorksheet(
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
   const widthsBS = [
     8, 6, 6, 18, 6, 6, // B..G — descrições
-    11, 11, 11, 11,    // H..K — janelas 1°T (J01..J04)
-    11, 11, 11, 13,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
-    13, 13, 11, 11,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
+    13, 13, 13, 13,    // H..K — janelas 1°T (J01..J04)
+    13, 13, 13, 16,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
+    16, 16, 13, 13,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
   ];
   widthsBS.forEach((w, i) => {
     ws.getColumn(i + 2).width = w;
@@ -474,12 +474,15 @@ export async function gerarVersoWorksheet(
         return;
       }
       // Defeitos: exibe quantidade real acumulada (>0). Se 0/sem ocorrência,
-      // célula vazia (não usar "X" e não multiplicar por 2).
+      // mostra OK conforme pedido da operação.
       const it = janela.itens.find((x) => x.codigo === itemDef.codigo);
       const qtd = it?.quantidade ?? 0;
       if (qtd > 0) {
         cell.value = qtd;
         cell.font = { bold: true, color: { argb: "FFC62828" }, size: 11 };
+      } else {
+        cell.value = "OK";
+        cell.font = { bold: true, color: { argb: "FF2E7D32" }, size: 9 };
       }
     });
   });
