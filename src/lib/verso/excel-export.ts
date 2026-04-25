@@ -61,15 +61,10 @@ function formatarDataBR(iso: string): string {
   }
 }
 
-function dataUrlParaArrayBuffer(dataUrl: string): ArrayBuffer | null {
+function dataUrlParaBase64(dataUrl: string): string | null {
   try {
-    const base64 = dataUrl.split(",")[1];
-    if (!base64) return null;
-    const bin = atob(base64);
-    const buf = new ArrayBuffer(bin.length);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
-    return buf;
+    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+    return base64?.trim() || null;
   } catch {
     return null;
   }
@@ -134,9 +129,9 @@ function inserirImagem(
   dataUrl: string,
   opts: { centralizar?: boolean; larguraFracao?: number; alturaFracao?: number } = {},
 ): void {
-  const buf = dataUrlParaArrayBuffer(dataUrl);
-  if (!buf) return;
-  const id = wb.addImage({ buffer: buf, extension: "png" });
+  const base64 = dataUrlParaBase64(dataUrl);
+  if (!base64) return;
+  const id = wb.addImage({ base64, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
   const m2 = /^([A-Z]+)(\d+)$/.exec(b);
