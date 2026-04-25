@@ -530,7 +530,23 @@ function coletarObservacoesPorTurno(
 
   for (const o of observacoesEspelho) {
     const turno = turnoDaObservacaoEspelho(o);
-    addItemObs(turno, formatarLinhaObservacao(o));
+    const itemLimpeza = /item\s+(\d+)/i.exec(o.origemLabel)?.[1]
+      ?? /item(\d+)/i.exec(o.origemCodigo)?.[1];
+    const defLimpeza = itemLimpeza
+      ? LIMPEZA_ITENS_DEF.find((d) => d.codigo === Number(itemLimpeza))
+      : null;
+    addObsVerso({
+      turno,
+      operador: (o.registradoPorLogin || o.registradoPorNome || "—").trim(),
+      tipo: o.origemTipo === "ptp" ? "PTP" : "Limpeza",
+      item: o.origemTipo === "ptp"
+        ? o.origemCodigo
+        : itemLimpeza
+          ? `${itemLimpeza} - ${defLimpeza ? `${defLimpeza.grupo} / ${defLimpeza.secao}` : "Item"}`
+          : o.origemCodigo,
+      observacao: o.texto,
+      horario: formatarHoraBR(o.registradoEm),
+    });
   }
 
   // Ordem fixa: Dia → Noite → 3º
