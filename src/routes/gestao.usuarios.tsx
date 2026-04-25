@@ -62,9 +62,17 @@ import {
 import {
   alterarStatusUsuario,
   criarUsuario,
+  desativarELiberarLogin,
   editarUsuario,
   listarUsuarios,
+  trocarSenhaUsuario,
 } from "@/lib/usuarios/usuarios.functions";
+
+const HIERARQUIAS_ADMIN: ReadonlyArray<Hierarquia> = [
+  "desenvolvedor",
+  "gerente",
+  "coordenador",
+];
 
 export const Route = createFileRoute("/gestao/usuarios")({
   head: () => ({
