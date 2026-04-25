@@ -105,6 +105,18 @@ export async function insertItSessao(
   sessao: SessaoIt,
   extras?: ExtrasSessao,
 ): Promise<void> {
+  const diag = validarContextoTelemetria(sessao.contexto, "insertItSessao");
+  // Se não há user_id válido, não persiste — evita poluir tabela com linhas
+  // sem dono e que vão furar agregações por operador. Diagnóstico já logado.
+  if (!temUserIdValido(sessao.contexto)) {
+    if (diag.nivel === "erro" && typeof console !== "undefined") {
+      console.error(
+        "[it-telemetria][insertItSessao] sessão descartada por falta de user_id",
+        { sessao_id: sessao.id, documento: sessao.documento },
+      );
+    }
+    return;
+  }
   const { error } = await (supabase.from as any)("it_consulta_sessoes")
     .insert(sessaoToRow(sessao, extras));
   if (error) throw error;
@@ -130,6 +142,20 @@ export async function insertItEvento(
   evento: EventoIt,
   extras?: ExtrasEvento,
 ): Promise<void> {
+  const diag = validarContextoTelemetria(evento.contexto, "insertItEvento");
+  if (!temUserIdValido(evento.contexto)) {
+    if (diag.nivel === "erro" && typeof console !== "undefined") {
+      console.error(
+        "[it-telemetria][insertItEvento] evento descartado por falta de user_id",
+        {
+          sessao_id: evento.sessao_id,
+          tipo_evento: evento.tipo_evento,
+          documento: evento.documento,
+        },
+      );
+    }
+    return;
+  }
   const { error } = await (supabase.from as any)("it_consulta_eventos")
     .insert(eventoToRow(evento, extras));
   if (error) throw error;
