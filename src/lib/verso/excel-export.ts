@@ -218,9 +218,16 @@ async function inserirImagem(
   dataUrl: string,
   opts: InserirImagemOpts = {},
 ): Promise<void> {
-  const base64 = dataUrlParaBase64Limpo(await recortarAssinaturaParaExcel(dataUrl));
-  if (!base64) return;
-  const id = wb.addImage({ base64, extension: "png" });
+  const recortada = await recortarAssinaturaParaExcel(dataUrl);
+  const base64 = dataUrlParaBase64Limpo(recortada);
+  if (!base64) {
+    console.warn("[verso/excel] assinatura sem base64 válido — pulando.");
+    return;
+  }
+  const bytes = base64ParaBytes(base64);
+  if (!bytes) return;
+  // Usar buffer (Uint8Array) é mais confiável no browser que passar base64 direto.
+  const id = wb.addImage({ buffer: bytes as unknown as ExcelJS.Buffer, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
   const m2 = /^([A-Z]+)(\d+)$/.exec(b);
@@ -232,26 +239,17 @@ async function inserirImagem(
   const totalCols = c2 - c1 + 1;
   const totalRows = r2 - r1 + 1;
 
-  if (opts.centralizar) {
-    const lf = opts.larguraFracao ?? 0.6;
-    const af = opts.alturaFracao ?? 0.85;
-    const padX = opts.inicioXFracao ?? (1 - lf) / 2;
-    const padY = opts.inicioYFracao ?? (1 - af) / 2;
-    const tlCol = c1 - 1 + totalCols * padX;
-    const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
-    const tlRow = r1 - 1 + totalRows * padY;
-    const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
-    ws.addImage(id, {
-      tl: { col: tlCol, row: tlRow },
-      br: { col: brCol, row: brRow },
-      editAs: "oneCell",
-    } as unknown as Parameters<typeof ws.addImage>[1]);
-    return;
-  }
-
+  const lf = opts.larguraFracao ?? 0.9;
+  const af = opts.alturaFracao ?? 0.9;
+  const padX = opts.inicioXFracao ?? (1 - lf) / 2;
+  const padY = opts.inicioYFracao ?? (1 - af) / 2;
+  const tlCol = c1 - 1 + totalCols * padX;
+  const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
+  const tlRow = r1 - 1 + totalRows * padY;
+  const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
   ws.addImage(id, {
-    tl: { col: c1 - 1 + 0.1, row: r1 - 1 + 0.15 },
-    br: { col: c2 - 1 + (c2 - c1 + 1) - 0.1, row: r2 - 1 + (r2 - r1 + 1) - 0.1 },
+    tl: { col: tlCol, row: tlRow },
+    br: { col: brCol, row: brRow },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
 }
