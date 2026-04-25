@@ -567,6 +567,14 @@ export function gerarVersoWorksheet(
     if (t.observacao && t.observacao.trim()) {
       linhasObs.push(`[Limpeza ${rotuloTurnoCurto(t.turno)}] ${t.observacao.trim()}`);
     }
+    for (const item of t.itens) {
+      if (item.status !== "nao_realizado") continue;
+      const texto = (item.observacao ?? "").trim();
+      if (!texto) continue;
+      linhasObs.push(
+        `[Limpeza ${rotuloTurnoCurto(t.turno)} item ${item.codigo} NR] ${texto}`,
+      );
+    }
   }
   cellObs.value = linhasObs.length
     ? linhasObs.join("\n\n")
