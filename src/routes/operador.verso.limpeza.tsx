@@ -276,6 +276,7 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
         observacao:
           i.status === "nao_realizado" ? (i.observacao ?? "").trim() : null,
       }));
+      const nomeOperador = (usuario.nome || "").trim() || "Operador";
       const payload: LimpezaTurno = {
         ...turno,
         itens: itensNorm,
@@ -284,11 +285,11 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
         // Se já estava validado e o operador editou, limpar validação do líder.
         status: "aguardando_validacao",
         operadorLogin: usuario.usuario,
-        operadorNome: "Operador",
+        operadorNome: nomeOperador,
         operadorUserId: usuario.userId ?? turno.operadorUserId ?? null,
         assinaturaOperador: {
           dataUrl: assinaturaOp,
-          nome: "Operador",
+          nome: nomeOperador,
           assinadoEm: agora,
         },
         operadorAssinouEm: agora,

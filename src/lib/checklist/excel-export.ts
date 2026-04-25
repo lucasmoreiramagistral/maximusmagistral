@@ -7,6 +7,7 @@ import type {
   RespostaItem,
   Turno,
 } from "./types";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 // Template Excel FM09 embutido como base64 no bundle JS.
 // Garante que funcione em QUALQUER ambiente (preview, .lovable.app, custom domain)
 // sem depender de fetch HTTP nem do asset ser servido estaticamente pelo host.
@@ -16,6 +17,7 @@ import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
+import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF } from "@/lib/verso/constants";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
@@ -337,10 +339,19 @@ interface ObsGrupo {
 }
 
 /** Coleta observações agrupadas por turno e separadas em itens × anomalias.
- *  USA APENAS os dados atuais da folha/checklist — nunca histórico de auditoria. */
+ *  USA APENAS os dados atuais da folha/checklist — nunca histórico de auditoria.
+ *
+ *  Inclui também (opcional):
+ *   - observações por ITEM da Limpeza (status = "nao_realizado") por turno;
+ *   - observações de cada JANELA do PTP (mapeadas para o turno que cobre a janela).
+ */
 function coletarObservacoesPorTurno(
   checklists: Checklist[],
   anomalias: Anomalia[],
+  verso?: {
+    ptpJanelas?: PtpJanela[];
+    limpezaTurnos?: LimpezaTurno[];
+  },
 ): ObsGrupo[] {
   const mapa = new Map<Turno, ObsGrupo>();
 
@@ -385,6 +396,54 @@ function coletarObservacoesPorTurno(
     if (!pertence) continue;
     const grupo = getGrupo(a.turno);
     grupo.anomalias.push(textoAnomalia(a));
+  }
+
+  // ─── Limpeza: 1 entrada por item NR com observação ──────────────────
+  const limpezaTurnos = verso?.limpezaTurnos ?? [];
+  for (const lt of limpezaTurnos) {
+    if (lt.status === "pendente" || lt.status === "rascunho") continue;
+    const grupo = getGrupo(lt.turno);
+    for (const it of lt.itens) {
+      if (it.status !== "nao_realizado") continue;
+      const texto = (it.observacao ?? "").trim();
+      const def = LIMPEZA_ITENS_DEF.find((d) => d.codigo === it.codigo);
+      const rotulo = def ? `${def.grupo} — ${def.secao}` : `Item ${it.codigo}`;
+      const linha = texto
+        ? `Limpeza ${it.codigo} (${rotulo}) — Não realizado: ${texto}`
+        : `Limpeza ${it.codigo} (${rotulo}) — Não realizado`;
+      grupo.itens.push(linha);
+    }
+  }
+
+  // ─── PTP: 1 entrada por janela com observação ──────────────────────
+  const ptpJanelas = verso?.ptpJanelas ?? [];
+  if (ptpJanelas.length > 0) {
+    // Mapeia janelaCodigo → turno (primeiro turno que cobre aquela janela).
+    const turnosPossiveis: Turno[] = [
+      "12x36 Dia",
+      "12x36 Noite",
+      "Comercial",
+      "1º Turno",
+      "2º Turno",
+      "3º Turno",
+    ];
+    const turnoDeJanela = new Map<string, Turno>();
+    for (const t of turnosPossiveis) {
+      for (const codigo of janelasPtpDoTurno(t, null as never)) {
+        if (!turnoDeJanela.has(codigo)) turnoDeJanela.set(codigo, t);
+      }
+    }
+    for (const j of ptpJanelas) {
+      if (j.statusJanela === "pendente" || j.statusJanela === "rascunho") continue;
+      const texto = (j.observacao ?? "").trim();
+      if (!texto) continue;
+      const turno = turnoDeJanela.get(j.janelaCodigo);
+      if (!turno) continue;
+      const grupo = getGrupo(turno);
+      grupo.itens.push(
+        `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
+      );
+    }
   }
 
   // Ordem fixa: Dia → Noite → 3º
@@ -629,7 +688,16 @@ export async function exportarTurnoExcel(
     preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
   }
 
-  const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
+  // Carrega verso (PTP + Limpeza) do dia para incluir obs do verso nas Observações.
+  const verso = await carregarVersoDoDia(folha).catch(() => ({
+    ptpJanelas: [],
+    limpezaTurnos: [],
+  }));
+  const versoTurno = {
+    ptpJanelas: verso.ptpJanelas,
+    limpezaTurnos: verso.limpezaTurnos.filter((lt) => lt.turno === turno),
+  };
+  const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   const segmentos = montarSegmentosObservacoes(grupos);
   preencherObservacoesSegmentadas(ws, segmentos);
 
@@ -679,7 +747,15 @@ export async function exportarFolhaDiaExcel(
     todosChecklistsConcluidos.push(...concluidos);
   }
 
-  const grupos = coletarObservacoesPorTurno(todosChecklistsConcluidos, anomalias);
+  const verso = await carregarVersoDoDia(folhaAtual).catch(() => ({
+    ptpJanelas: [],
+    limpezaTurnos: [],
+  }));
+  const grupos = coletarObservacoesPorTurno(
+    todosChecklistsConcluidos,
+    anomalias,
+    verso,
+  );
   const segmentos = montarSegmentosObservacoes(grupos);
   preencherObservacoesSegmentadas(ws, segmentos);
 
@@ -729,11 +805,16 @@ export async function exportarTurnoComVersoExcel(
   const checklistAss = checklistComAssinaturas(concluidos);
   if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
 
-  const grupos = coletarObservacoesPorTurno(concluidos, anomalias);
+  // Carrega verso antes para reaproveitar nas Observações da frente.
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
+  const versoTurno = {
+    ptpJanelas,
+    limpezaTurnos: limpezaTurnos.filter((lt) => lt.turno === turno),
+  };
+  const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO (filtrada pelo turno)
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
   gerarVersoWorksheet(wb, {
     dataOperacao: folha.contexto.data,
     ptpJanelas,
@@ -782,11 +863,16 @@ export async function exportarFrenteVersoCompletoExcel(
     todosChecklistsConcluidos.push(...concluidos);
   }
 
-  const grupos = coletarObservacoesPorTurno(todosChecklistsConcluidos, anomalias);
+  // Carrega verso antes para reaproveitar nas Observações da frente.
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
+  const grupos = coletarObservacoesPorTurno(
+    todosChecklistsConcluidos,
+    anomalias,
+    { ptpJanelas, limpezaTurnos },
+  );
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO completa (sem filtro de turno)
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
   gerarVersoWorksheet(wb, {
     dataOperacao: folhaAtual.contexto.data,
     ptpJanelas,
