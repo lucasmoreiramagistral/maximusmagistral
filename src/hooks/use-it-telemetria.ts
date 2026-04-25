@@ -173,6 +173,15 @@ export function useItTelemetria(
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
+        // Guarda de integridade: sem user_id válido, não emite evento.
+        // Isso evita linhas órfãs no banco e mantém precisão da Inteligência das ITs.
+        if (!temUserIdValido(contextoRef.current)) {
+          validarContextoTelemetria(
+            contextoRef.current,
+            `trackEvento:${tipo}`,
+          );
+          return;
+        }
         const evento: EventoIt = {
           sessao_id: sessao.id,
           documento: sessao.documento,
