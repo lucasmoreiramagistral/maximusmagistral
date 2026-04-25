@@ -421,6 +421,7 @@ export function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
+  const LINHA_VISTO_ASSINATURA = 16;
   ws.mergeCells(`B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -441,21 +442,27 @@ export function gerarVersoWorksheet(
       return;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    cell.value = nome ? `Visto: ${nome}` : "Visto:";
-    cell.font = { size: 7 };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
+    cell.value = nome && !temAssinatura ? `Visto: ${nome}` : "Visto:";
+    cell.font = { size: 7, bold: temAssinatura };
+    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl, {
+      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.85,
-        alturaFracao: 0.7,
+        larguraFracao: 0.9,
+        alturaFracao: 0.92,
       });
+      const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
+      sigCell.value = nome || null;
+      sigCell.font = { size: 6, color: { argb: "FF444444" } };
+      sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
     }
   });
-  ws.getRow(LINHA_VISTO).height = 38;
+  ws.getRow(LINHA_VISTO).height = 16;
+  ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
 
-  aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
+  aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
 
   // ─── Linha 17 — Cabeçalho LIMPEZA ────────────────────────────────
   const LIMPEZA_INI = 17;
