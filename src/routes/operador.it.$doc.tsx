@@ -187,25 +187,8 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
 
   if (loading || !usuario) return <TelaCarregando />;
 
-  // Gate de identidade: bloqueia o viewer até o operador se identificar
-  if (!identidadePronta) {
-    if (identidade && semTreinamento && !verificandoAta) {
-      return <SemTreinamentoBloqueio nome={identidade.nomeCompleto} tituloIt={tituloIt} />;
-    }
-    return (
-      <div className="min-h-screen bg-background">
-        <AppHeader titulo={tituloIt} voltarPara="/operador/it" />
-        <div className="flex min-h-[60vh] items-center justify-center px-4">
-          <p className="text-center text-sm text-muted-foreground">
-            {verificandoAta
-              ? "Verificando treinamento..."
-              : "Aguardando identificação do operador..."}
-          </p>
-        </div>
-        {modalIdentidade}
-      </div>
-    );
-  }
+  // Sem mais gate de identidade — o operador já está autenticado.
+  // A ata de treinamento é controle separado (não bloqueia leitura da IT).
 
   // Estado de carregamento do manifest
   if (itDoc.status === "loading" || itDoc.status === "idle") {
