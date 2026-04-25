@@ -61,12 +61,72 @@ function formatarDataBR(iso: string): string {
   }
 }
 
-function dataUrlParaBase64(dataUrl: string): string | null {
+function normalizarDataUrlImagem(dataUrl: string): string | null {
   try {
-    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
-    return base64?.trim() || null;
+    const valor = dataUrl.trim();
+    if (!valor) return null;
+    return valor.startsWith("data:image/") ? valor : `data:image/png;base64,${valor}`;
   } catch {
     return null;
+  }
+}
+
+async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
+  const normalizada = normalizarDataUrlImagem(dataUrl);
+  if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
+    return normalizada ?? dataUrl;
+  }
+
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = normalizada;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx || canvas.width === 0 || canvas.height === 0) return normalizada;
+    ctx.drawImage(img, 0, 0);
+    const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const alpha = data[i + 3];
+        const escuro = data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245;
+        if (alpha > 12 && escuro) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) return normalizada;
+
+    const pad = Math.max(8, Math.round(Math.max(maxX - minX, maxY - minY) * 0.12));
+    const sx = Math.max(0, minX - pad);
+    const sy = Math.max(0, minY - pad);
+    const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
+    const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
+    const out = document.createElement("canvas");
+    out.width = sw;
+    out.height = sh;
+    const outCtx = out.getContext("2d");
+    if (!outCtx) return normalizada;
+    outCtx.fillStyle = "#ffffff";
+    outCtx.fillRect(0, 0, sw, sh);
+    outCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return out.toDataURL("image/png");
+  } catch {
+    return normalizada;
   }
 }
 
@@ -130,14 +190,14 @@ interface InserirImagemOpts {
   inicioYFracao?: number;
 }
 
-function inserirImagem(
+async function inserirImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
   opts: InserirImagemOpts = {},
-): void {
-  const base64 = dataUrlParaBase64(dataUrl);
+): Promise<void> {
+  const base64 = await recortarAssinaturaParaExcel(dataUrl);
   if (!base64) return;
   const id = wb.addImage({ base64, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
@@ -185,10 +245,10 @@ interface GerarVersoOpts {
 
 /** Adiciona uma worksheet "ENCHEDORA L3" ao workbook e a preenche fielmente
  *  ao layout oficial v3. Retorna a worksheet criada. */
-export function gerarVersoWorksheet(
+export async function gerarVersoWorksheet(
   wb: ExcelJS.Workbook,
   opts: GerarVersoOpts,
-): ExcelJS.Worksheet {
+): Promise<ExcelJS.Worksheet> {
   const ws = wb.addWorksheet(VERSO_SHEET_NAME, {
     pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true },
   });
@@ -388,7 +448,7 @@ export function gerarVersoWorksheet(
     pattern: "solid",
     fgColor: { argb: "FFFFF8E1" },
   };
-  PTP_JANELAS.forEach((j) => {
+  for (const j of PTP_JANELAS) {
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_ANGULO, colNum);
     cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -402,22 +462,22 @@ export function gerarVersoWorksheet(
     const codigosTurno = opts.turnoFiltro
       ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
       : null;
-    if (codigosTurno && !codigosTurno.includes(j.codigo)) return;
-    if (!janela) return;
+    if (codigosTurno && !codigosTurno.includes(j.codigo)) continue;
+    if (!janela) continue;
     if (janela.statusJanela === "nao_rodou") {
       cell.value = "NR";
       cell.font = { italic: true, color: { argb: "FF777777" }, bold: true };
-      return;
+      continue;
     }
     const ang = janela.analiseAngulo;
-    if (!ang) return;
+    if (!ang) continue;
     const v1 = ang.v1Realizada ? 1 : 0;
     const v2 = ang.v2Realizada ? 1 : 0;
     const total = v1 + v2;
-    if (total === 0) return;
+    if (total === 0) continue;
     cell.value = total === 2 ? "✓✓" : "✓";
     cell.font = { bold: true, color: { argb: "FF1565C0" }, size: 11 };
-  });
+  }
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
@@ -428,7 +488,7 @@ export function gerarVersoWorksheet(
     "Operador(a), assinar a cada preenchimento e anotar observações no verso quando necessário.";
   cellVisto.font = { italic: true, size: 8 };
   cellVisto.alignment = { wrapText: true, vertical: "middle", indent: 1 };
-  PTP_JANELAS.forEach((j) => {
+  for (const j of PTP_JANELAS) {
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_VISTO, colNum);
     const janela = opts.ptpJanelas.find((x) => x.janelaCodigo === j.codigo);
@@ -439,7 +499,7 @@ export function gerarVersoWorksheet(
       cell.value = "Visto:";
       cell.font = { size: 7 };
       cell.alignment = { horizontal: "center", vertical: "middle" };
-      return;
+      continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
     const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
@@ -448,17 +508,17 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
+      await inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.9,
-        alturaFracao: 0.92,
+        larguraFracao: 0.98,
+        alturaFracao: 0.88,
       });
       const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
       sigCell.value = nome || null;
       sigCell.font = { size: 6, color: { argb: "FF444444" } };
       sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
     }
-  });
+  }
   ws.getRow(LINHA_VISTO).height = 16;
   ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
 
@@ -613,7 +673,7 @@ export function gerarVersoWorksheet(
   ws.getCell(`B${LINHA_ASSIN_LIDER}`).font = { bold: true, size: 9 };
   ws.getCell(`B${LINHA_ASSIN_LIDER}`).alignment = { horizontal: "right", vertical: "middle" };
 
-  blocosLider.forEach(({ turno, range }) => {
+  for (const { turno, range } of blocosLider) {
     const [a, b] = range.split(":");
     const m1 = /^([A-Z]+)(\d+)$/.exec(a)!;
     const m2 = /^([A-Z]+)(\d+)$/.exec(b)!;
@@ -629,13 +689,13 @@ export function gerarVersoWorksheet(
     cell.font = { size: 9 };
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
+      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.55,
-        alturaFracao: 0.7,
+        larguraFracao: 0.78,
+        alturaFracao: 0.76,
       });
     }
-  });
+  }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
@@ -659,12 +719,12 @@ export function gerarVersoWorksheet(
     cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
     cell.border = BORDA_FINA;
     if (lt.assinaturaOperador?.dataUrl) {
-      inserirImagem(
+      await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.9, alturaFracao: 0.72, inicioYFracao: 0.05 },
+        { centralizar: true, larguraFracao: 0.98, alturaFracao: 0.82, inicioYFracao: 0.02 },
       );
     }
   }
