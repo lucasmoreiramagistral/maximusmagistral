@@ -71,7 +71,36 @@ async function assertAdminGestao(userId: string): Promise<void> {
   }
   if (!data.active) {
     throw new Response("Forbidden: usuário inativo", { status: 403 });
+}
+
+/**
+ * Verifica se o chamador é gestão ativo E tem hierarquia administrativa
+ * (desenvolvedor/gerente/coordenador). Usado para ações destrutivas:
+ * desativar usuário e desativar-e-liberar-login.
+ */
+async function assertAdminHierarquia(userId: string): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from("profiles")
+    .select("active, perfil, hierarquia" as string)
+    .eq("id", userId)
+    .maybeSingle<{ active: boolean; perfil: string; hierarquia: string }>();
+
+  if (error || !data) {
+    throw new Response("Forbidden: profile não encontrado", { status: 403 });
   }
+  if (!data.active) {
+    throw new Response("Forbidden: usuário inativo", { status: 403 });
+  }
+  if (data.perfil !== "gestao") {
+    throw new Response("Forbidden: apenas usuários de gestão", { status: 403 });
+  }
+  if (!HIERARQUIAS_ADMIN.includes(data.hierarquia as (typeof HIERARQUIAS_ADMIN)[number])) {
+    throw new Response(
+      "Forbidden: apenas desenvolvedor, gerente ou coordenador",
+      { status: 403 },
+    );
+  }
+}
   if (data.perfil !== "gestao") {
     throw new Response("Forbidden: apenas usuários de gestão", { status: 403 });
   }
