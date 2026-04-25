@@ -71,6 +71,13 @@ function normalizarDataUrlImagem(dataUrl: string): string | null {
   }
 }
 
+function dataUrlParaBase64Limpo(dataUrl: string): string | null {
+  const normalizada = normalizarDataUrlImagem(dataUrl);
+  if (!normalizada) return null;
+  const partes = normalizada.split(",");
+  return (partes.length > 1 ? partes[1] : normalizada).trim() || null;
+}
+
 async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
   const normalizada = normalizarDataUrlImagem(dataUrl);
   if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
@@ -197,7 +204,7 @@ async function inserirImagem(
   dataUrl: string,
   opts: InserirImagemOpts = {},
 ): Promise<void> {
-  const base64 = await recortarAssinaturaParaExcel(dataUrl);
+  const base64 = dataUrlParaBase64Limpo(await recortarAssinaturaParaExcel(dataUrl));
   if (!base64) return;
   const id = wb.addImage({ base64, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
