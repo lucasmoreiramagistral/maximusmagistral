@@ -36,9 +36,6 @@ function ChecklistPage() {
 
   const [erroGlobal, setErroGlobal] = useState("");
   const [itensComErro, setItensComErro] = useState<Set<number>>(new Set());
-  // Decisão NC por itemNumero (estável caso a ordem mude)
-  const [decisoesNC, setDecisoesNC] = useState<Record<number, DecisaoNC>>({});
-  const [abrindoAnomaliaItem, setAbrindoAnomaliaItem] = useState<number | null>(null);
   const [modoEdicao, setModoEdicao] = useState(false);
 
   // Indicador de salvamento: "idle" | "saving" | "saved"
