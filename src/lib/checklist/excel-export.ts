@@ -20,7 +20,6 @@ import {
 import { versoStorage } from "@/lib/verso/storage";
 import {
   fetchObservacoesVerso,
-  formatarLinhaObservacao,
   type ObservacaoVerso,
 } from "@/lib/verso/observacoes";
 import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
@@ -380,6 +379,16 @@ interface ObsGrupo {
   turno: Turno;
   itens: string[];
   anomalias: string[];
+  verso: ObsVersoExcel[];
+}
+
+interface ObsVersoExcel {
+  turno: Turno;
+  operador: string;
+  tipo: "PTP" | "Limpeza";
+  item: string;
+  observacao: string;
+  horario: string;
 }
 
 /** Coleta observações agrupadas por turno e separadas em itens × anomalias.
@@ -403,7 +412,7 @@ function coletarObservacoesPorTurno(
   function getGrupo(t: Turno): ObsGrupo {
     let g = mapa.get(t);
     if (!g) {
-      g = { turno: t, itens: [], anomalias: [] };
+      g = { turno: t, itens: [], anomalias: [], verso: [] };
       mapa.set(t, g);
     }
     return g;
@@ -414,6 +423,26 @@ function coletarObservacoesPorTurno(
     if (!limpo) return;
     const grupo = getGrupo(turnoBaseObservacao(t));
     if (!grupo.itens.includes(limpo)) grupo.itens.push(limpo);
+  }
+
+  function addObsVerso(obs: ObsVersoExcel): void {
+    const limpo = obs.observacao.trim();
+    if (!limpo) return;
+    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.tipo}|${obs.item}|${limpo}`;
+    const grupo = getGrupo(turnoBaseObservacao(obs.turno));
+    const existente = grupo.verso.find(
+      (o) => `${turnoBaseObservacao(o.turno)}|${o.tipo}|${o.item}|${o.observacao}` === chave,
+    );
+    if (existente) {
+      const operadorAtualGenerico = !existente.operador || existente.operador === "—" || existente.operador.toLowerCase() === "operador";
+      const operadorNovoValido = obs.operador && obs.operador !== "—";
+      if (operadorAtualGenerico && operadorNovoValido) {
+        existente.operador = obs.operador;
+      }
+      if ((!existente.horario || existente.horario === "—") && obs.horario) existente.horario = obs.horario;
+      return;
+    }
+    grupo.verso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
   }
 
   for (const c of checklists) {
@@ -462,11 +491,14 @@ function coletarObservacoesPorTurno(
       if (it.status !== "nao_realizado") continue;
       const texto = (it.observacao ?? "").trim();
       const def = LIMPEZA_ITENS_DEF.find((d) => d.codigo === it.codigo);
-      const rotulo = def ? `${def.grupo} — ${def.secao}` : `Item ${it.codigo}`;
-      const linha = texto
-        ? `Limpeza ${it.codigo} (${rotulo}) — Não realizado: ${texto}`
-        : `Limpeza ${it.codigo} (${rotulo}) — Não realizado`;
-      addItemObs(lt.turno, linha);
+      addObsVerso({
+        turno: lt.turno,
+        operador: (lt.operadorLogin || lt.operadorNome || "—").trim(),
+        tipo: "Limpeza",
+        item: `${it.codigo} - ${def ? `${def.grupo} / ${def.secao}` : it.descricao || "Item"}`,
+        observacao: texto || "Não realizado",
+        horario: formatarHoraBR(lt.updatedAt ?? lt.operadorAssinouEm ?? lt.createdAt),
+      });
     }
   }
 
@@ -494,21 +526,41 @@ function coletarObservacoesPorTurno(
       if (!texto) continue;
       const turno = turnoDeJanela.get(j.janelaCodigo);
       if (!turno) continue;
-      addItemObs(
+      addObsVerso({
         turno,
-        `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
-      );
+        operador: (j.operadorLogin || j.operadorNome || "—").trim(),
+        tipo: "PTP",
+        item: `${j.janelaCodigo} - ${j.janelaInicio} às ${j.janelaFim}`,
+        observacao: texto,
+        horario: formatarHoraBR(j.updatedAt ?? j.assinadoEm ?? j.createdAt),
+      });
     }
   }
 
   for (const o of observacoesEspelho) {
     const turno = turnoDaObservacaoEspelho(o);
-    addItemObs(turno, formatarLinhaObservacao(o));
+    const itemLimpeza = /item\s+(\d+)/i.exec(o.origemLabel)?.[1]
+      ?? /item(\d+)/i.exec(o.origemCodigo)?.[1];
+    const defLimpeza = itemLimpeza
+      ? LIMPEZA_ITENS_DEF.find((d) => d.codigo === Number(itemLimpeza))
+      : null;
+    addObsVerso({
+      turno,
+      operador: (o.registradoPorLogin || o.registradoPorNome || "—").trim(),
+      tipo: o.origemTipo === "ptp" ? "PTP" : "Limpeza",
+      item: o.origemTipo === "ptp"
+        ? o.origemCodigo
+        : itemLimpeza
+          ? `${itemLimpeza} - ${defLimpeza ? `${defLimpeza.grupo} / ${defLimpeza.secao}` : "Item"}`
+          : o.origemCodigo,
+      observacao: o.texto,
+      horario: formatarHoraBR(o.registradoEm),
+    });
   }
 
   // Ordem fixa: Dia → Noite → 3º
   const ordem: Turno[] = ["12x36 Dia", "12x36 Noite", "3º Turno"];
-  return ordem.map((t) => mapa.get(t)).filter((g): g is ObsGrupo => !!g && (g.itens.length + g.anomalias.length > 0));
+  return ordem.map((t) => mapa.get(t)).filter((g): g is ObsGrupo => !!g && (g.itens.length + g.anomalias.length + g.verso.length > 0));
 }
 
 function rotuloCurtoTurno(t: Turno): string {
@@ -523,6 +575,11 @@ function montarSegmentosObservacoes(grupos: ObsGrupo[]): string[] {
   const segmentos: string[] = [];
   for (const g of grupos) {
     const prefixo = `[${rotuloCurtoTurno(g.turno)}] `;
+    for (const o of g.verso) {
+      segmentos.push(
+        `Turno: ${rotuloCurtoTurno(o.turno)} | Operador: ${o.operador || "—"} | Tipo: ${o.tipo} | Item: ${o.item} | Obs: ${o.observacao} | Horário: ${o.horario || "—"}`,
+      );
+    }
     if (g.itens.length > 0) {
       segmentos.push(prefixo + g.itens.join(" • "));
     }

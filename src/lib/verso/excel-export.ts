@@ -307,9 +307,9 @@ export async function gerarVersoWorksheet(
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
   const widthsBS = [
     8, 6, 6, 18, 6, 6, // B..G — descrições
-    11, 11, 11, 11,    // H..K — janelas 1°T (J01..J04)
-    11, 11, 11, 13,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
-    13, 13, 11, 11,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
+    13, 13, 13, 13,    // H..K — janelas 1°T (J01..J04)
+    13, 13, 13, 16,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
+    16, 16, 13, 13,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
   ];
   widthsBS.forEach((w, i) => {
     ws.getColumn(i + 2).width = w;
@@ -474,12 +474,15 @@ export async function gerarVersoWorksheet(
         return;
       }
       // Defeitos: exibe quantidade real acumulada (>0). Se 0/sem ocorrência,
-      // célula vazia (não usar "X" e não multiplicar por 2).
+      // mostra OK conforme pedido da operação.
       const it = janela.itens.find((x) => x.codigo === itemDef.codigo);
       const qtd = it?.quantidade ?? 0;
       if (qtd > 0) {
         cell.value = qtd;
         cell.font = { bold: true, color: { argb: "FFC62828" }, size: 11 };
+      } else {
+        cell.value = "OK";
+        cell.font = { bold: true, color: { argb: "FF2E7D32" }, size: 9 };
       }
     });
   });
@@ -531,7 +534,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 118;
+  ws.getRow(LINHA_VISTO).height = 132;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -553,16 +556,16 @@ export async function gerarVersoWorksheet(
     }
     const nome = (janela?.assinaturaOperador?.nome || janela?.operadorNome || janela?.operadorLogin || "").trim();
     if (janela?.assinaturaOperador?.dataUrl) {
-      cell.value = nome ? `Visto..:\n${nome}` : "Visto..:";
-      cell.font = { size: 6, color: { argb: "FF333333" } };
-      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.value = "Visto:";
+      cell.font = { size: 7, bold: true, color: { argb: "FF333333" } };
+      cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
       const colLetra = colNumParaLetra(colNum);
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.98, alturaFracao: 0.68, inicioYFracao: 0.12 },
+        { larguraFracao: 1, alturaFracao: 0.76, inicioYFracao: 0.24 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -755,7 +758,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 92;
+  ws.getRow(LINHA_ASSIN_OP).height = 110;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -771,16 +774,15 @@ export async function gerarVersoWorksheet(
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
     const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
     if (temAssinatura) {
-      // Texto fica só com o nome embaixo; imagem ocupa a parte superior.
-      cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
-      cell.font = { size: 6, color: { argb: "FF444444" } };
+      cell.value = "Assin. Oper. →";
+      cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
+      cell.font = { size: 7, bold: true, color: { argb: "FF444444" } };
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 0.98, alturaFracao: 0.7, inicioYFracao: 0.04 },
+        { larguraFracao: 1, alturaFracao: 0.78, inicioYFracao: 0.2 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
