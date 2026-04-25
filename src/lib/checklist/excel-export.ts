@@ -20,7 +20,6 @@ import {
 import { versoStorage } from "@/lib/verso/storage";
 import {
   fetchObservacoesVerso,
-  formatarLinhaObservacao,
   type ObservacaoVerso,
 } from "@/lib/verso/observacoes";
 import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
