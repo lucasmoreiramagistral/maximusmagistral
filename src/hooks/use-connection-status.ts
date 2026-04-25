@@ -13,6 +13,13 @@ import {
   upsertLimpezaTurno,
   upsertPtpJanela,
 } from "@/lib/verso/supabase-storage";
+import {
+  labelLimpezaItem,
+  labelLimpezaTurno,
+  labelPtpJanela,
+  origemCodigoLimpezaItem,
+  upsertObservacaoVerso,
+} from "@/lib/verso/observacoes";
 import type {
   LimpezaEdicaoPayload,
   LimpezaTurno,
@@ -24,6 +31,7 @@ import {
   updateItSessaoFechamento,
 } from "@/lib/it/supabase-analytics";
 import type { EventoIt } from "@/lib/it/telemetria";
+import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FONTE ÚNICA DE VERDADE (singleton) para status de conexão + fila offline.
