@@ -434,7 +434,9 @@ function coletarObservacoesPorTurno(
       (o) => `${turnoBaseObservacao(o.turno)}|${o.tipo}|${o.item}|${o.observacao}` === chave,
     );
     if (existente) {
-      if ((!existente.operador || existente.operador === "—") && obs.operador && obs.operador !== "—") {
+      const operadorAtualGenerico = !existente.operador || existente.operador === "—" || existente.operador.toLowerCase() === "operador";
+      const operadorNovoValido = obs.operador && obs.operador !== "—";
+      if (operadorAtualGenerico && operadorNovoValido) {
         existente.operador = obs.operador;
       }
       if ((!existente.horario || existente.horario === "—") && obs.horario) existente.horario = obs.horario;
