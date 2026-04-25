@@ -17,6 +17,7 @@ import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
+import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF } from "@/lib/verso/constants";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
