@@ -531,6 +531,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
+  ws.getRow(LINHA_VISTO).height = 118;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -550,23 +551,24 @@ export async function gerarVersoWorksheet(
       cell.alignment = { horizontal: "center", vertical: "middle" };
       continue;
     }
-    const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
-    cell.font = { size: 7, bold: !!nome };
-    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    const nome = (janela?.assinaturaOperador?.nome || janela?.operadorNome || janela?.operadorLogin || "").trim();
     if (janela?.assinaturaOperador?.dataUrl) {
+      cell.value = nome ? `Visto..:\n${nome}` : "Visto..:";
+      cell.font = { size: 6, color: { argb: "FF333333" } };
+      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
       const colLetra = colNumParaLetra(colNum);
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.95, alturaFracao: 0.66, inicioYFracao: 0.3 },
+        { larguraFracao: 0.98, alturaFracao: 0.68, inicioYFracao: 0.12 },
       );
+    } else {
+      cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
+      cell.font = { size: 7, bold: !!nome };
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     }
-  }
-  if (!ws.getRow(LINHA_VISTO).height || ws.getRow(LINHA_VISTO).height! < 98) {
-    ws.getRow(LINHA_VISTO).height = 98;
   }
 
   aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
@@ -753,7 +755,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 64;
+  ws.getRow(LINHA_ASSIN_OP).height = 92;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
