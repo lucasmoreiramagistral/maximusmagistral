@@ -61,12 +61,72 @@ function formatarDataBR(iso: string): string {
   }
 }
 
-function dataUrlParaBase64(dataUrl: string): string | null {
+function normalizarDataUrlImagem(dataUrl: string): string | null {
   try {
-    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
-    return base64?.trim() || null;
+    const valor = dataUrl.trim();
+    if (!valor) return null;
+    return valor.startsWith("data:image/") ? valor : `data:image/png;base64,${valor}`;
   } catch {
     return null;
+  }
+}
+
+async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
+  const normalizada = normalizarDataUrlImagem(dataUrl);
+  if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
+    return normalizada ?? dataUrl;
+  }
+
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = normalizada;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth || img.width;
+    canvas.height = img.naturalHeight || img.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx || canvas.width === 0 || canvas.height === 0) return normalizada;
+    ctx.drawImage(img, 0, 0);
+    const { data, width, height } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const alpha = data[i + 3];
+        const escuro = data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245;
+        if (alpha > 12 && escuro) {
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x);
+          maxY = Math.max(maxY, y);
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) return normalizada;
+
+    const pad = Math.max(8, Math.round(Math.max(maxX - minX, maxY - minY) * 0.12));
+    const sx = Math.max(0, minX - pad);
+    const sy = Math.max(0, minY - pad);
+    const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
+    const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
+    const out = document.createElement("canvas");
+    out.width = sw;
+    out.height = sh;
+    const outCtx = out.getContext("2d");
+    if (!outCtx) return normalizada;
+    outCtx.fillStyle = "#ffffff";
+    outCtx.fillRect(0, 0, sw, sh);
+    outCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+    return out.toDataURL("image/png");
+  } catch {
+    return normalizada;
   }
 }
 
@@ -130,14 +190,14 @@ interface InserirImagemOpts {
   inicioYFracao?: number;
 }
 
-function inserirImagem(
+async function inserirImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
   opts: InserirImagemOpts = {},
-): void {
-  const base64 = dataUrlParaBase64(dataUrl);
+): Promise<void> {
+  const base64 = await recortarAssinaturaParaExcel(dataUrl);
   if (!base64) return;
   const id = wb.addImage({ base64, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
