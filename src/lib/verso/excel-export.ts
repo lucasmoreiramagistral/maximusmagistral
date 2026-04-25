@@ -758,7 +758,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 92;
+  ws.getRow(LINHA_ASSIN_OP).height = 110;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -774,16 +774,15 @@ export async function gerarVersoWorksheet(
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
     const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
     if (temAssinatura) {
-      // Texto fica só com o nome embaixo; imagem ocupa a parte superior.
-      cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
-      cell.font = { size: 6, color: { argb: "FF444444" } };
+      cell.value = "Assin. Oper. →";
+      cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
+      cell.font = { size: 7, bold: true, color: { argb: "FF444444" } };
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 0.98, alturaFracao: 0.7, inicioYFracao: 0.04 },
+        { larguraFracao: 1, alturaFracao: 0.78, inicioYFracao: 0.2 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
