@@ -230,6 +230,28 @@ function UsuariosPage() {
     }
   };
 
+  const confirmarLiberar = async () => {
+    if (!confirmLiberar) return;
+    setSalvandoLiberar(true);
+    try {
+      const res = await desativarELiberarLogin({ data: { id: confirmLiberar.id } });
+      if (!res.ok) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(
+        `Login "${res.loginLiberado}" liberado. Usuário desativado.`,
+      );
+      setConfirmLiberar(null);
+      void carregar();
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao liberar login");
+    } finally {
+      setSalvandoLiberar(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader titulo="Usuários" subtitulo="Cadastro · hierarquia · módulos" />
