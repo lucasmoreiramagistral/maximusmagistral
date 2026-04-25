@@ -281,6 +281,7 @@ const store = {
         edicao?: PtpEdicaoPayload | null;
       };
       await upsertPtpJanela(janela, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      await sincronizarObservacaoPtp(janela, edicao?.editadoPorLogin, edicao?.editadoPorNome);
       if (edicao) {
         try {
           await insertPtpEdicao(edicao);
@@ -295,6 +296,7 @@ const store = {
         edicao?: LimpezaEdicaoPayload | null;
       };
       await upsertLimpezaTurno(turno, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      await sincronizarObservacoesLimpeza(turno, edicao?.editadoPorLogin, edicao?.editadoPorNome);
       if (edicao) {
         try {
           await insertLimpezaEdicao(edicao);
