@@ -162,12 +162,25 @@ function preencherAssinaturaOperador(
   cellAss.alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
 }
 
-/** Converte data URL "data:image/png;base64,..." em ArrayBuffer (compatível com ExcelJS).  */
+/** Converte data URL "data:image/png;base64,..." em base64 limpo. */
 function dataUrlParaBase64(dataUrl: string): string | null {
   try {
     const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
     return base64?.trim() || null;
   } catch {
+    return null;
+  }
+}
+
+function base64ParaBytes(base64: string): Uint8Array | null {
+  try {
+    const limpo = base64.replace(/\s/g, "");
+    const bin = atob(limpo);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch (e) {
+    console.error("[checklist/excel] base64ParaBytes falhou:", e);
     return null;
   }
 }
@@ -182,7 +195,12 @@ function inserirAssinaturaImagem(
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
-  const imageId = wb.addImage({ base64, extension: "png" });
+  const bytes = base64ParaBytes(base64);
+  if (!bytes) return;
+  const imageId = wb.addImage({
+    buffer: bytes as unknown as ExcelJS.Buffer,
+    extension: "png",
+  });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
   const start = /^([A-Z]+)(\d+)$/.exec(startAddress);
   const end = /^([A-Z]+)(\d+)$/.exec(endAddress);
