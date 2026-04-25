@@ -123,9 +123,11 @@ function UsuariosPage() {
   const { usuario, loading: authLoading } = useGuard("gestao");
 
   // Acesso: qualquer pessoa que entra pela sessão gestão pode usar.
-  // (No futuro, restringir via has_modulo()/hierarquia quando o multi-módulo
-  //  estiver ligado no useGuard.)
+  // Cadastrar/editar/trocar senha = qualquer "gestao" ativo.
+  // Desativar/Reativar e "Desativar e liberar login" = só desenvolvedor/gerente/coordenador.
   const podeAdministrar = !!usuario;
+  const podeAdminHierarquia =
+    !!usuario?.hierarquia && HIERARQUIAS_ADMIN.includes(usuario.hierarquia);
 
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -135,9 +137,16 @@ function UsuariosPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [editando, setEditando] = useState<UsuarioRow | null>(null);
 
-  // Dialog de confirmação de status
+  // Dialog de confirmação de status (ativar/inativar)
   const [confirmStatus, setConfirmStatus] = useState<UsuarioRow | null>(null);
   const [salvandoStatus, setSalvandoStatus] = useState(false);
+
+  // Dialog de troca de senha
+  const [trocarSenhaUser, setTrocarSenhaUser] = useState<UsuarioRow | null>(null);
+
+  // Dialog de "desativar e liberar login"
+  const [confirmLiberar, setConfirmLiberar] = useState<UsuarioRow | null>(null);
+  const [salvandoLiberar, setSalvandoLiberar] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
