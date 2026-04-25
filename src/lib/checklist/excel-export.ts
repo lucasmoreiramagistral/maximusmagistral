@@ -158,16 +158,10 @@ function preencherAssinaturaOperador(
 }
 
 /** Converte data URL "data:image/png;base64,..." em ArrayBuffer (compatível com ExcelJS).  */
-function dataUrlParaArrayBuffer(dataUrl: string): ArrayBuffer | null {
+function dataUrlParaBase64(dataUrl: string): string | null {
   try {
-    const base64 = dataUrl.split(",")[1];
-    if (!base64) return null;
-    const bin = atob(base64);
-    const len = bin.length;
-    const buf = new ArrayBuffer(len);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < len; i++) view[i] = bin.charCodeAt(i);
-    return buf;
+    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+    return base64?.trim() || null;
   } catch {
     return null;
   }
@@ -181,9 +175,9 @@ function inserirAssinaturaImagem(
   rangeAddress: string,
   dataUrl: string,
 ): void {
-  const buf = dataUrlParaArrayBuffer(dataUrl);
-  if (!buf) return;
-  const imageId = wb.addImage({ buffer: buf, extension: "png" });
+  const base64 = dataUrlParaBase64(dataUrl);
+  if (!base64) return;
+  const imageId = wb.addImage({ base64, extension: "png" });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
   const start = /^([A-Z]+)(\d+)$/.exec(startAddress);
   const end = /^([A-Z]+)(\d+)$/.exec(endAddress);
@@ -310,6 +304,13 @@ function construirValorCelula(
   return "";
 }
 
+function turnoBaseObservacao(turno: Turno): Turno {
+  const col = colunaPosicionalDoTurno(turno) ?? 1;
+  if (col === 1) return "12x36 Dia";
+  if (col === 2) return "12x36 Noite";
+  return "3º Turno";
+}
+
 /** Monta texto de uma anomalia respeitando o estado atual real:
  *  - Aberta → "Anomalia HH:mm — Item X — descrição"
  *  - Em andamento → "Anomalia HH:mm — Em andamento — Item X — descrição"
@@ -365,7 +366,7 @@ function coletarObservacoesPorTurno(
   }
 
   for (const c of checklists) {
-    const grupo = getGrupo(c.contexto.turno);
+    const grupo = getGrupo(turnoBaseObservacao(c.contexto.turno));
     for (const r of c.respostas) {
       const obs = (r.observacao ?? "").trim();
       const isNC = r.resposta === "Não conforme";
@@ -394,7 +395,7 @@ function coletarObservacoesPorTurno(
         (a.folhaKey && a.folhaKey === c.folhaKey),
     );
     if (!pertence) continue;
-    const grupo = getGrupo(a.turno);
+    const grupo = getGrupo(turnoBaseObservacao(a.turno));
     grupo.anomalias.push(textoAnomalia(a));
   }
 
@@ -402,7 +403,7 @@ function coletarObservacoesPorTurno(
   const limpezaTurnos = verso?.limpezaTurnos ?? [];
   for (const lt of limpezaTurnos) {
     if (lt.status === "pendente" || lt.status === "rascunho") continue;
-    const grupo = getGrupo(lt.turno);
+    const grupo = getGrupo(turnoBaseObservacao(lt.turno));
     for (const it of lt.itens) {
       if (it.status !== "nao_realizado") continue;
       const texto = (it.observacao ?? "").trim();
@@ -439,7 +440,7 @@ function coletarObservacoesPorTurno(
       if (!texto) continue;
       const turno = turnoDeJanela.get(j.janelaCodigo);
       if (!turno) continue;
-      const grupo = getGrupo(turno);
+      const grupo = getGrupo(turnoBaseObservacao(turno));
       grupo.itens.push(
         `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
       );
