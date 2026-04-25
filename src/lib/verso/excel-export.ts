@@ -110,15 +110,15 @@ function dataUrlParaBase64Limpo(dataUrl: string): string | null {
 }
 
 /** Converte base64 em Uint8Array — mais confiável que passar base64 direto p/ o ExcelJS. */
-function base64ParaBytes(base64: string): Uint8Array | null {
+function base64ParaArrayBuffer(base64: string): ArrayBuffer | null {
   try {
     const limpo = base64.replace(/\s/g, "");
     const bin = atob(limpo);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes;
+    return bytes.buffer;
   } catch (e) {
-    console.error("[verso/excel] base64ParaBytes falhou:", e);
+    console.error("[verso/excel] base64ParaArrayBuffer falhou:", e);
     return null;
   }
 }
@@ -255,10 +255,11 @@ async function inserirImagem(
     console.warn("[verso/excel] assinatura sem base64 válido — pulando.");
     return;
   }
-  const bytes = base64ParaBytes(base64);
-  if (!bytes) return;
-  // Usar buffer (Uint8Array) é mais confiável no browser que passar base64 direto.
-  const id = wb.addImage({ buffer: bytes as unknown as ExcelJS.Buffer, extension: "png" });
+  const buffer = base64ParaArrayBuffer(base64);
+  if (!buffer) return;
+  // ArrayBuffer evita o bug em que o ExcelJS recebia Uint8Array e gerava um
+  // desenho vazio/sem a assinatura em alguns navegadores.
+  const id = wb.addImage({ buffer: buffer as unknown as ExcelJS.Buffer, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
   const m2 = /^([A-Z]+)(\d+)$/.exec(b);
@@ -306,9 +307,9 @@ export async function gerarVersoWorksheet(
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
   const widthsBS = [
     8, 6, 6, 18, 6, 6, // B..G — descrições
-    8, 8, 8, 8,        // H..K — janelas 1°T (J01..J04)
-    8, 8, 8, 8,        // L..O — janelas 2°T (J05..J08)
-    8, 8, 8, 8,        // P..S — janelas 3°T (J09..J12)
+    11, 11, 11, 11,    // H..K — janelas 1°T (J01..J04)
+    11, 11, 11, 13,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
+    13, 13, 11, 11,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
   ];
   widthsBS.forEach((w, i) => {
     ws.getColumn(i + 2).width = w;
