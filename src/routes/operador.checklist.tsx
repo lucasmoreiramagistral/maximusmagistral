@@ -400,7 +400,6 @@ function CardItem({
           icon={<CheckCircle2 className="h-6 w-6" />}
           ativo={resposta.resposta === "Conforme"}
           cor="success"
-          disabled={bloqueado || abrindoAnomalia}
           onClick={() => onResponder("Conforme")}
         />
         <BotaoResposta
@@ -408,7 +407,6 @@ function CardItem({
           icon={<XCircle className="h-6 w-6" />}
           ativo={resposta.resposta === "Não conforme"}
           cor="destructive"
-          disabled={bloqueado || abrindoAnomalia}
           onClick={() => onResponder("Não conforme")}
         />
         {def.permiteNA && (
@@ -417,7 +415,6 @@ function CardItem({
             icon={<MinusCircle className="h-6 w-6" />}
             ativo={resposta.resposta === "Não aplicável"}
             cor="na"
-            disabled={bloqueado || abrindoAnomalia}
             onClick={() => onResponder("Não aplicável")}
           />
         )}
@@ -456,7 +453,7 @@ function CardItem({
         </div>
       )}
 
-      {/* Não conforme — observação inline + decisão */}
+      {/* Não conforme — só observação obrigatória (≥ 3 chars) */}
       {resposta.resposta === "Não conforme" && (
         <div className="mt-4 rounded-xl border-2 border-destructive/40 bg-destructive-soft/40 p-3 md:p-4">
           <label className="text-sm font-bold text-destructive md:text-base">
@@ -465,64 +462,14 @@ function CardItem({
           <Textarea
             value={resposta.observacao}
             onChange={(e) => onAtualizar({ observacao: e.target.value })}
-            placeholder="Descreva a não conformidade"
+            placeholder="Descreva a não conformidade (mínimo 3 caracteres)"
             className="mt-1.5 min-h-[100px] text-base"
           />
           {resposta.observacao.trim().length > 0 && resposta.observacao.trim().length < 3 && (
             <p className="mt-2 text-xs font-semibold text-destructive">Mínimo 3 caracteres</p>
           )}
-
-          {resposta.observacao.trim().length >= 3 && !resposta.anomaliaId && (
-            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-              <button
-                type="button"
-                disabled={bloqueado || abrindoAnomalia}
-                onClick={() => onSetDecisao("observacao")}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all disabled:opacity-50",
-                  decisao === "observacao"
-                    ? "border-primary bg-primary-soft shadow-sm ring-2 ring-primary/30"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground md:text-base">
-                  <FileText className="h-5 w-5" /> Continuar só com observação
-                </span>
-                <span className="text-xs text-muted-foreground">Não abre anomalia formal</span>
-              </button>
-              <button
-                type="button"
-                disabled={bloqueado || abrindoAnomalia}
-                onClick={() => onSetDecisao("anomalia")}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all disabled:opacity-50",
-                  decisao === "anomalia"
-                    ? "border-warning bg-warning/25 shadow-sm ring-2 ring-warning/40"
-                    : "border-border bg-card hover:border-warning/50",
-                )}
-              >
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground md:text-base">
-                  <ClipboardList className="h-5 w-5" /> Registrar anomalia formal
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Quando exigir ação ou acompanhamento
-                </span>
-              </button>
-            </div>
-          )}
-
-          {decisao === "anomalia" && !resposta.anomaliaId && (
-            <div className="mt-3">
-              <Button
-                size="lg"
-                className="h-12 w-full bg-warning text-warning-foreground hover:bg-warning/90 md:w-auto"
-                onClick={onIrAnomalia}
-                disabled={bloqueado || abrindoAnomalia || resposta.observacao.trim().length < 3}
-              >
-                {abrindoAnomalia ? "Abrindo..." : "Ir para registro de anomalia →"}
-              </Button>
-            </div>
-          )}
+        </div>
+      )}
         </div>
       )}
 
