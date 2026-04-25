@@ -32,9 +32,13 @@ const PERFIS = ["operador", "gestao", "manutencao"] as const;
 
 const EMAIL_DOMAIN = "magistral.internal";
 
-// NOTA: Por decisão de produto, qualquer usuário autenticado com perfil
-// "gestao" pode administrar usuários. A validação fina por hierarquia
-// (desenvolvedor/gerente/coordenador) será reintroduzida em etapa futura.
+// REGRAS DE ACESSO (definidas pela coordenação):
+// - Cadastrar usuário     → qualquer "gestao" ativo (assertAdminGestao)
+// - Trocar senha          → qualquer "gestao" ativo (assertAdminGestao)
+// - Desativar/Reativar    → só desenvolvedor/gerente/coordenador (assertAdminHierarquia)
+// - Desativar e liberar   → só desenvolvedor/gerente/coordenador (assertAdminHierarquia)
+
+const HIERARQUIAS_ADMIN = ["desenvolvedor", "gerente", "coordenador"] as const;
 
 function normalizarLogin(login: string): string {
   return login
