@@ -863,11 +863,16 @@ export async function exportarFrenteVersoCompletoExcel(
     todosChecklistsConcluidos.push(...concluidos);
   }
 
-  const grupos = coletarObservacoesPorTurno(todosChecklistsConcluidos, anomalias);
+  // Carrega verso antes para reaproveitar nas Observações da frente.
+  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
+  const grupos = coletarObservacoesPorTurno(
+    todosChecklistsConcluidos,
+    anomalias,
+    { ptpJanelas, limpezaTurnos },
+  );
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO completa (sem filtro de turno)
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
   gerarVersoWorksheet(wb, {
     dataOperacao: folhaAtual.contexto.data,
     ptpJanelas,
