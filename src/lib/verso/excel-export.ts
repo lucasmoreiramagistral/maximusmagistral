@@ -521,25 +521,27 @@ export async function gerarVersoWorksheet(
       continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
-    cell.value = nome && !temAssinatura ? `Visto: ${nome}` : "Visto:";
-    cell.font = { size: 7, bold: temAssinatura };
-    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    // Sempre mostra "Visto: <nome>" na LINHA_VISTO; assinatura vai na linha de baixo.
+    cell.value = nome ? `Visto: ${nome}` : "Visto:";
+    cell.font = { size: 7, bold: !!nome };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      await inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.98,
-        alturaFracao: 0.88,
-      });
+      // Linha dedicada SÓ para a imagem — nada de texto que cubra.
       const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
-      sigCell.value = nome || null;
-      sigCell.font = { size: 6, color: { argb: "FF444444" } };
-      sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      sigCell.value = null;
+      sigCell.alignment = { horizontal: "center", vertical: "middle" };
+      await inserirImagem(
+        wb,
+        ws,
+        `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`,
+        janela.assinaturaOperador.dataUrl,
+        { larguraFracao: 0.95, alturaFracao: 0.95 },
+      );
     }
   }
-  ws.getRow(LINHA_VISTO).height = 16;
-  ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
+  ws.getRow(LINHA_VISTO).height = 18;
+  ws.getRow(LINHA_VISTO_ASSINATURA).height = 50;
 
   aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
 
