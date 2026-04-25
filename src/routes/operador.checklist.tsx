@@ -56,55 +56,10 @@ function ChecklistPage() {
     if (!rascunho) navigate({ to: "/operador" });
   }, [usuario, loading, rascunho, navigate]);
 
-  // Marca modo edição + trata retorno de anomalia (scroll até o card de origem)
+  // Marca modo edição
   useEffect(() => {
     if (typeof window === "undefined" || !rascunho) return;
     setModoEdicao(checklistEmEdicao() === rascunho.id);
-
-    const retornoRaw = window.sessionStorage.getItem(FLAG_RETORNO_ANOMALIA);
-    if (!retornoRaw) return;
-    try {
-      const retorno = JSON.parse(retornoRaw) as { checklistId: string; itemNumero: number };
-      window.sessionStorage.removeItem(FLAG_RETORNO_ANOMALIA);
-      if (retorno.checklistId !== rascunho.id) return;
-      // pequeno delay para garantir que o ref já está montado
-      setTimeout(() => {
-        const el = cardRefs.current[retorno.itemNumero];
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
-    } catch {
-      // ignora
-    }
-  }, [rascunho]);
-
-  // Recupera decisões NC já salvas (NC com observação ≥3 e sem anomaliaId → "observacao";
-  // NC com anomaliaId → "anomalia"). Garante consistência ao voltar.
-  // Recupera decisões NC já salvas a partir do rascunho persistido.
-  // Regra (sem campo extra no schema):
-  //   - NC com anomaliaId          → decisão "anomalia"
-  //   - NC com observação ≥ 3 chars → decisão "observacao" (operador já confirmou)
-  //   - caso contrário              → indefinida (operador ainda precisa escolher)
-  // Roda sempre que o rascunho muda (id ou conteúdo das respostas), para
-  // restaurar corretamente ao alternar entre momentos da mesma folha.
-  useEffect(() => {
-    if (!rascunho) return;
-    setDecisoesNC((prev) => {
-      const novo = { ...prev };
-      for (const r of rascunho.respostas) {
-        if (r.resposta !== "Não conforme") {
-          // limpa decisão se a resposta não é mais NC
-          if (novo[r.itemNumero]) delete novo[r.itemNumero];
-          continue;
-        }
-        if (r.anomaliaId) {
-          novo[r.itemNumero] = "anomalia";
-        } else if (r.observacao.trim().length >= 3 && !novo[r.itemNumero]) {
-          // tem observação válida e não há decisão na memória → assume "observacao"
-          novo[r.itemNumero] = "observacao";
-        }
-      }
-      return novo;
-    });
   }, [rascunho]);
 
   const itensDef: ItemChecklistDef[] = useMemo(() => {
