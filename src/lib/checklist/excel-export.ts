@@ -158,16 +158,10 @@ function preencherAssinaturaOperador(
 }
 
 /** Converte data URL "data:image/png;base64,..." em ArrayBuffer (compatível com ExcelJS).  */
-function dataUrlParaArrayBuffer(dataUrl: string): ArrayBuffer | null {
+function dataUrlParaBase64(dataUrl: string): string | null {
   try {
-    const base64 = dataUrl.split(",")[1];
-    if (!base64) return null;
-    const bin = atob(base64);
-    const len = bin.length;
-    const buf = new ArrayBuffer(len);
-    const view = new Uint8Array(buf);
-    for (let i = 0; i < len; i++) view[i] = bin.charCodeAt(i);
-    return buf;
+    const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
+    return base64?.trim() || null;
   } catch {
     return null;
   }
@@ -181,9 +175,9 @@ function inserirAssinaturaImagem(
   rangeAddress: string,
   dataUrl: string,
 ): void {
-  const buf = dataUrlParaArrayBuffer(dataUrl);
-  if (!buf) return;
-  const imageId = wb.addImage({ buffer: buf, extension: "png" });
+  const base64 = dataUrlParaBase64(dataUrl);
+  if (!base64) return;
+  const imageId = wb.addImage({ base64, extension: "png" });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
   const start = /^([A-Z]+)(\d+)$/.exec(startAddress);
   const end = /^([A-Z]+)(\d+)$/.exec(endAddress);
