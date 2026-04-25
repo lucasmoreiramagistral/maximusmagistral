@@ -390,6 +390,13 @@ function coletarObservacoesPorTurno(
     return g;
   }
 
+  function addItemObs(t: Turno, texto: string): void {
+    const limpo = texto.trim();
+    if (!limpo) return;
+    const grupo = getGrupo(turnoBaseObservacao(t));
+    if (!grupo.itens.includes(limpo)) grupo.itens.push(limpo);
+  }
+
   for (const c of checklists) {
     const grupo = getGrupo(turnoBaseObservacao(c.contexto.turno));
     for (const r of c.respostas) {
@@ -425,15 +432,13 @@ function coletarObservacoesPorTurno(
   }
 
   const observacoesEspelho = verso?.observacoesVerso ?? [];
-  const usarEspelhoVerso = observacoesEspelho.length > 0;
 
   // ─── Limpeza: 1 entrada por item NR com observação ──────────────────
-  // Se a tabela-espelho oficial já tem observações, ela é a fonte da frente;
-  // os dados brutos abaixo ficam apenas como fallback para histórico não espelhado.
+  // Lê SEMPRE dos dados brutos e também do espelho oficial: isso evita perder
+  // observações antigas quando o espelho estiver incompleto/parcial.
   const limpezaTurnos = verso?.limpezaTurnos ?? [];
-  for (const lt of usarEspelhoVerso ? [] : limpezaTurnos) {
+  for (const lt of limpezaTurnos) {
     if (lt.status === "pendente" || lt.status === "rascunho") continue;
-    const grupo = getGrupo(turnoBaseObservacao(lt.turno));
     for (const it of lt.itens) {
       if (it.status !== "nao_realizado") continue;
       const texto = (it.observacao ?? "").trim();
@@ -442,12 +447,12 @@ function coletarObservacoesPorTurno(
       const linha = texto
         ? `Limpeza ${it.codigo} (${rotulo}) — Não realizado: ${texto}`
         : `Limpeza ${it.codigo} (${rotulo}) — Não realizado`;
-      grupo.itens.push(linha);
+      addItemObs(lt.turno, linha);
     }
   }
 
   // ─── PTP: 1 entrada por janela com observação ──────────────────────
-  const ptpJanelas = usarEspelhoVerso ? [] : (verso?.ptpJanelas ?? []);
+  const ptpJanelas = verso?.ptpJanelas ?? [];
   if (ptpJanelas.length > 0) {
     // Mapeia janelaCodigo → turno (primeiro turno que cobre aquela janela).
     const turnosPossiveis: Turno[] = [
@@ -470,8 +475,8 @@ function coletarObservacoesPorTurno(
       if (!texto) continue;
       const turno = turnoDeJanela.get(j.janelaCodigo);
       if (!turno) continue;
-      const grupo = getGrupo(turnoBaseObservacao(turno));
-      grupo.itens.push(
+      addItemObs(
+        turno,
         `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
       );
     }
@@ -479,8 +484,7 @@ function coletarObservacoesPorTurno(
 
   for (const o of observacoesEspelho) {
     const turno = turnoDaObservacaoEspelho(o);
-    const grupo = getGrupo(turnoBaseObservacao(turno));
-    grupo.itens.push(formatarLinhaObservacao(o));
+    addItemObs(turno, formatarLinhaObservacao(o));
   }
 
   // Ordem fixa: Dia → Noite → 3º
