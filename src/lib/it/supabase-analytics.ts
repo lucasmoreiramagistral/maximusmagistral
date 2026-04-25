@@ -7,6 +7,10 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import type { EventoIt, SessaoIt } from "./telemetria";
+import {
+  validarContextoTelemetria,
+  temUserIdValido,
+} from "./telemetria-validacao";
 
 interface InsertSessaoRow {
   id: string;
