@@ -772,15 +772,15 @@ export async function gerarVersoWorksheet(
     const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
     if (temAssinatura) {
       // Texto fica só com o nome embaixo; imagem ocupa a parte superior.
-      cell.value = nome || "";
+      cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
       cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
-      cell.font = { size: 7, color: { argb: "FF444444" } };
+      cell.font = { size: 6, color: { argb: "FF444444" } };
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 0.95, alturaFracao: 0.78, inicioYFracao: 0.02 },
+        { larguraFracao: 0.98, alturaFracao: 0.7, inicioYFracao: 0.04 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
