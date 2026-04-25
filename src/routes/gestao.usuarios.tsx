@@ -346,15 +346,37 @@ function UsuariosPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setConfirmStatus(u)}
-                          title={u.active ? "Inativar" : "Reativar"}
+                          onClick={() => setTrocarSenhaUser(u)}
+                          title="Trocar senha"
                         >
-                          {u.active ? (
-                            <PowerOff className="h-4 w-4 text-destructive" />
-                          ) : (
-                            <Power className="h-4 w-4 text-success" />
-                          )}
+                          <KeyRound className="h-4 w-4 text-primary" />
                         </Button>
+                        {podeAdminHierarquia && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setConfirmStatus(u)}
+                              title={u.active ? "Desativar" : "Reativar"}
+                            >
+                              {u.active ? (
+                                <PowerOff className="h-4 w-4 text-destructive" />
+                              ) : (
+                                <Power className="h-4 w-4 text-success" />
+                              )}
+                            </Button>
+                            {u.active && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setConfirmLiberar(u)}
+                                title="Desativar e liberar login para reuso"
+                              >
+                                <UserMinus className="h-4 w-4 text-warning-foreground" />
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
