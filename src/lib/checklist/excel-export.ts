@@ -428,10 +428,10 @@ function coletarObservacoesPorTurno(
   function addObsVerso(obs: ObsVersoExcel): void {
     const limpo = obs.observacao.trim();
     if (!limpo) return;
-    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.operador}|${obs.tipo}|${obs.item}|${limpo}|${obs.horario}`;
+    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.operador}|${obs.tipo}|${obs.item}|${limpo}`;
     const grupo = getGrupo(turnoBaseObservacao(obs.turno));
     const existe = grupo.verso.some(
-      (o) => `${turnoBaseObservacao(o.turno)}|${o.operador}|${o.tipo}|${o.item}|${o.observacao}|${o.horario}` === chave,
+      (o) => `${turnoBaseObservacao(o.turno)}|${o.operador}|${o.tipo}|${o.item}|${o.observacao}` === chave,
     );
     if (!existe) grupo.verso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
   }
