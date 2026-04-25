@@ -23,7 +23,7 @@ import {
   formatarLinhaObservacao,
   type ObservacaoVerso,
 } from "@/lib/verso/observacoes";
-import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF } from "@/lib/verso/constants";
+import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
