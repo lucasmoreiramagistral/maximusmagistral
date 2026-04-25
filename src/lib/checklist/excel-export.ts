@@ -839,25 +839,33 @@ async function carregarVersoDoDia(folha: FolhaChecklistDia) {
     folha.contexto.linha,
     folha.contexto.maquina,
   );
+  const folhaDiaKeys = Array.from(new Set([
+    folhaDiaKey,
+    buildFolhaDiaKey(
+      folha.contexto.data,
+      VERSO_CONTEXTO_FIXO.linha,
+      VERSO_CONTEXTO_FIXO.maquina,
+    ),
+  ]));
   const [ptpRemoto, limpezaRemota, observacoesVerso] = await Promise.all([
-    fetchPtpJanelas(folhaDiaKey).catch((e) => {
+    Promise.all(folhaDiaKeys.map((key) => fetchPtpJanelas(key).catch((e) => {
       console.error("[carregarVersoDoDia] fetchPtpJanelas falhou:", e);
       return [] as PtpJanela[];
-    }),
-    fetchLimpezaTurnos(folhaDiaKey).catch((e) => {
+    }))).then((listas) => listas.flat()),
+    Promise.all(folhaDiaKeys.map((key) => fetchLimpezaTurnos(key).catch((e) => {
       console.error("[carregarVersoDoDia] fetchLimpezaTurnos falhou:", e);
       return [] as LimpezaTurno[];
-    }),
-    fetchObservacoesVerso(folhaDiaKey).catch((e) => {
+    }))).then((listas) => listas.flat()),
+    Promise.all(folhaDiaKeys.map((key) => fetchObservacoesVerso(key).catch((e) => {
       console.error("[carregarVersoDoDia] fetchObservacoesVerso falhou:", e);
       return [];
-    }),
+    }))).then((listas) => listas.flat()),
   ]);
 
   // Mescla com o storage local — garante que o que o operador acabou de
   // preencher (e ainda pode estar na fila offline) vá para o Excel.
-  const ptpLocal = versoStorage.getPtpJanelas(folhaDiaKey);
-  const limpezaLocal = versoStorage.getLimpezaTurnos(folhaDiaKey);
+  const ptpLocal = folhaDiaKeys.flatMap((key) => versoStorage.getPtpJanelas(key));
+  const limpezaLocal = folhaDiaKeys.flatMap((key) => versoStorage.getLimpezaTurnos(key));
 
   const ptpJanelas = mesclarPorChave(
     ptpRemoto,
