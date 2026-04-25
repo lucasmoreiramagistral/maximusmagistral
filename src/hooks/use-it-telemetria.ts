@@ -387,7 +387,9 @@ export function useItTelemetria(
         if (
           sessao &&
           typeof navigator !== "undefined" &&
-          typeof navigator.sendBeacon === "function"
+          typeof navigator.sendBeacon === "function" &&
+          // Não beacon sem user_id — evita evento órfão.
+          temUserIdValido(contextoRef.current)
         ) {
           const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/it_consulta_eventos`;
           const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
