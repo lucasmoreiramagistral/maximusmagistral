@@ -425,8 +425,6 @@ function coletarObservacoesPorTurno(
     if (!grupo.itens.includes(limpo)) grupo.itens.push(limpo);
   }
 
-  const obsVerso: ObsVersoExcel[] = [];
-
   function addObsVerso(obs: ObsVersoExcel): void {
     const limpo = obs.observacao.trim();
     if (!limpo) return;
