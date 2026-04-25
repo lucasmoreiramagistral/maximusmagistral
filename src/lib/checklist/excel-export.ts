@@ -381,6 +381,15 @@ interface ObsGrupo {
   anomalias: string[];
 }
 
+interface ObsVersoExcel {
+  turno: Turno;
+  operador: string;
+  tipo: "PTP" | "Limpeza";
+  item: string;
+  observacao: string;
+  horario: string;
+}
+
 /** Coleta observações agrupadas por turno e separadas em itens × anomalias.
  *  USA APENAS os dados atuais da folha/checklist — nunca histórico de auditoria.
  *
