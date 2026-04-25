@@ -316,6 +316,25 @@ function turnoBaseObservacao(turno: Turno): Turno {
   return "3º Turno";
 }
 
+function turnoDaObservacaoEspelho(o: ObservacaoVerso): Turno {
+  const label = `${o.origemLabel} ${o.origemCodigo}`.toLowerCase();
+  if (label.includes("noite") || label.includes("2º") || label.includes("2°")) {
+    return "12x36 Noite";
+  }
+  if (label.includes("3º") || label.includes("3°")) {
+    return "3º Turno";
+  }
+  const codigoJanela = /^J\d{2}$/i.test(o.origemCodigo)
+    ? o.origemCodigo.toUpperCase()
+    : null;
+  if (codigoJanela) {
+    const n = Number(codigoJanela.slice(1));
+    if (n >= 5 && n <= 8) return "12x36 Noite";
+    if (n >= 9) return "3º Turno";
+  }
+  return "12x36 Dia";
+}
+
 /** Monta texto de uma anomalia respeitando o estado atual real:
  *  - Aberta → "Anomalia HH:mm — Item X — descrição"
  *  - Em andamento → "Anomalia HH:mm — Em andamento — Item X — descrição"
