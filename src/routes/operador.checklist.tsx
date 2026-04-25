@@ -5,8 +5,6 @@ import {
   XCircle,
   MinusCircle,
   AlertTriangle,
-  FileText,
-  ClipboardList,
   Pencil,
   Loader2,
   Check,
@@ -25,10 +23,6 @@ import type { Resposta, RespostaItem, ItemChecklistDef, Checklist } from "@/lib/
 import { formatarHora } from "@/lib/checklist/format";
 import { checklistEmEdicao } from "@/lib/checklist/edicao";
 import { cn } from "@/lib/utils";
-
-const FLAG_RETORNO_ANOMALIA = "fm-checklist:retorno-anomalia";
-
-type DecisaoNC = "observacao" | "anomalia" | null;
 
 export const Route = createFileRoute("/operador/checklist")({
   head: () => ({ meta: [{ title: "Checklist em andamento" }] }),

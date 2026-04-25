@@ -25,6 +25,7 @@ import { Route as ManutencaoFiltrosRouteImport } from './routes/manutencao.filtr
 import { Route as ManutencaoAnomaliasRouteImport } from './routes/manutencao.anomalias'
 import { Route as GestaoUsuariosRouteImport } from './routes/gestao.usuarios'
 import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
+import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-conformidades'
 import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
 import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
@@ -122,6 +123,11 @@ const GestaoUsuariosRoute = GestaoUsuariosRouteImport.update({
 const GestaoRelatorioRoute = GestaoRelatorioRouteImport.update({
   id: '/gestao/relatorio',
   path: '/gestao/relatorio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoNaoConformidadesRoute = GestaoNaoConformidadesRouteImport.update({
+  id: '/gestao/nao-conformidades',
+  path: '/gestao/nao-conformidades',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoItTreinamentosRoute = GestaoItTreinamentosRouteImport.update({
@@ -229,6 +235,7 @@ export interface FileRoutesByFullPath {
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
+  '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
@@ -265,6 +272,7 @@ export interface FileRoutesByTo {
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
+  '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
@@ -302,6 +310,7 @@ export interface FileRoutesById {
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
+  '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
   '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
@@ -340,6 +349,7 @@ export interface FileRouteTypes {
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
+    | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
     | '/manutencao/anomalias'
@@ -376,6 +386,7 @@ export interface FileRouteTypes {
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
+    | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
     | '/manutencao/anomalias'
@@ -412,6 +423,7 @@ export interface FileRouteTypes {
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
+    | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
     | '/manutencao/anomalias'
@@ -449,6 +461,7 @@ export interface RootRouteChildren {
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
   GestaoItAnalyticsRoute: typeof GestaoItAnalyticsRoute
   GestaoItTreinamentosRoute: typeof GestaoItTreinamentosRoute
+  GestaoNaoConformidadesRoute: typeof GestaoNaoConformidadesRoute
   GestaoRelatorioRoute: typeof GestaoRelatorioRoute
   GestaoUsuariosRoute: typeof GestaoUsuariosRoute
   ManutencaoAnomaliasRoute: typeof ManutencaoAnomaliasRoute
@@ -588,6 +601,13 @@ declare module '@tanstack/react-router' {
       path: '/gestao/relatorio'
       fullPath: '/gestao/relatorio'
       preLoaderRoute: typeof GestaoRelatorioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/nao-conformidades': {
+      id: '/gestao/nao-conformidades'
+      path: '/gestao/nao-conformidades'
+      fullPath: '/gestao/nao-conformidades'
+      preLoaderRoute: typeof GestaoNaoConformidadesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/it-treinamentos': {
@@ -751,6 +771,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoFiltrosRoute: GestaoFiltrosRoute,
   GestaoItAnalyticsRoute: GestaoItAnalyticsRoute,
   GestaoItTreinamentosRoute: GestaoItTreinamentosRoute,
+  GestaoNaoConformidadesRoute: GestaoNaoConformidadesRoute,
   GestaoRelatorioRoute: GestaoRelatorioRoute,
   GestaoUsuariosRoute: GestaoUsuariosRoute,
   ManutencaoAnomaliasRoute: ManutencaoAnomaliasRoute,
