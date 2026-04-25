@@ -261,6 +261,9 @@ export function useItTelemetria(
         iniciado_em: nowIso(),
         contexto: contextoRef.current,
       };
+      // Validação de integridade — embora o effect só rode com userId presente,
+      // logamos qualquer divergência para auditoria (ex.: profile sem nome).
+      validarContextoTelemetria(sessao.contexto, "abrir-sessao");
       sessaoRef.current = sessao;
       inicioSessaoRef.current = Date.now();
 
