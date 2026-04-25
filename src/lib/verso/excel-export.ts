@@ -122,12 +122,20 @@ function colunaLimpezaTurno(turno: Turno): number {
   return 14 + col; // O=15, P=16, Q=17
 }
 
+interface InserirImagemOpts {
+  centralizar?: boolean;
+  larguraFracao?: number;
+  alturaFracao?: number;
+  inicioXFracao?: number;
+  inicioYFracao?: number;
+}
+
 function inserirImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
-  opts: { centralizar?: boolean; larguraFracao?: number; alturaFracao?: number } = {},
+  opts: InserirImagemOpts = {},
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
@@ -146,12 +154,12 @@ function inserirImagem(
   if (opts.centralizar) {
     const lf = opts.larguraFracao ?? 0.6;
     const af = opts.alturaFracao ?? 0.85;
-    const padX = (1 - lf) / 2;
-    const padY = (1 - af) / 2;
+    const padX = opts.inicioXFracao ?? (1 - lf) / 2;
+    const padY = opts.inicioYFracao ?? (1 - af) / 2;
     const tlCol = c1 - 1 + totalCols * padX;
-    const brCol = c1 - 1 + totalCols * (padX + lf);
+    const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
     const tlRow = r1 - 1 + totalRows * padY;
-    const brRow = r1 - 1 + totalRows * (padY + af);
+    const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
     ws.addImage(id, {
       tl: { col: tlCol, row: tlRow },
       br: { col: brCol, row: brRow },
