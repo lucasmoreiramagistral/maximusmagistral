@@ -36,7 +36,6 @@ import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { useItDocument } from "@/hooks/use-it-document";
 import { useItTelemetria } from "@/hooks/use-it-telemetria";
-import { useExigirIdentidadeIt } from "@/hooks/use-exigir-identidade-it";
 import { criarDebouncerBusca } from "@/lib/it/telemetria";
 import {
   IT_DOC_TITULO,
@@ -127,15 +126,8 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
   const { usuario, loading } = useGuard("operador");
   const { isOnline } = useConnectionStatus();
   const itDoc = useItDocument();
-  const docKey: "it002" | "it005" = slug === "operacao" ? "it002" : "it005";
-  const {
-    identidade,
-    modal: modalIdentidade,
-    pronto: identidadePronta,
-    semTreinamento,
-    verificandoAta,
-  } = useExigirIdentidadeIt(docKey);
-  const telemetria = useItTelemetria({ slug, identidade });
+  // docKey mantido por compat semântica do slug; identidade vem do login.
+  const telemetria = useItTelemetria({ slug });
   const [paginaAtual, setPaginaAtual] = useState(1);
   const [indiceOpen, setIndiceOpen] = useState(false);
 
@@ -148,25 +140,23 @@ function Visualizador({ slug }: { slug: ItDocSlug }) {
     setPaginaAtual(1);
   }, [slug]);
 
-  // ── telemetria: page_view a cada mudança de página, com manifest pronto ──
+  // ── telemetria: page_view a cada mudança de página (após manifest pronto) ──
   useEffect(() => {
     if (totalPaginas <= 0) return;
-    if (!identidadePronta) return;
+    if (!usuario?.userId) return;
     telemetria.trackPageView(paginaAtual);
-  }, [paginaAtual, totalPaginas, telemetria, identidadePronta]);
+  }, [paginaAtual, totalPaginas, telemetria, usuario?.userId]);
 
   // ── telemetria: cache_mode só em mudança real do par (isOnline, fromCache) ──
-  // Aguarda identidade pronta — antes disso a sessão ainda não foi criada
-  // e o evento seria silenciosamente descartado.
   const ultimoModoCacheRef = useRef<string | null>(null);
   useEffect(() => {
     if (totalPaginas <= 0) return;
-    if (!identidadePronta) return;
+    if (!usuario?.userId) return;
     const modo = !isOnline ? "offline" : itDoc.fromCache ? "cache" : "online";
     if (ultimoModoCacheRef.current === modo) return;
     ultimoModoCacheRef.current = modo;
     telemetria.trackEvento("cache_mode", { modo_cache: modo });
-  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria, identidadePronta]);
+  }, [isOnline, itDoc.fromCache, totalPaginas, telemetria, usuario?.userId]);
 
   const paginaInfo = useMemo(() => {
     if (!docData) return null;
