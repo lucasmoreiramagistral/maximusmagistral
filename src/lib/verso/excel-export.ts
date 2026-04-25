@@ -462,22 +462,22 @@ export async function gerarVersoWorksheet(
     const codigosTurno = opts.turnoFiltro
       ? janelasPtpDoTurno(opts.turnoFiltro, null as never)
       : null;
-    if (codigosTurno && !codigosTurno.includes(j.codigo)) return;
-    if (!janela) return;
+    if (codigosTurno && !codigosTurno.includes(j.codigo)) continue;
+    if (!janela) continue;
     if (janela.statusJanela === "nao_rodou") {
       cell.value = "NR";
       cell.font = { italic: true, color: { argb: "FF777777" }, bold: true };
       continue;
     }
     const ang = janela.analiseAngulo;
-    if (!ang) return;
+    if (!ang) continue;
     const v1 = ang.v1Realizada ? 1 : 0;
     const v2 = ang.v2Realizada ? 1 : 0;
     const total = v1 + v2;
-    if (total === 0) return;
+    if (total === 0) continue;
     cell.value = total === 2 ? "✓✓" : "✓";
     cell.font = { bold: true, color: { argb: "FF1565C0" }, size: 11 };
-  });
+  }
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
@@ -488,7 +488,7 @@ export async function gerarVersoWorksheet(
     "Operador(a), assinar a cada preenchimento e anotar observações no verso quando necessário.";
   cellVisto.font = { italic: true, size: 8 };
   cellVisto.alignment = { wrapText: true, vertical: "middle", indent: 1 };
-  PTP_JANELAS.forEach((j) => {
+  for (const j of PTP_JANELAS) {
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_VISTO, colNum);
     const janela = opts.ptpJanelas.find((x) => x.janelaCodigo === j.codigo);
@@ -499,7 +499,7 @@ export async function gerarVersoWorksheet(
       cell.value = "Visto:";
       cell.font = { size: 7 };
       cell.alignment = { horizontal: "center", vertical: "middle" };
-      return;
+      continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
     const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
