@@ -424,6 +424,18 @@ function coletarObservacoesPorTurno(
     if (!grupo.itens.includes(limpo)) grupo.itens.push(limpo);
   }
 
+  const obsVerso: ObsVersoExcel[] = [];
+
+  function addObsVerso(obs: ObsVersoExcel): void {
+    const limpo = obs.observacao.trim();
+    if (!limpo) return;
+    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.operador}|${obs.tipo}|${obs.item}|${limpo}|${obs.horario}`;
+    const existe = obsVerso.some(
+      (o) => `${turnoBaseObservacao(o.turno)}|${o.operador}|${o.tipo}|${o.item}|${o.observacao}|${o.horario}` === chave,
+    );
+    if (!existe) obsVerso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
+  }
+
   for (const c of checklists) {
     const grupo = getGrupo(turnoBaseObservacao(c.contexto.turno));
     for (const r of c.respostas) {
