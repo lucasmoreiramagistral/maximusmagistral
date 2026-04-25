@@ -530,7 +530,6 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  const LINHA_VISTO_ASSINATURA = 16;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -551,29 +550,25 @@ export async function gerarVersoWorksheet(
       continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    // Sempre mostra "Visto: <nome>" na LINHA_VISTO; assinatura vai na linha de baixo.
-    cell.value = nome ? `Visto: ${nome}` : "Visto:";
+    cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
     cell.font = { size: 7, bold: !!nome };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      // Linha dedicada SÓ para a imagem — nada de texto que cubra.
-      const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
-      sigCell.value = null;
-      sigCell.alignment = { horizontal: "center", vertical: "middle" };
       await inserirImagem(
         wb,
         ws,
-        `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`,
+        `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.95, alturaFracao: 0.95 },
+        { larguraFracao: 0.95, alturaFracao: 0.66, inicioYFracao: 0.3 },
       );
     }
   }
-  ws.getRow(LINHA_VISTO).height = 18;
-  ws.getRow(LINHA_VISTO_ASSINATURA).height = 50;
+  if (!ws.getRow(LINHA_VISTO).height || ws.getRow(LINHA_VISTO).height! < 98) {
+    ws.getRow(LINHA_VISTO).height = 98;
+  }
 
-  aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
+  aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
 
   // ─── Linha 17 — Cabeçalho LIMPEZA ────────────────────────────────
   const LIMPEZA_INI = 17;
