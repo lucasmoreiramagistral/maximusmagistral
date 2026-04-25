@@ -245,10 +245,10 @@ interface GerarVersoOpts {
 
 /** Adiciona uma worksheet "ENCHEDORA L3" ao workbook e a preenche fielmente
  *  ao layout oficial v3. Retorna a worksheet criada. */
-export function gerarVersoWorksheet(
+export async function gerarVersoWorksheet(
   wb: ExcelJS.Workbook,
   opts: GerarVersoOpts,
-): ExcelJS.Worksheet {
+): Promise<ExcelJS.Worksheet> {
   const ws = wb.addWorksheet(VERSO_SHEET_NAME, {
     pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true },
   });
@@ -448,7 +448,7 @@ export function gerarVersoWorksheet(
     pattern: "solid",
     fgColor: { argb: "FFFFF8E1" },
   };
-  PTP_JANELAS.forEach((j) => {
+  for (const j of PTP_JANELAS) {
     const colNum = colunaPtpJanela(j.codigo);
     const cell = ws.getCell(LINHA_ANGULO, colNum);
     cell.alignment = { horizontal: "center", vertical: "middle" };
@@ -467,7 +467,7 @@ export function gerarVersoWorksheet(
     if (janela.statusJanela === "nao_rodou") {
       cell.value = "NR";
       cell.font = { italic: true, color: { argb: "FF777777" }, bold: true };
-      return;
+      continue;
     }
     const ang = janela.analiseAngulo;
     if (!ang) return;
@@ -508,17 +508,17 @@ export function gerarVersoWorksheet(
     cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
+      await inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.9,
-        alturaFracao: 0.92,
+        larguraFracao: 0.98,
+        alturaFracao: 0.88,
       });
       const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
       sigCell.value = nome || null;
       sigCell.font = { size: 6, color: { argb: "FF444444" } };
       sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
     }
-  });
+  }
   ws.getRow(LINHA_VISTO).height = 16;
   ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
 
