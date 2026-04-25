@@ -705,15 +705,22 @@ export async function gerarVersoWorksheet(
     const cell = ws.getCell(`${colA}${row}`);
     const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
     const nome = lt?.liderNome ?? "";
-    cell.value = `${rotuloTurnoCurto(turno)}    ____________________________\n${nome}`;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.font = { size: 9 };
+    const temAssinaturaLider = !!lt?.assinaturaLider?.dataUrl;
+    if (temAssinaturaLider) {
+      cell.value = `${rotuloTurnoCurto(turno)} — ${nome}`;
+      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.font = { size: 7, color: { argb: "FF444444" } };
+    } else {
+      cell.value = `${rotuloTurnoCurto(turno)}    ____________________________\n${nome}`;
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = { size: 9 };
+    }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
       await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.78,
-        alturaFracao: 0.76,
+        larguraFracao: 0.85,
+        alturaFracao: 0.78,
+        inicioYFracao: 0.02,
       });
     }
   }
