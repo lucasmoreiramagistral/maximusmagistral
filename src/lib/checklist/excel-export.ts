@@ -22,7 +22,7 @@ import {
   fetchObservacoesVerso,
   type ObservacaoVerso,
 } from "@/lib/verso/observacoes";
-import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF, PTP_ITENS, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF, VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
@@ -428,12 +428,19 @@ function coletarObservacoesPorTurno(
   function addObsVerso(obs: ObsVersoExcel): void {
     const limpo = obs.observacao.trim();
     if (!limpo) return;
-    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.operador}|${obs.tipo}|${obs.item}|${limpo}`;
+    const chave = `${turnoBaseObservacao(obs.turno)}|${obs.tipo}|${obs.item}|${limpo}`;
     const grupo = getGrupo(turnoBaseObservacao(obs.turno));
-    const existe = grupo.verso.some(
-      (o) => `${turnoBaseObservacao(o.turno)}|${o.operador}|${o.tipo}|${o.item}|${o.observacao}` === chave,
+    const existente = grupo.verso.find(
+      (o) => `${turnoBaseObservacao(o.turno)}|${o.tipo}|${o.item}|${o.observacao}` === chave,
     );
-    if (!existe) grupo.verso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
+    if (existente) {
+      if ((!existente.operador || existente.operador === "—") && obs.operador && obs.operador !== "—") {
+        existente.operador = obs.operador;
+      }
+      if ((!existente.horario || existente.horario === "—") && obs.horario) existente.horario = obs.horario;
+      return;
+    }
+    grupo.verso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
   }
 
   for (const c of checklists) {
