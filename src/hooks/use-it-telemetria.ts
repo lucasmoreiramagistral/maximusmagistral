@@ -41,6 +41,10 @@ import {
   obterOuCriarDeviceId,
   registrarUltimoHeartbeat,
 } from "@/lib/it/identidade";
+import {
+  temUserIdValido,
+  validarContextoTelemetria,
+} from "@/lib/it/telemetria-validacao";
 
 const HEARTBEAT_MS = 60_000; // 60s
 const INTERACAO_MAX_AGE_MS = 60_000; // só envia heartbeat se houve interação no último 1min
