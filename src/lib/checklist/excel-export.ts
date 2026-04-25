@@ -729,6 +729,7 @@ export async function exportarTurnoExcel(
   const verso = await carregarVersoDoDia(folha).catch(() => ({
     ptpJanelas: [],
     limpezaTurnos: [],
+    observacoesVerso: [],
   }));
   const versoTurno = {
     ptpJanelas: verso.ptpJanelas,
@@ -790,6 +791,7 @@ export async function exportarFolhaDiaExcel(
   const verso = await carregarVersoDoDia(folhaAtual).catch(() => ({
     ptpJanelas: [],
     limpezaTurnos: [],
+    observacoesVerso: [],
   }));
   const grupos = coletarObservacoesPorTurno(
     todosChecklistsConcluidos,
