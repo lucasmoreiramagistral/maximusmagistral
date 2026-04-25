@@ -7,6 +7,7 @@ import type {
   RespostaItem,
   Turno,
 } from "./types";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 // Template Excel FM09 embutido como base64 no bundle JS.
 // Garante que funcione em QUALQUER ambiente (preview, .lovable.app, custom domain)
 // sem depender de fetch HTTP nem do asset ser servido estaticamente pelo host.
