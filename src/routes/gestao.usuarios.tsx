@@ -8,6 +8,8 @@ import {
   PowerOff,
   Pencil,
   ShieldAlert,
+  KeyRound,
+  UserMinus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/app-header";
@@ -60,9 +62,17 @@ import {
 import {
   alterarStatusUsuario,
   criarUsuario,
+  desativarELiberarLogin,
   editarUsuario,
   listarUsuarios,
+  trocarSenhaUsuario,
 } from "@/lib/usuarios/usuarios.functions";
+
+const HIERARQUIAS_ADMIN: ReadonlyArray<Hierarquia> = [
+  "desenvolvedor",
+  "gerente",
+  "coordenador",
+];
 
 export const Route = createFileRoute("/gestao/usuarios")({
   head: () => ({
@@ -113,9 +123,11 @@ function UsuariosPage() {
   const { usuario, loading: authLoading } = useGuard("gestao");
 
   // Acesso: qualquer pessoa que entra pela sessão gestão pode usar.
-  // (No futuro, restringir via has_modulo()/hierarquia quando o multi-módulo
-  //  estiver ligado no useGuard.)
+  // Cadastrar/editar/trocar senha = qualquer "gestao" ativo.
+  // Desativar/Reativar e "Desativar e liberar login" = só desenvolvedor/gerente/coordenador.
   const podeAdministrar = !!usuario;
+  const podeAdminHierarquia =
+    !!usuario?.hierarquia && HIERARQUIAS_ADMIN.includes(usuario.hierarquia);
 
   const [usuarios, setUsuarios] = useState<UsuarioRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -125,9 +137,16 @@ function UsuariosPage() {
   const [dialogAberto, setDialogAberto] = useState(false);
   const [editando, setEditando] = useState<UsuarioRow | null>(null);
 
-  // Dialog de confirmação de status
+  // Dialog de confirmação de status (ativar/inativar)
   const [confirmStatus, setConfirmStatus] = useState<UsuarioRow | null>(null);
   const [salvandoStatus, setSalvandoStatus] = useState(false);
+
+  // Dialog de troca de senha
+  const [trocarSenhaUser, setTrocarSenhaUser] = useState<UsuarioRow | null>(null);
+
+  // Dialog de "desativar e liberar login"
+  const [confirmLiberar, setConfirmLiberar] = useState<UsuarioRow | null>(null);
+  const [salvandoLiberar, setSalvandoLiberar] = useState(false);
 
   const carregar = async () => {
     setLoading(true);
@@ -208,6 +227,28 @@ function UsuariosPage() {
       toast.error("Falha ao alterar status");
     } finally {
       setSalvandoStatus(false);
+    }
+  };
+
+  const confirmarLiberar = async () => {
+    if (!confirmLiberar) return;
+    setSalvandoLiberar(true);
+    try {
+      const res = await desativarELiberarLogin({ data: { id: confirmLiberar.id } });
+      if (!res.ok) {
+        toast.error(res.erro);
+        return;
+      }
+      toast.success(
+        `Login "${res.loginLiberado}" liberado. Usuário desativado.`,
+      );
+      setConfirmLiberar(null);
+      void carregar();
+    } catch (e) {
+      console.error(e);
+      toast.error("Falha ao liberar login");
+    } finally {
+      setSalvandoLiberar(false);
     }
   };
 
@@ -305,15 +346,37 @@ function UsuariosPage() {
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => setConfirmStatus(u)}
-                          title={u.active ? "Inativar" : "Reativar"}
+                          onClick={() => setTrocarSenhaUser(u)}
+                          title="Trocar senha"
                         >
-                          {u.active ? (
-                            <PowerOff className="h-4 w-4 text-destructive" />
-                          ) : (
-                            <Power className="h-4 w-4 text-success" />
-                          )}
+                          <KeyRound className="h-4 w-4 text-primary" />
                         </Button>
+                        {podeAdminHierarquia && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setConfirmStatus(u)}
+                              title={u.active ? "Desativar" : "Reativar"}
+                            >
+                              {u.active ? (
+                                <PowerOff className="h-4 w-4 text-destructive" />
+                              ) : (
+                                <Power className="h-4 w-4 text-success" />
+                              )}
+                            </Button>
+                            {u.active && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setConfirmLiberar(u)}
+                                title="Desativar e liberar login para reuso"
+                              >
+                                <UserMinus className="h-4 w-4 text-warning-foreground" />
+                              </Button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -371,7 +434,158 @@ function UsuariosPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <TrocarSenhaDialog
+        alvo={trocarSenhaUser}
+        onOpenChange={(o) => !o && setTrocarSenhaUser(null)}
+        onSucesso={() => setTrocarSenhaUser(null)}
+      />
+
+      <AlertDialog
+        open={!!confirmLiberar}
+        onOpenChange={(o) => !o && setConfirmLiberar(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Desativar e liberar login?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmLiberar?.nome} será desativado e o login{" "}
+              <span className="font-mono font-semibold">{confirmLiberar?.usuario}</span>{" "}
+              ficará livre para reuso em um novo cadastro. O histórico operacional
+              é preservado (o usuário continua existindo, apenas renomeado).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={salvandoLiberar}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmarLiberar} disabled={salvandoLiberar}>
+              {salvandoLiberar ? (
+                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              ) : null}
+              Desativar e liberar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+  );
+}
+
+// ───────────────────── Dialog de troca de senha ─────────────────────
+
+function TrocarSenhaDialog({
+  alvo,
+  onOpenChange,
+  onSucesso,
+}: {
+  alvo: UsuarioRow | null;
+  onOpenChange: (o: boolean) => void;
+  onSucesso: () => void;
+}) {
+  const [senha, setSenha] = useState("");
+  const [confirmar, setConfirmar] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (alvo) {
+      setSenha("");
+      setConfirmar("");
+      setErro(null);
+    }
+  }, [alvo]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErro(null);
+    if (!alvo) return;
+    if (senha.length < 6) {
+      setErro("Senha precisa ter pelo menos 6 caracteres");
+      return;
+    }
+    if (senha !== confirmar) {
+      setErro("As senhas não coincidem");
+      return;
+    }
+    setSalvando(true);
+    try {
+      const res = await trocarSenhaUsuario({
+        data: { id: alvo.id, novaSenha: senha },
+      });
+      if (!res.ok) {
+        setErro(res.erro);
+        return;
+      }
+      toast.success(`Senha de ${alvo.nome} trocada`);
+      onSucesso();
+    } catch (err) {
+      console.error(err);
+      setErro("Falha ao trocar senha");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!alvo} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Trocar senha</DialogTitle>
+          <DialogDescription>
+            {alvo
+              ? `Defina uma nova senha para ${alvo.nome} (${alvo.usuario}).`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="space-y-4">
+          <div>
+            <Label htmlFor="nova-senha">Nova senha *</Label>
+            <Input
+              id="nova-senha"
+              type="password"
+              value={senha}
+              onChange={(e) => setSenha(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              minLength={6}
+              required
+              disabled={salvando}
+              autoComplete="new-password"
+            />
+          </div>
+          <div>
+            <Label htmlFor="confirmar-senha">Confirmar nova senha *</Label>
+            <Input
+              id="confirmar-senha"
+              type="password"
+              value={confirmar}
+              onChange={(e) => setConfirmar(e.target.value)}
+              minLength={6}
+              required
+              disabled={salvando}
+              autoComplete="new-password"
+            />
+          </div>
+          {erro && (
+            <p className="rounded-md bg-destructive-soft px-3 py-2 text-sm font-medium text-destructive">
+              {erro}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={salvando}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={salvando}>
+              {salvando ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : null}
+              Trocar senha
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
