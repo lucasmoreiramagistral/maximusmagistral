@@ -551,7 +551,7 @@ function coletarObservacoesPorTurno(
 
   // Ordem fixa: Dia → Noite → 3º
   const ordem: Turno[] = ["12x36 Dia", "12x36 Noite", "3º Turno"];
-  return ordem.map((t) => mapa.get(t)).filter((g): g is ObsGrupo => !!g && (g.itens.length + g.anomalias.length > 0));
+  return ordem.map((t) => mapa.get(t)).filter((g): g is ObsGrupo => !!g && (g.itens.length + g.anomalias.length + g.verso.length > 0));
 }
 
 function rotuloCurtoTurno(t: Turno): string {
