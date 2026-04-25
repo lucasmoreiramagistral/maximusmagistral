@@ -276,7 +276,9 @@ function TurnoEditor({ turno, usuario, onVoltar, onSalvar }: TurnoEditorProps) {
         observacao:
           i.status === "nao_realizado" ? (i.observacao ?? "").trim() : null,
       }));
-      const nomeOperador = (usuario.nome || "").trim() || "Operador";
+      // Nome real do operador: usuario.userId é o auth.uid()/profiles.id e
+      // usuario.nome vem do profile carregado pelo login próprio.
+      const nomeOperador = (usuario.nome || usuario.usuario || "").trim();
       const payload: LimpezaTurno = {
         ...turno,
         itens: itensNorm,

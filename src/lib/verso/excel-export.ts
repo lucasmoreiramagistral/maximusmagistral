@@ -122,12 +122,20 @@ function colunaLimpezaTurno(turno: Turno): number {
   return 14 + col; // O=15, P=16, Q=17
 }
 
+interface InserirImagemOpts {
+  centralizar?: boolean;
+  larguraFracao?: number;
+  alturaFracao?: number;
+  inicioXFracao?: number;
+  inicioYFracao?: number;
+}
+
 function inserirImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
   rangeAddress: string,
   dataUrl: string,
-  opts: { centralizar?: boolean; larguraFracao?: number; alturaFracao?: number } = {},
+  opts: InserirImagemOpts = {},
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
@@ -146,12 +154,12 @@ function inserirImagem(
   if (opts.centralizar) {
     const lf = opts.larguraFracao ?? 0.6;
     const af = opts.alturaFracao ?? 0.85;
-    const padX = (1 - lf) / 2;
-    const padY = (1 - af) / 2;
+    const padX = opts.inicioXFracao ?? (1 - lf) / 2;
+    const padY = opts.inicioYFracao ?? (1 - af) / 2;
     const tlCol = c1 - 1 + totalCols * padX;
-    const brCol = c1 - 1 + totalCols * (padX + lf);
+    const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
     const tlRow = r1 - 1 + totalRows * padY;
-    const brRow = r1 - 1 + totalRows * (padY + af);
+    const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
     ws.addImage(id, {
       tl: { col: tlCol, row: tlRow },
       br: { col: brCol, row: brRow },
@@ -413,6 +421,7 @@ export function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
+  const LINHA_VISTO_ASSINATURA = 16;
   ws.mergeCells(`B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -433,21 +442,27 @@ export function gerarVersoWorksheet(
       return;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    cell.value = nome ? `Visto: ${nome}` : "Visto:";
-    cell.font = { size: 7 };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
+    cell.value = nome && !temAssinatura ? `Visto: ${nome}` : "Visto:";
+    cell.font = { size: 7, bold: temAssinatura };
+    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`, janela.assinaturaOperador.dataUrl, {
+      inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.85,
-        alturaFracao: 0.7,
+        larguraFracao: 0.9,
+        alturaFracao: 0.92,
       });
+      const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
+      sigCell.value = nome || null;
+      sigCell.font = { size: 6, color: { argb: "FF444444" } };
+      sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
     }
   });
-  ws.getRow(LINHA_VISTO).height = 38;
+  ws.getRow(LINHA_VISTO).height = 16;
+  ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
 
-  aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
+  aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
 
   // ─── Linha 17 — Cabeçalho LIMPEZA ────────────────────────────────
   const LIMPEZA_INI = 17;
@@ -638,9 +653,10 @@ export function gerarVersoWorksheet(
     const colLetra = colNumParaLetra(colNum);
     const cell = ws.getCell(`${colLetra}${LINHA_ASSIN_OP}`);
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
-    cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.font = { size: 8 };
+    const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
+    cell.value = temAssinatura ? (nome || "Assin. Oper. →") : nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
+    cell.alignment = { horizontal: "center", vertical: temAssinatura ? "bottom" : "middle", wrapText: true };
+    cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
     cell.border = BORDA_FINA;
     if (lt.assinaturaOperador?.dataUrl) {
       inserirImagem(
@@ -648,7 +664,7 @@ export function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.85, alturaFracao: 0.85 },
+        { centralizar: true, larguraFracao: 0.9, alturaFracao: 0.72, inicioYFracao: 0.05 },
       );
     }
   }

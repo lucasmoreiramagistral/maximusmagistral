@@ -237,8 +237,9 @@ function PtpJanelaDetalhe() {
     const agora = new Date().toISOString();
     // Status: NÃO conta análise de ângulo. Só os 5 defeitos.
     const status = concluir ? deriveStatusJanela(itens, naoRodou) : "rascunho";
-    // Nome real do operador (vem do profile via login próprio).
-    const nomeOperador = (usuario.nome || "").trim() || "Operador";
+    // Nome real do operador: usuario.userId é o auth.uid()/profiles.id e
+    // usuario.nome vem do profile carregado pelo login próprio.
+    const nomeOperador = (usuario.nome || usuario.usuario || "").trim();
     return {
       ...janelaBase,
       itens,
