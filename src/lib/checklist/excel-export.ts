@@ -816,7 +816,7 @@ export async function exportarTurnoComVersoExcel(
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO (filtrada pelo turno)
-  gerarVersoWorksheet(wb, {
+  await gerarVersoWorksheet(wb, {
     dataOperacao: folha.contexto.data,
     ptpJanelas,
     limpezaTurnos,
@@ -874,7 +874,7 @@ export async function exportarFrenteVersoCompletoExcel(
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
   // Aba VERSO completa (sem filtro de turno)
-  gerarVersoWorksheet(wb, {
+  await gerarVersoWorksheet(wb, {
     dataOperacao: folhaAtual.contexto.data,
     ptpJanelas,
     limpezaTurnos,
@@ -892,7 +892,7 @@ export async function exportarVersoApenasExcel(
 ): Promise<void> {
   const wb = new ExcelJS.Workbook();
   const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
-  gerarVersoWorksheet(wb, {
+  await gerarVersoWorksheet(wb, {
     dataOperacao: folha.contexto.data,
     ptpJanelas,
     limpezaTurnos,
