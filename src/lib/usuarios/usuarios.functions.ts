@@ -298,7 +298,8 @@ export const alterarStatusUsuario = createServerFn({ method: "POST" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .inputValidator((input: unknown) => alterarStatusSchema.parse(input))
   .handler(async ({ data, context }) => {
-    await assertAdminGestao(context.userId);
+    // Apenas hierarquia administrativa pode (des)ativar usuários.
+    await assertAdminHierarquia(context.userId);
 
     // Não permite o admin se inativar
     if (data.id === context.userId && !data.active) {
