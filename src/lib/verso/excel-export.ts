@@ -653,9 +653,10 @@ export function gerarVersoWorksheet(
     const colLetra = colNumParaLetra(colNum);
     const cell = ws.getCell(`${colLetra}${LINHA_ASSIN_OP}`);
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
-    cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.font = { size: 8 };
+    const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
+    cell.value = temAssinatura ? (nome || "Assin. Oper. →") : nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
+    cell.alignment = { horizontal: "center", vertical: temAssinatura ? "bottom" : "middle", wrapText: true };
+    cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
     cell.border = BORDA_FINA;
     if (lt.assinaturaOperador?.dataUrl) {
       inserirImagem(
@@ -663,7 +664,7 @@ export function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.85, alturaFracao: 0.85 },
+        { centralizar: true, larguraFracao: 0.9, alturaFracao: 0.72, inicioYFracao: 0.05 },
       );
     }
   }
