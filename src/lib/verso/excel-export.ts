@@ -7,6 +7,7 @@ import {
 } from "./constants";
 import type { LimpezaTurno, PtpJanela } from "./types";
 import type { Turno } from "@/lib/checklist/types";
+import { PTP_LIMPEZA_TEMPLATE_BASE64 } from "@/assets/templates/ptp-limpeza-template";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
 // ─────────────────────────────────────────────────────────────────────
@@ -35,6 +36,36 @@ import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 // ─────────────────────────────────────────────────────────────────────
 
 export const VERSO_SHEET_NAME = "ENCHEDORA L3";
+
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function criarWorksheetVersoDoTemplate(wb: ExcelJS.Workbook): Promise<ExcelJS.Worksheet> {
+  const existente = wb.getWorksheet(VERSO_SHEET_NAME);
+  if (existente) wb.removeWorksheet(existente.id);
+
+  const template = new ExcelJS.Workbook();
+  await template.xlsx.load(base64ToArrayBuffer(PTP_LIMPEZA_TEMPLATE_BASE64));
+  const origem = template.getWorksheet(VERSO_SHEET_NAME) ?? template.worksheets[0];
+  if (!origem) throw new Error("Aba ENCHEDORA L3 não encontrada no template de PTP/Limpeza.");
+
+  const ws = wb.addWorksheet(VERSO_SHEET_NAME);
+  ws.model = { ...origem.model, id: ws.id, name: VERSO_SHEET_NAME };
+  return ws;
+}
+
+function mergeCellsIfNeeded(ws: ExcelJS.Worksheet, range: string): void {
+  try {
+    ws.mergeCells(range);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/already merged|Cannot merge/i.test(msg)) throw e;
+  }
+}
 
 function rotuloTurnoCabecalho(turno: Turno): string {
   const col = colunaPosicionalDoTurno(turno);
@@ -268,9 +299,8 @@ export async function gerarVersoWorksheet(
   wb: ExcelJS.Workbook,
   opts: GerarVersoOpts,
 ): Promise<ExcelJS.Worksheet> {
-  const ws = wb.addWorksheet(VERSO_SHEET_NAME, {
-    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true },
-  });
+  const ws = await criarWorksheetVersoDoTemplate(wb);
+  ws.pageSetup = { ...ws.pageSetup, orientation: "landscape", paperSize: 9, fitToPage: true };
 
   // Larguras de coluna (A vazia + B..S = 18 colunas úteis)
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
@@ -285,7 +315,7 @@ export async function gerarVersoWorksheet(
   });
 
   // ─── Linha 1 — Título geral ───────────────────────────────────────
-  ws.mergeCells("B1:S1");
+  mergeCellsIfNeeded(ws, "B1:S1");
   const tit = ws.getCell("B1");
   tit.value = "PLANILHA DE PTP - ENCHEDORA LINHA 3";
   tit.font = { bold: true, size: 14 };
@@ -298,12 +328,12 @@ export async function gerarVersoWorksheet(
   ws.getRow(1).height = 24;
 
   // ─── Linha 3 — Data + legendas ───────────────────────────────────
-  ws.mergeCells("B3:I3");
+  mergeCellsIfNeeded(ws, "B3:I3");
   ws.getCell("B3").value = `DATA: ${formatarDataBR(opts.dataOperacao)}`;
   ws.getCell("B3").font = { bold: true };
   ws.getCell("B3").alignment = { vertical: "middle" };
 
-  ws.mergeCells("J3:M3");
+  mergeCellsIfNeeded(ws, "J3:M3");
   ws.getCell("J3").value = "n° = QUANTIDADE REAL DE OCORRÊNCIAS";
   ws.getCell("J3").alignment = { horizontal: "center", vertical: "middle" };
   ws.getCell("J3").font = { bold: true, size: 9 };
@@ -313,7 +343,7 @@ export async function gerarVersoWorksheet(
     fgColor: { argb: "FFFFF59D" },
   };
 
-  ws.mergeCells("N3:P3");
+  mergeCellsIfNeeded(ws, "N3:P3");
   ws.getCell("N3").value = "✓ = ANÁLISE DE ÂNGULO REALIZADA";
   ws.getCell("N3").alignment = { horizontal: "center", vertical: "middle" };
   ws.getCell("N3").font = { bold: true, size: 9 };
@@ -323,7 +353,7 @@ export async function gerarVersoWorksheet(
     fgColor: { argb: "FFC8E6C9" },
   };
 
-  ws.mergeCells("Q3:S3");
+  mergeCellsIfNeeded(ws, "Q3:S3");
   ws.getCell("Q3").value = "NR = NÃO RODOU";
   ws.getCell("Q3").alignment = { horizontal: "center", vertical: "middle" };
   ws.getCell("Q3").font = { bold: true, size: 9 };
@@ -354,18 +384,18 @@ export async function gerarVersoWorksheet(
   const op1 = operadorPorColuna(1);
   const op2 = operadorPorColuna(2);
   const op3 = operadorPorColuna(3);
-  ws.mergeCells("B4:S4");
+  mergeCellsIfNeeded(ws, "B4:S4");
   ws.getCell("B4").value = `OPERADOR 1: ${op1}`;
   ws.getCell("B4").font = { bold: true };
-  ws.mergeCells("B5:S5");
+  mergeCellsIfNeeded(ws, "B5:S5");
   ws.getCell("B5").value = `OPERADOR 2: ${op2}`;
   ws.getCell("B5").font = { bold: true };
-  ws.mergeCells("B6:S6");
+  mergeCellsIfNeeded(ws, "B6:S6");
   ws.getCell("B6").value = `OPERADOR 3: ${op3}`;
   ws.getCell("B6").font = { bold: true };
 
   // ─── Linha 7 — Header turnos do PTP ──────────────────────────────
-  ws.mergeCells("B7:G8");
+  mergeCellsIfNeeded(ws, "B7:G8");
   const cabPtp = ws.getCell("B7");
   cabPtp.value =
     "ITEM DE VERIFICAÇÃO NAS GARRAFAS\n(Informe a quantidade quando houver ocorrência)";
@@ -373,11 +403,11 @@ export async function gerarVersoWorksheet(
   cabPtp.font = { bold: true, size: 9 };
   cabPtp.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF5F5F5" } };
 
-  ws.mergeCells("H7:K7");
+  mergeCellsIfNeeded(ws, "H7:K7");
   ws.getCell("H7").value = rotuloTurnoCabecalho("12x36 Dia");
-  ws.mergeCells("L7:O7");
+  mergeCellsIfNeeded(ws, "L7:O7");
   ws.getCell("L7").value = rotuloTurnoCabecalho("12x36 Noite");
-  ws.mergeCells("P7:S7");
+  mergeCellsIfNeeded(ws, "P7:S7");
   ws.getCell("P7").value = rotuloTurnoCabecalho("3º Turno");
   ["H7", "L7", "P7"].forEach((c) => {
     const cell = ws.getCell(c);
@@ -410,7 +440,7 @@ export async function gerarVersoWorksheet(
   const PTP_LINHA_INI = 9;
   PTP_ITENS.forEach((itemDef, iIdx) => {
     const linha = PTP_LINHA_INI + iIdx;
-    ws.mergeCells(`B${linha}:G${linha}`);
+    mergeCellsIfNeeded(ws, `B${linha}:G${linha}`);
     const cellNome = ws.getCell(`B${linha}`);
     cellNome.value = itemDef.nome;
     cellNome.font = { bold: true, size: 10 };
@@ -457,7 +487,7 @@ export async function gerarVersoWorksheet(
   // Aderência (não defeito): por janela, mostra ✓ (1 verif.), ✓✓ (2),
   // vazio (nenhuma) ou NR (não rodou).
   const LINHA_ANGULO = 14;
-  ws.mergeCells(`B${LINHA_ANGULO}:G${LINHA_ANGULO}`);
+  mergeCellsIfNeeded(ws, `B${LINHA_ANGULO}:G${LINHA_ANGULO}`);
   const cellAng = ws.getCell(`B${LINHA_ANGULO}`);
   cellAng.value = "ANÁLISE DE ÂNGULO (2 verificações de 30 min)";
   cellAng.font = { bold: true, size: 9, italic: true };
@@ -500,8 +530,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  const LINHA_VISTO_ASSINATURA = 16;
-  ws.mergeCells(`B${LINHA_VISTO}:G${LINHA_VISTO}`);
+  mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
     "Operador(a), assinar a cada preenchimento e anotar observações no verso quando necessário.";
@@ -521,40 +550,36 @@ export async function gerarVersoWorksheet(
       continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    // Sempre mostra "Visto: <nome>" na LINHA_VISTO; assinatura vai na linha de baixo.
-    cell.value = nome ? `Visto: ${nome}` : "Visto:";
+    cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
     cell.font = { size: 7, bold: !!nome };
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      // Linha dedicada SÓ para a imagem — nada de texto que cubra.
-      const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
-      sigCell.value = null;
-      sigCell.alignment = { horizontal: "center", vertical: "middle" };
       await inserirImagem(
         wb,
         ws,
-        `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`,
+        `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.95, alturaFracao: 0.95 },
+        { larguraFracao: 0.95, alturaFracao: 0.66, inicioYFracao: 0.3 },
       );
     }
   }
-  ws.getRow(LINHA_VISTO).height = 18;
-  ws.getRow(LINHA_VISTO_ASSINATURA).height = 50;
+  if (!ws.getRow(LINHA_VISTO).height || ws.getRow(LINHA_VISTO).height! < 98) {
+    ws.getRow(LINHA_VISTO).height = 98;
+  }
 
-  aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
+  aplicarBordas(ws, `B7:S${LINHA_VISTO}`);
 
   // ─── Linha 17 — Cabeçalho LIMPEZA ────────────────────────────────
   const LIMPEZA_INI = 17;
-  ws.mergeCells(`B${LIMPEZA_INI}:K${LIMPEZA_INI}`);
+  mergeCellsIfNeeded(ws, `B${LIMPEZA_INI}:K${LIMPEZA_INI}`);
   const cabL = ws.getCell(`B${LIMPEZA_INI}`);
   cabL.value = "CHECKLIST OPERACIONAL DE LIMPEZA DA SALA DE ENVASE L3";
   cabL.font = { bold: true, size: 12 };
   cabL.alignment = { horizontal: "center", vertical: "middle" };
   cabL.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F2FD" } };
 
-  ws.mergeCells(`L${LIMPEZA_INI}:N${LIMPEZA_INI}`);
+  mergeCellsIfNeeded(ws, `L${LIMPEZA_INI}:N${LIMPEZA_INI}`);
   ws.getCell(`L${LIMPEZA_INI}`).value = "✓ = Realizado / NA";
   ws.getCell(`L${LIMPEZA_INI}`).alignment = { horizontal: "center", vertical: "middle" };
   ws.getCell(`L${LIMPEZA_INI}`).font = { size: 9, bold: true };
@@ -562,7 +587,7 @@ export async function gerarVersoWorksheet(
     type: "pattern", pattern: "solid", fgColor: { argb: "FFC8E6C9" },
   };
 
-  ws.mergeCells(`O${LIMPEZA_INI}:Q${LIMPEZA_INI}`);
+  mergeCellsIfNeeded(ws, `O${LIMPEZA_INI}:Q${LIMPEZA_INI}`);
   ws.getCell(`O${LIMPEZA_INI}`).value = "✗ = Não realizado";
   ws.getCell(`O${LIMPEZA_INI}`).alignment = { horizontal: "center", vertical: "middle" };
   ws.getCell(`O${LIMPEZA_INI}`).font = { size: 9, bold: true };
@@ -570,7 +595,7 @@ export async function gerarVersoWorksheet(
     type: "pattern", pattern: "solid", fgColor: { argb: "FFFFCDD2" },
   };
 
-  ws.mergeCells(`R${LIMPEZA_INI}:S${LIMPEZA_INI}`);
+  mergeCellsIfNeeded(ws, `R${LIMPEZA_INI}:S${LIMPEZA_INI}`);
   ws.getCell(`R${LIMPEZA_INI}`).value =
     "Código Doc.: FM28 PSGQ07\nRev.: 00";
   ws.getCell(`R${LIMPEZA_INI}`).alignment = { wrapText: true, vertical: "middle", horizontal: "center" };
@@ -578,21 +603,21 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 18 — Header da tabela limpeza ─────────────────────────
   const LIMPEZA_HDR = 18;
-  ws.mergeCells(`B${LIMPEZA_HDR}:B19`);
+  mergeCellsIfNeeded(ws, `B${LIMPEZA_HDR}:B19`);
   ws.getCell(`B${LIMPEZA_HDR}`).value = "LOCAL";
-  ws.mergeCells(`C${LIMPEZA_HDR}:C19`);
+  mergeCellsIfNeeded(ws, `C${LIMPEZA_HDR}:C19`);
   ws.getCell(`C${LIMPEZA_HDR}`).value = "ITEM";
-  ws.mergeCells(`D${LIMPEZA_HDR}:E19`);
+  mergeCellsIfNeeded(ws, `D${LIMPEZA_HDR}:E19`);
   ws.getCell(`D${LIMPEZA_HDR}`).value = "SEÇÃO";
-  ws.mergeCells(`F${LIMPEZA_HDR}:N19`);
+  mergeCellsIfNeeded(ws, `F${LIMPEZA_HDR}:N19`);
   ws.getCell(`F${LIMPEZA_HDR}`).value = "DESCRIÇÃO";
-  ws.mergeCells(`O${LIMPEZA_HDR}:O19`);
+  mergeCellsIfNeeded(ws, `O${LIMPEZA_HDR}:O19`);
   ws.getCell(`O${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Dia");
-  ws.mergeCells(`P${LIMPEZA_HDR}:P19`);
+  mergeCellsIfNeeded(ws, `P${LIMPEZA_HDR}:P19`);
   ws.getCell(`P${LIMPEZA_HDR}`).value = rotuloTurnoCurto("12x36 Noite");
-  ws.mergeCells(`Q${LIMPEZA_HDR}:Q19`);
+  mergeCellsIfNeeded(ws, `Q${LIMPEZA_HDR}:Q19`);
   ws.getCell(`Q${LIMPEZA_HDR}`).value = rotuloTurnoCurto("3º Turno");
-  ws.mergeCells(`R${LIMPEZA_HDR}:S19`);
+  mergeCellsIfNeeded(ws, `R${LIMPEZA_HDR}:S19`);
   ws.getCell(`R${LIMPEZA_HDR}`).value = "Observações do líder";
   ["B", "C", "D", "F", "O", "P", "Q", "R"].forEach((c) => {
     const cell = ws.getCell(`${c}${LIMPEZA_HDR}`);
@@ -607,9 +632,9 @@ export async function gerarVersoWorksheet(
     const linha = LIMPEZA_LINHA_INI + idx;
     ws.getCell(`B${linha}`).value = it.grupo;
     ws.getCell(`C${linha}`).value = it.codigo;
-    ws.mergeCells(`D${linha}:E${linha}`);
+    mergeCellsIfNeeded(ws, `D${linha}:E${linha}`);
     ws.getCell(`D${linha}`).value = it.secao;
-    ws.mergeCells(`F${linha}:N${linha}`);
+    mergeCellsIfNeeded(ws, `F${linha}:N${linha}`);
     ws.getCell(`F${linha}`).value = it.descricao;
 
     ["B", "C", "D", "F"].forEach((c) => {
@@ -646,7 +671,7 @@ export async function gerarVersoWorksheet(
   aplicarBordas(ws, `B${LIMPEZA_HDR}:Q${LIMPEZA_FIM}`);
 
   // Bloco de observações livres do líder em R20:S40 — concatena obs PTP + Limpeza.
-  ws.mergeCells(`R${LIMPEZA_LINHA_INI}:S${LIMPEZA_FIM}`);
+  mergeCellsIfNeeded(ws, `R${LIMPEZA_LINHA_INI}:S${LIMPEZA_FIM}`);
   const cellObs = ws.getCell(`R${LIMPEZA_LINHA_INI}`);
   const linhasObs: string[] = [];
   for (const j of opts.ptpJanelas) {
@@ -701,7 +726,7 @@ export async function gerarVersoWorksheet(
     const colA = m1[1];
     const row = +m1[2];
     const colB = m2[1];
-    ws.mergeCells(`${colA}${row}:${colB}${row}`);
+    mergeCellsIfNeeded(ws, `${colA}${row}:${colB}${row}`);
     const cell = ws.getCell(`${colA}${row}`);
     const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
     const nome = lt?.liderNome ?? "";
@@ -729,7 +754,7 @@ export async function gerarVersoWorksheet(
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
   ws.getRow(LINHA_ASSIN_OP).height = 64;
 
-  ws.mergeCells(`B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
+  mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
   cellLeg.value = "↑ Assinatura dos líderes para validação ↑";
   cellLeg.font = { italic: true, size: 9, bold: true };
