@@ -470,8 +470,6 @@ function CardItem({
           )}
         </div>
       )}
-        </div>
-      )}
 
       {/* Anomalia já registrada */}
       {resposta.anomaliaId && (
