@@ -258,15 +258,10 @@ function ChecklistPage() {
                 }}
                 resposta={resp}
                 def={def}
-                decisao={decisoesNC[resp.itemNumero] ?? null}
                 temErro={itensComErro.has(resp.itemNumero)}
-                abrindoAnomalia={abrindoAnomaliaItem === resp.itemNumero}
-                bloqueado={abrindoAnomaliaItem !== null && abrindoAnomaliaItem !== resp.itemNumero}
                 modoEdicao={modoEdicao}
                 onResponder={(r) => escolher(resp.itemNumero, r)}
                 onAtualizar={(patch) => atualizarRespostaPorNumero(resp.itemNumero, patch)}
-                onSetDecisao={(d) => setDecisao(resp.itemNumero, d)}
-                onIrAnomalia={() => irParaAnomalia(resp)}
               />
             );
           })}
@@ -287,7 +282,6 @@ function ChecklistPage() {
             size="lg"
             className="h-12 px-5 text-sm md:h-14 md:px-6 md:text-base"
             onClick={voltarMomentos}
-            disabled={abrindoAnomaliaItem !== null}
           >
             ← Voltar
           </Button>
@@ -295,7 +289,6 @@ function ChecklistPage() {
             size="lg"
             className="h-12 px-6 text-sm font-semibold md:h-14 md:px-8 md:text-base"
             onClick={concluirMomento}
-            disabled={abrindoAnomaliaItem !== null}
           >
             Concluir momento →
           </Button>
@@ -342,29 +335,19 @@ function IndicadorSalvamento({ status }: { status: "idle" | "saving" | "saved" }
 function CardItem({
   resposta,
   def,
-  decisao,
   temErro,
-  abrindoAnomalia,
-  bloqueado,
   modoEdicao,
   refCallback,
   onResponder,
   onAtualizar,
-  onSetDecisao,
-  onIrAnomalia,
 }: {
   resposta: RespostaItem;
   def: ItemChecklistDef;
-  decisao: DecisaoNC;
   temErro: boolean;
-  abrindoAnomalia: boolean;
-  bloqueado: boolean;
   modoEdicao: boolean;
   refCallback: (el: HTMLDivElement | null) => void;
   onResponder: (r: Resposta) => void;
   onAtualizar: (patch: Partial<RespostaItem>) => void;
-  onSetDecisao: (d: DecisaoNC) => void;
-  onIrAnomalia: () => void;
 }) {
   const respondido = resposta.resposta !== null;
 
