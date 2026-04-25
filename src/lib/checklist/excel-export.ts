@@ -733,6 +733,9 @@ export async function exportarTurnoExcel(
   const versoTurno = {
     ptpJanelas: verso.ptpJanelas,
     limpezaTurnos: verso.limpezaTurnos.filter((lt) => lt.turno === turno),
+    observacoesVerso: (verso.observacoesVerso ?? []).filter(
+      (o) => turnoBaseObservacao(turnoDaObservacaoEspelho(o)) === turnoBaseObservacao(turno),
+    ),
   };
   const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   const segmentos = montarSegmentosObservacoes(grupos);
@@ -844,10 +847,13 @@ export async function exportarTurnoComVersoExcel(
   if (checklistAss) preencherAssinaturasDigitais(wb, ws, mapa, checklistAss);
 
   // Carrega verso antes para reaproveitar nas Observações da frente.
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folha);
+  const { ptpJanelas, limpezaTurnos, observacoesVerso } = await carregarVersoDoDia(folha);
   const versoTurno = {
     ptpJanelas,
     limpezaTurnos: limpezaTurnos.filter((lt) => lt.turno === turno),
+    observacoesVerso: observacoesVerso.filter(
+      (o) => turnoBaseObservacao(turnoDaObservacaoEspelho(o)) === turnoBaseObservacao(turno),
+    ),
   };
   const grupos = coletarObservacoesPorTurno(concluidos, anomalias, versoTurno);
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
@@ -902,11 +908,11 @@ export async function exportarFrenteVersoCompletoExcel(
   }
 
   // Carrega verso antes para reaproveitar nas Observações da frente.
-  const { ptpJanelas, limpezaTurnos } = await carregarVersoDoDia(folhaAtual);
+  const { ptpJanelas, limpezaTurnos, observacoesVerso } = await carregarVersoDoDia(folhaAtual);
   const grupos = coletarObservacoesPorTurno(
     todosChecklistsConcluidos,
     anomalias,
-    { ptpJanelas, limpezaTurnos },
+    { ptpJanelas, limpezaTurnos, observacoesVerso },
   );
   preencherObservacoesSegmentadas(ws, montarSegmentosObservacoes(grupos));
 
