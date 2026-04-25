@@ -17,6 +17,7 @@ import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
+import { versoStorage } from "@/lib/verso/storage";
 import {
   fetchObservacoesVerso,
   formatarLinhaObservacao,
