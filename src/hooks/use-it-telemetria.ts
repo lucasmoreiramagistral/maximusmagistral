@@ -41,6 +41,10 @@ import {
   obterOuCriarDeviceId,
   registrarUltimoHeartbeat,
 } from "@/lib/it/identidade";
+import {
+  temUserIdValido,
+  validarContextoTelemetria,
+} from "@/lib/it/telemetria-validacao";
 
 const HEARTBEAT_MS = 60_000; // 60s
 const INTERACAO_MAX_AGE_MS = 60_000; // só envia heartbeat se houve interação no último 1min
@@ -169,6 +173,15 @@ export function useItTelemetria(
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
+        // Guarda de integridade: sem user_id válido, não emite evento.
+        // Isso evita linhas órfãs no banco e mantém precisão da Inteligência das ITs.
+        if (!temUserIdValido(contextoRef.current)) {
+          validarContextoTelemetria(
+            contextoRef.current,
+            `trackEvento:${tipo}`,
+          );
+          return;
+        }
         const evento: EventoIt = {
           sessao_id: sessao.id,
           documento: sessao.documento,
@@ -248,6 +261,9 @@ export function useItTelemetria(
         iniciado_em: nowIso(),
         contexto: contextoRef.current,
       };
+      // Validação de integridade — embora o effect só rode com userId presente,
+      // logamos qualquer divergência para auditoria (ex.: profile sem nome).
+      validarContextoTelemetria(sessao.contexto, "abrir-sessao");
       sessaoRef.current = sessao;
       inicioSessaoRef.current = Date.now();
 
@@ -371,7 +387,9 @@ export function useItTelemetria(
         if (
           sessao &&
           typeof navigator !== "undefined" &&
-          typeof navigator.sendBeacon === "function"
+          typeof navigator.sendBeacon === "function" &&
+          // Não beacon sem user_id — evita evento órfão.
+          temUserIdValido(contextoRef.current)
         ) {
           const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/it_consulta_eventos`;
           const apikey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
