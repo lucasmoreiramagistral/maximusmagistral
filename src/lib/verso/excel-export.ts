@@ -720,7 +720,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 50;
+  ws.getRow(LINHA_ASSIN_OP).height = 64;
 
   ws.mergeCells(`B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -735,19 +735,24 @@ export async function gerarVersoWorksheet(
     const cell = ws.getCell(`${colLetra}${LINHA_ASSIN_OP}`);
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
     const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
-    cell.value = temAssinatura ? (nome || "Assin. Oper. →") : nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-    cell.alignment = { horizontal: "center", vertical: temAssinatura ? "bottom" : "middle", wrapText: true };
-    cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
-    cell.border = BORDA_FINA;
-    if (lt.assinaturaOperador?.dataUrl) {
+    if (temAssinatura) {
+      // Texto fica só com o nome embaixo; imagem ocupa a parte superior.
+      cell.value = nome || "";
+      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.font = { size: 7, color: { argb: "FF444444" } };
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
-        lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.98, alturaFracao: 0.82, inicioYFracao: 0.02 },
+        lt.assinaturaOperador!.dataUrl,
+        { larguraFracao: 0.95, alturaFracao: 0.78, inicioYFracao: 0.02 },
       );
+    } else {
+      cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = { size: 8 };
     }
+    cell.border = BORDA_FINA;
   }
   // Garante borda nas células O/P/Q da linha 42 mesmo sem dado
   ["O", "P", "Q"].forEach((c) => {
