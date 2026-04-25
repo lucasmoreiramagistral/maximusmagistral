@@ -3,8 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useItAnalyticsRealtime } from "@/hooks/use-it-analytics-realtime";
 import {
   AlertCircle,
-  AlertTriangle,
-  ArrowRightLeft,
   BookOpen,
   Calendar,
   ChevronDown,
@@ -12,6 +10,8 @@ import {
   Info,
   Loader2,
   Search,
+  UserCheck,
+  UserX,
   Users,
   ZoomIn,
 } from "lucide-react";
@@ -51,7 +51,6 @@ interface FiltrosState {
   equipe: string;
   turno: string;
   porOperador: boolean;
-  apenasRastreaveis: boolean;
 }
 
 interface EventoRow {
@@ -69,6 +68,7 @@ interface EventoRow {
   turno: string | null;
   operador_nome: string | null;
   operador_nome_canonico: string | null;
+  user_id: string | null;
   device_id: string | null;
   metadata_json: Record<string, unknown> | null;
   created_at: string;
@@ -86,7 +86,7 @@ interface SessaoRow {
   turno: string | null;
   operador_nome: string | null;
   operador_nome_canonico: string | null;
-  device_id: string | null;
+  user_id: string | null;
 }
 
 interface DificuldadeRow {
@@ -101,10 +101,17 @@ interface DificuldadeRow {
   score: number;
 }
 
-interface AlertaRow {
-  tipo: "multi_device" | "trocas_rapidas";
-  chave: string;
-  detalhes: Record<string, unknown>;
+interface OperadorAtivoRow {
+  id: string;
+  nome: string;
+  equipe_padrao: string | null;
+  turno_padrao: string | null;
+}
+
+interface AtaRow {
+  operador_user_id: string | null;
+  operador_nome_canonico: string;
+  documento: "it002" | "it005";
 }
 
 const DOC_LABEL: Record<"it002" | "it005", string> = {
@@ -145,14 +152,13 @@ function ItAnalytics() {
     equipe: "todas",
     turno: "todos",
     porOperador: false,
-    apenasRastreaveis: true,
   });
 
   const [sessoes, setSessoes] = useState<SessaoRow[]>([]);
   const [eventos, setEventos] = useState<EventoRow[]>([]);
   const [dificuldade, setDificuldade] = useState<DificuldadeRow[]>([]);
-  const [alertas, setAlertas] = useState<AlertaRow[]>([]);
-  const [legadasCount, setLegadasCount] = useState(0);
+  const [operadoresAtivos, setOperadoresAtivos] = useState<OperadorAtivoRow[]>([]);
+  const [atas, setAtas] = useState<AtaRow[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [erroDificuldade, setErroDificuldade] = useState<string | null>(null);
@@ -174,11 +180,9 @@ function ItAnalytics() {
         const dataInicio = periodoParaDataInicio(filtros.periodo);
 
         // Sessões — VIEW efetiva (duracao_efetiva_ms + ativa_agora)
-        // Filtro device_id no servidor quando "apenasRastreaveis" — evita puxar
-        // milhares de sessões legadas sem rastreabilidade pra filtrar no client.
         let qSes = (supabase.from as any)("it_consulta_sessoes_efetivas")
           .select(
-            "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,device_id",
+            "id,documento,duracao_total_ms,duracao_efetiva_ms,iniciado_em,ultimo_evento_em,ativa_agora,equipe,turno,operador_nome,operador_nome_canonico,user_id",
           )
           .gte("iniciado_em", dataInicio)
           .order("iniciado_em", { ascending: false })
@@ -187,12 +191,11 @@ function ItAnalytics() {
           qSes = qSes.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qSes = qSes.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qSes = qSes.eq("turno", filtros.turno);
-        if (filtros.apenasRastreaveis) qSes = qSes.not("device_id", "is", null);
 
-        // Eventos — mesma lógica
+        // Eventos
         let qEv = (supabase.from as any)("it_consulta_eventos")
           .select(
-            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,device_id,metadata_json,created_at",
+            "id,sessao_id,documento,tipo_evento,pagina,pagina_destino,tipo_entrada,label,termo_busca,duracao_ms,equipe,turno,operador_nome,operador_nome_canonico,user_id,device_id,metadata_json,created_at",
           )
           .gte("created_at", dataInicio)
           .order("created_at", { ascending: false })
@@ -201,7 +204,6 @@ function ItAnalytics() {
           qEv = qEv.eq("documento", filtros.documento);
         if (filtros.equipe !== "todas") qEv = qEv.eq("equipe", filtros.equipe);
         if (filtros.turno !== "todos") qEv = qEv.eq("turno", filtros.turno);
-        if (filtros.apenasRastreaveis) qEv = qEv.not("device_id", "is", null);
 
         // Dificuldade (view)
         let qDif = (supabase.from as any)("it_dificuldade_paginas")
@@ -211,24 +213,24 @@ function ItAnalytics() {
         if (filtros.documento !== "todos")
           qDif = qDif.eq("documento", filtros.documento);
 
-        // Alertas de identidade (view)
-        const qAlertas = (supabase.from as any)("it_alertas_identidade")
-          .select("*")
-          .limit(100);
+        // Operadores ativos (perfil = "operador", active = true)
+        const qOps = supabase
+          .from("profiles")
+          .select("id,nome,equipe_padrao,turno_padrao")
+          .eq("perfil", "operador")
+          .eq("active", true);
 
-        // Conta sessões legadas (sem device_id) no período — para o badge informativo.
-        // HEAD + count exact = não trafega linhas, só o número.
-        const qLegadas = (supabase.from as any)("it_consulta_sessoes")
-          .select("id", { count: "exact", head: true })
-          .gte("iniciado_em", dataInicio)
-          .is("device_id", null);
+        // Atas de treinamento — usadas para cobertura ata x uso da IT
+        const qAtas = (supabase.from as any)("it_atas_treinamento")
+          .select("operador_user_id,operador_nome_canonico,documento")
+          .limit(5000);
 
-        const [sesRes, evRes, difRes, alertRes, legRes] = await Promise.allSettled([
+        const [sesRes, evRes, difRes, opsRes, atasRes] = await Promise.allSettled([
           qSes,
           qEv,
           qDif,
-          qAlertas,
-          qLegadas,
+          qOps,
+          qAtas,
         ]);
 
         if (guard.cancelled) return;
@@ -264,16 +266,16 @@ function ItAnalytics() {
           setDificuldade((difRes.value.data as DificuldadeRow[]) ?? []);
         }
 
-        if (alertRes.status === "fulfilled" && !alertRes.value.error) {
-          setAlertas((alertRes.value.data as AlertaRow[]) ?? []);
+        if (opsRes.status === "fulfilled" && !opsRes.value.error) {
+          setOperadoresAtivos((opsRes.value.data as OperadorAtivoRow[]) ?? []);
         } else {
-          setAlertas([]);
+          setOperadoresAtivos([]);
         }
 
-        if (legRes.status === "fulfilled" && !legRes.value.error) {
-          setLegadasCount(legRes.value.count ?? 0);
+        if (atasRes.status === "fulfilled" && !atasRes.value.error) {
+          setAtas((atasRes.value.data as AtaRow[]) ?? []);
         } else {
-          setLegadasCount(0);
+          setAtas([]);
         }
 
         setUltimaAtualizacao(new Date());
@@ -284,10 +286,9 @@ function ItAnalytics() {
         if (!guard.cancelled && !silent) setCarregando(false);
       }
     },
-    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno, filtros.apenasRastreaveis],
+    [usuario, filtros.periodo, filtros.documento, filtros.equipe, filtros.turno],
   );
 
-  // Carregamento inicial / quando filtros mudam
   useEffect(() => {
     void carregarDados(false);
     return () => {
@@ -295,18 +296,15 @@ function ItAnalytics() {
     };
   }, [carregarDados]);
 
-  // Realtime: refetch silencioso quando chegar evento/sessão nova (debounced)
   useItAnalyticsRealtime(!!usuario, () => {
     void carregarDados(true);
   });
 
-  // Filtragem agora é feita no servidor (via .not("device_id","is",null)) quando
-  // "apenasRastreaveis" está ligado. Aliases mantidos pra clareza nas agregações.
   const sessoesFiltradas = sessoes;
   const eventosFiltrados = eventos;
-  const sessoesLegadas = legadasCount;
 
-  // Agregações memoizadas
+  // ────────── Agregações ──────────
+
   const kpis = useMemo(() => {
     const sessoesCount = sessoesFiltradas.length;
     const consultas = eventosFiltrados.filter((e) => e.tipo_evento === "page_view").length;
@@ -316,7 +314,21 @@ function ItAnalytics() {
     ).length;
     const retries = eventosFiltrados.filter((e) => e.tipo_evento === "image_retry").length;
     const emConsultaAgora = sessoesFiltradas.filter((s) => s.ativa_agora === true).length;
-    return { sessoesCount, consultas, buscas, zooms, retries, emConsultaAgora };
+    // Operadores únicos no período: prioridade para user_id, fallback nome canônico.
+    const setOps = new Set<string>();
+    for (const s of sessoesFiltradas) {
+      const k = s.user_id ?? (s.operador_nome_canonico ? `c:${s.operador_nome_canonico}` : null);
+      if (k) setOps.add(k);
+    }
+    return {
+      sessoesCount,
+      consultas,
+      buscas,
+      zooms,
+      retries,
+      emConsultaAgora,
+      operadoresUnicos: setOps.size,
+    };
   }, [sessoesFiltradas, eventosFiltrados]);
 
   const aberturasPorDoc = useMemo(() => {
@@ -401,57 +413,111 @@ function ItAnalytics() {
       .sort((a, b) => b.count - a.count);
   }, [sessoesFiltradas]);
 
-  // Agrupamento por nome canônico (LUCAS, LUCAS MOREIRA, etc.)
-  // Sub-linha mostra variantes brutas digitadas. Badge se multi-device.
+  // Visão por operador — agora usa user_id como chave principal.
+  // Fallback: sessões antigas sem user_id agrupam por nome canônico.
   const segPorOperador = useMemo(() => {
     interface Acc {
-      canonico: string;
-      variantes: Set<string>;
-      devices: Set<string>;
+      key: string;
+      userId: string | null;
+      nome: string;
       count: number;
     }
     const map = new Map<string, Acc>();
     for (const s of sessoesFiltradas) {
-      const can = s.operador_nome_canonico ?? s.operador_nome ?? "—";
-      const cur = map.get(can);
-      if (cur) {
-        cur.count++;
-        if (s.operador_nome) cur.variantes.add(s.operador_nome);
-        if (s.device_id) cur.devices.add(s.device_id);
-      } else {
-        map.set(can, {
-          canonico: can,
-          variantes: new Set(s.operador_nome ? [s.operador_nome] : []),
-          devices: new Set(s.device_id ? [s.device_id] : []),
-          count: 1,
-        });
-      }
+      const userId = s.user_id;
+      const nome = s.operador_nome ?? s.operador_nome_canonico ?? "—";
+      const key = userId ? `u:${userId}` : `c:${s.operador_nome_canonico ?? nome}`;
+      const cur = map.get(key);
+      if (cur) cur.count++;
+      else map.set(key, { key, userId, nome, count: 1 });
     }
     return Array.from(map.values())
-      .map((a) => ({
-        canonico: a.canonico,
-        variantes: Array.from(a.variantes).filter(
-          (v) => v.toUpperCase() !== a.canonico,
-        ),
-        qtdDevices: a.devices.size,
-        count: a.count,
-      }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 20);
+      .slice(0, 30);
   }, [sessoesFiltradas]);
 
-  // Trocas de operador nas últimas 24h (client + servidor)
-  const trocasOperador = useMemo(() => {
-    const corteMs = Date.now() - 24 * 60 * 60 * 1000;
-    return eventosFiltrados
-      .filter(
-        (e) =>
-          (e.tipo_evento === "identidade_trocada" ||
-            e.tipo_evento === "identidade_trocada_servidor") &&
-          Date.parse(e.created_at) >= corteMs,
-      )
-      .slice(0, 30);
-  }, [eventosFiltrados]);
+  // Operadores que NÃO consultaram a IT no período.
+  // Cruzamento estritamente contra perfil = "operador" e active = true.
+  const operadoresSemConsulta = useMemo(() => {
+    const idsQueConsultaram = new Set<string>();
+    for (const s of sessoesFiltradas) {
+      if (s.user_id) idsQueConsultaram.add(s.user_id);
+    }
+    return operadoresAtivos
+      .filter((op) => !idsQueConsultaram.has(op.id))
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [sessoesFiltradas, operadoresAtivos]);
+
+  // Cobertura: consultaram com ata vs. consultaram sem ata.
+  // Ata existe se: it_atas_treinamento.operador_user_id = user_id (preferido)
+  // OU operador_nome_canonico bate (fallback p/ atas antigas sem user_id).
+  // Cruzamento por documento (ata é por IT).
+  const coberturaAta = useMemo(() => {
+    const atasPorUser = new Map<string, Set<"it002" | "it005">>();
+    const atasPorCanonico = new Map<string, Set<"it002" | "it005">>();
+    for (const a of atas) {
+      if (a.operador_user_id) {
+        const cur = atasPorUser.get(a.operador_user_id) ?? new Set();
+        cur.add(a.documento);
+        atasPorUser.set(a.operador_user_id, cur);
+      }
+      if (a.operador_nome_canonico) {
+        const cur = atasPorCanonico.get(a.operador_nome_canonico) ?? new Set();
+        cur.add(a.documento);
+        atasPorCanonico.set(a.operador_nome_canonico, cur);
+      }
+    }
+
+    interface OpResumo {
+      key: string;
+      nome: string;
+      documentosConsultados: Set<"it002" | "it005">;
+      temAtaNoDoc: Map<"it002" | "it005", boolean>;
+    }
+    const map = new Map<string, OpResumo>();
+    for (const s of sessoesFiltradas) {
+      const userId = s.user_id;
+      const canonico = s.operador_nome_canonico ?? null;
+      const nome = s.operador_nome ?? canonico ?? "—";
+      const key = userId ? `u:${userId}` : `c:${canonico ?? nome}`;
+      let cur = map.get(key);
+      if (!cur) {
+        cur = {
+          key,
+          nome,
+          documentosConsultados: new Set(),
+          temAtaNoDoc: new Map(),
+        };
+        map.set(key, cur);
+      }
+      cur.documentosConsultados.add(s.documento);
+      const docsComAta =
+        (userId && atasPorUser.get(userId)) ||
+        (canonico && atasPorCanonico.get(canonico)) ||
+        new Set<"it002" | "it005">();
+      cur.temAtaNoDoc.set(s.documento, docsComAta.has(s.documento));
+    }
+
+    let comAta = 0;
+    let semAta = 0;
+    const detalheSemAta: { nome: string; docs: ("it002" | "it005")[] }[] = [];
+    for (const op of map.values()) {
+      const docsSemAta: ("it002" | "it005")[] = [];
+      for (const doc of op.documentosConsultados) {
+        if (op.temAtaNoDoc.get(doc)) {
+          comAta++;
+        } else {
+          semAta++;
+          docsSemAta.push(doc);
+        }
+      }
+      if (docsSemAta.length > 0) {
+        detalheSemAta.push({ nome: op.nome, docs: docsSemAta });
+      }
+    }
+    detalheSemAta.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+    return { comAta, semAta, detalheSemAta, totalOperadores: map.size };
+  }, [sessoesFiltradas, atas]);
 
   const equipesUnicas = useMemo(() => {
     const set = new Set<string>();
@@ -485,6 +551,9 @@ function ItAnalytics() {
                 de reforço de treinamento, <strong>não</strong> para avaliar
                 operadores individualmente. O foco está em onde a operação encontra
                 dificuldade — não em quem.
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Dados anteriores ao login individual podem estar incompletos.
               </p>
               <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="relative flex h-2 w-2">
@@ -587,89 +656,7 @@ function ItAnalytics() {
               ]}
             />
           </CardContent>
-          <CardContent className="border-t pt-4">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <Label
-                  htmlFor="apenas-rastreaveis"
-                  className="text-sm font-medium cursor-pointer"
-                >
-                  Apenas sessões rastreáveis
-                </Label>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Esconde sessões antigas sem identidade confirmada (anteriores
-                  à blindagem). Recomendado para KPIs limpos.
-                  {sessoesLegadas > 0 && (
-                    <>
-                      {" "}
-                      <span className="font-medium text-warning-foreground">
-                        {sessoesLegadas} sessão(ões) legada(s) no período.
-                      </span>
-                    </>
-                  )}
-                </p>
-              </div>
-              <Switch
-                id="apenas-rastreaveis"
-                checked={filtros.apenasRastreaveis}
-                onCheckedChange={(v) =>
-                  setFiltros((f) => ({ ...f, apenasRastreaveis: v }))
-                }
-              />
-            </div>
-          </CardContent>
         </Card>
-
-        {/* ⚠ Alertas de identidade — sempre no topo quando houver */}
-        {alertas.length > 0 && (
-          <Card className="mb-6 border-destructive/50 bg-destructive/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base text-destructive">
-                <AlertTriangle className="h-5 w-5" />
-                Alertas de identidade ({alertas.length})
-              </CardTitle>
-              <CardDescription>
-                Sinais que merecem atenção da coordenação. Cada alerta é
-                auditável.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ul className="space-y-2">
-                {alertas.map((a, i) => (
-                  <li
-                    key={`${a.tipo}-${a.chave}-${i}`}
-                    className="flex items-start gap-3 rounded-md border border-destructive/30 bg-card px-3 py-2 text-sm"
-                  >
-                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                    <div className="flex-1">
-                      {a.tipo === "multi_device" ? (
-                        <p>
-                          <strong>{a.chave}</strong> aparece em{" "}
-                          <strong>
-                            {(a.detalhes?.qtd_devices as number) ?? "?"} devices
-                          </strong>{" "}
-                          ativos ao mesmo tempo.
-                        </p>
-                      ) : (
-                        <p>
-                          Device{" "}
-                          <code className="rounded bg-muted px-1 font-mono text-xs">
-                            {a.chave.slice(0, 8)}…
-                          </code>{" "}
-                          teve{" "}
-                          <strong>
-                            {(a.detalhes?.trocas_1h as number) ?? "?"} trocas
-                          </strong>{" "}
-                          de operador na última hora.
-                        </p>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
-        )}
 
         {erro && (
           <Card className="mb-6 border-destructive/40">
@@ -692,12 +679,13 @@ function ItAnalytics() {
         ) : (
           <>
             {/* KPIs */}
-            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-6">
+            <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
               <KpiCard
                 titulo="Em consulta agora"
                 valor={kpis.emConsultaAgora}
                 destaque={kpis.emConsultaAgora > 0 ? "success" : undefined}
               />
+              <KpiCard titulo="Operadores únicos" valor={kpis.operadoresUnicos} />
               <KpiCard titulo="Sessões" valor={kpis.sessoesCount} />
               <KpiCard titulo="Consultas (page views)" valor={kpis.consultas} />
               <KpiCard titulo="Buscas no índice" valor={kpis.buscas} />
@@ -707,6 +695,109 @@ function ItAnalytics() {
                 valor={kpis.retries}
                 destaque={kpis.retries > 0 ? "warning" : undefined}
               />
+            </div>
+
+            {/* Cobertura: consultaram x sem consulta + ata x uso */}
+            <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <UserX className="h-4 w-4" />
+                    Operadores sem consulta no período
+                  </CardTitle>
+                  <CardDescription>
+                    Operadores ativos que não abriram nenhuma IT no recorte
+                    selecionado. Útil para incentivar consulta antes do trabalho.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {operadoresAtivos.length === 0 ? (
+                    <p className="py-2 text-xs text-muted-foreground">
+                      Nenhum operador ativo cadastrado.
+                    </p>
+                  ) : operadoresSemConsulta.length === 0 ? (
+                    <p className="py-2 text-sm text-success">
+                      ✓ Todos os {operadoresAtivos.length} operadores ativos
+                      consultaram a IT no período.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        {operadoresSemConsulta.length} de {operadoresAtivos.length}{" "}
+                        operador(es) ativo(s) sem consulta.
+                      </p>
+                      <ul className="max-h-72 space-y-1 overflow-y-auto">
+                        {operadoresSemConsulta.map((op) => (
+                          <li
+                            key={op.id}
+                            className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                          >
+                            <span className="truncate">{op.nome}</span>
+                            <span className="shrink-0 text-[11px] text-muted-foreground">
+                              {[op.equipe_padrao, op.turno_padrao]
+                                .filter(Boolean)
+                                .join(" · ") || "—"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <UserCheck className="h-4 w-4" />
+                    Cobertura de Ata × Uso da IT
+                  </CardTitle>
+                  <CardDescription>
+                    A ata é controle de treinamento (não trava acesso). Aqui você
+                    vê quem consultou e ainda não tem ata cadastrada.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-md border border-success/30 bg-success/10 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Consultaram com ata
+                      </p>
+                      <p className="mt-0.5 text-2xl font-bold text-success">
+                        {coberturaAta.comAta}
+                      </p>
+                    </div>
+                    <div className="rounded-md border border-warning/40 bg-warning/10 p-3">
+                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                        Consultaram sem ata
+                      </p>
+                      <p className="mt-0.5 text-2xl font-bold text-warning-foreground">
+                        {coberturaAta.semAta}
+                      </p>
+                    </div>
+                  </div>
+                  {coberturaAta.detalheSemAta.length === 0 ? (
+                    <p className="py-2 text-xs text-muted-foreground">
+                      Nenhum operador consultou IT sem ata correspondente no
+                      período.
+                    </p>
+                  ) : (
+                    <ul className="max-h-56 space-y-1 overflow-y-auto">
+                      {coberturaAta.detalheSemAta.map((op) => (
+                        <li
+                          key={op.nome}
+                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
+                        >
+                          <span className="truncate">{op.nome}</span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            sem ata em: {op.docs.map((d) => DOC_LABEL[d]).join(", ")}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </CardContent>
+              </Card>
             </div>
 
             {/* Rankings */}
@@ -1022,14 +1113,14 @@ function ItAnalytics() {
               </Card>
             </div>
 
-            {/* Toggle por operador (oculto por default) */}
+            {/* Visão por operador (oculto por default) */}
             <Card>
               <CardHeader className="flex flex-row items-center justify-between gap-3">
                 <div>
                   <CardTitle className="text-base">Visão por operador</CardTitle>
                   <CardDescription>
-                    Apoio à coordenação. Use com cuidado — o foco principal são as
-                    páginas, não as pessoas.
+                    Apoio à coordenação. Ranking de quem mais consultou as IT no
+                    período.
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
@@ -1053,91 +1144,26 @@ function ItAnalytics() {
                     <ul className="space-y-1.5">
                       {segPorOperador.map((o) => (
                         <li
-                          key={o.canonico}
-                          className="rounded-md border border-border bg-card px-3 py-2 text-sm"
+                          key={o.key}
+                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-2 font-medium">
-                              {o.canonico}
-                              {o.qtdDevices > 1 && (
-                                <span className="rounded-full border border-warning/50 bg-warning/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning-foreground">
-                                  ⚠ {o.qtdDevices} devices
-                                </span>
-                              )}
-                            </span>
-                            <span className="font-semibold text-primary">
-                              {o.count}
-                            </span>
-                          </div>
-                          {o.variantes.length > 0 && (
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              também digitado como:{" "}
-                              {o.variantes
-                                .map((v) => `“${v}”`)
-                                .join(", ")}
-                            </p>
-                          )}
+                          <span className="flex items-center gap-2 font-medium">
+                            {o.nome}
+                            {!o.userId && (
+                              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                                histórico
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-semibold text-primary">
+                            {o.count}
+                          </span>
                         </li>
                       ))}
                     </ul>
                   )}
                 </CardContent>
               )}
-            </Card>
-
-            {/* Trocas de operador (24h) */}
-            <Card className="mt-4">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <ArrowRightLeft className="h-4 w-4" />
-                  Trocas de operador (24h)
-                </CardTitle>
-                <CardDescription>
-                  Trilha auditável: cliente (otimista) + servidor (garantido por trigger).
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {trocasOperador.length === 0 ? (
-                  <SemDados />
-                ) : (
-                  <ul className="space-y-1.5">
-                    {trocasOperador.map((t) => {
-                      const meta = (t.metadata_json ?? {}) as Record<string, unknown>;
-                      const anterior = (meta.anterior_canonico as string) ?? "—";
-                      const novo =
-                        (meta.novo_canonico as string) ??
-                        t.operador_nome_canonico ??
-                        t.operador_nome ??
-                        "—";
-                      const data = new Date(t.created_at);
-                      return (
-                        <li
-                          key={t.id}
-                          className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm"
-                        >
-                          <div className="flex flex-1 flex-col gap-0.5">
-                            <span>
-                              <span className="text-muted-foreground">{anterior}</span>{" "}
-                              → <strong>{novo}</strong>
-                            </span>
-                            <span className="text-[11px] text-muted-foreground">
-                              {data.toLocaleString("pt-BR")} · device{" "}
-                              <code className="font-mono">
-                                {t.device_id?.slice(0, 8) ?? "—"}…
-                              </code>
-                              {t.tipo_evento === "identidade_trocada_servidor" && (
-                                <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase">
-                                  servidor
-                                </span>
-                              )}
-                            </span>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </CardContent>
             </Card>
           </>
         )}
