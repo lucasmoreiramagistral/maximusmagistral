@@ -116,45 +116,12 @@ function ChecklistPage() {
     setErroGlobal("");
   };
 
-  const setDecisao = (itemNumero: number, d: DecisaoNC) => {
-    setDecisoesNC((prev) => ({ ...prev, [itemNumero]: d }));
-    setErroGlobal("");
-  };
-
   const escolher = (itemNumero: number, r: Resposta) => {
-    if (abrindoAnomaliaItem !== null) return;
     const patch: Partial<RespostaItem> = {
       resposta: r,
       horarioVerificacao: new Date().toISOString(),
     };
-    if (r !== "Não conforme") {
-      setDecisao(itemNumero, null);
-    }
     atualizarRespostaPorNumero(itemNumero, patch);
-  };
-
-  const irParaAnomalia = (resp: RespostaItem) => {
-    if (abrindoAnomaliaItem !== null) return;
-    if (resp.observacao.trim().length < 3) {
-      setItensComErro((prev) => new Set(prev).add(resp.itemNumero));
-      setErroGlobal("Preencha a observação do item não conforme (mínimo 3 caracteres).");
-      return;
-    }
-    setAbrindoAnomaliaItem(resp.itemNumero);
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        "fm-checklist:anomalia-origem",
-        JSON.stringify({
-          checklistId: rascunho.id,
-          itemNumero: resp.itemNumero,
-          descricao: resp.descricao,
-          equipe: rascunho.contexto.equipe,
-          turno: rascunho.contexto.turno,
-          retornarPara: "checklist",
-        }),
-      );
-    }
-    navigate({ to: "/operador/anomalia/nova" });
   };
 
   // Validação final: retorna lista de itensNumero com erro + mensagem
@@ -175,15 +142,6 @@ function ChecklistPage() {
           erros.push(r.itemNumero);
           continue;
         }
-        const dec = decisoesNC[r.itemNumero];
-        if (!r.anomaliaId && dec !== "observacao") {
-          erros.push(r.itemNumero);
-          continue;
-        }
-        if (dec === "anomalia" && !r.anomaliaId) {
-          erros.push(r.itemNumero);
-          continue;
-        }
       }
       if (def.tipo === "numerico" && r.resposta === "Conforme" && !r.valorNumerico.trim()) {
         erros.push(r.itemNumero);
@@ -201,21 +159,6 @@ function ChecklistPage() {
           r.resposta === "Não conforme" &&
           r.observacao.trim().length < 3,
       );
-      const algumNCSemDecisao = rascunho.respostas.some(
-        (r) =>
-          erros.includes(r.itemNumero) &&
-          r.resposta === "Não conforme" &&
-          r.observacao.trim().length >= 3 &&
-          !r.anomaliaId &&
-          decisoesNC[r.itemNumero] !== "observacao",
-      );
-      const algumNCSemAnomalia = rascunho.respostas.some(
-        (r) =>
-          erros.includes(r.itemNumero) &&
-          r.resposta === "Não conforme" &&
-          decisoesNC[r.itemNumero] === "anomalia" &&
-          !r.anomaliaId,
-      );
       const algumNumSemValor = rascunho.respostas.some((r) => {
         if (!erros.includes(r.itemNumero)) return false;
         const def = ITENS_CHECKLIST.find((i) => i.numero === r.itemNumero);
@@ -223,9 +166,7 @@ function ChecklistPage() {
       });
 
       if (algumPendente) mensagem = `Ainda existem ${erros.length} item(s) com pendência. Veja os destacados em vermelho.`;
-      else if (algumNCSemObs) mensagem = "Preencha a observação dos itens não conformes.";
-      else if (algumNCSemAnomalia) mensagem = "Conclua o registro da anomalia dos itens marcados.";
-      else if (algumNCSemDecisao) mensagem = "Escolha como tratar os itens não conformes.";
+      else if (algumNCSemObs) mensagem = "Preencha a observação dos itens não conformes (mínimo 3 caracteres).";
       else if (algumNumSemValor) mensagem = "Informe o valor medido nos itens numéricos conformes.";
       else mensagem = "Existem itens com pendência. Veja os destacados.";
     }
