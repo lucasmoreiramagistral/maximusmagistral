@@ -37,6 +37,36 @@ import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
 
 export const VERSO_SHEET_NAME = "ENCHEDORA L3";
 
+function base64ToArrayBuffer(b64: string): ArrayBuffer {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+async function criarWorksheetVersoDoTemplate(wb: ExcelJS.Workbook): Promise<ExcelJS.Worksheet> {
+  const existente = wb.getWorksheet(VERSO_SHEET_NAME);
+  if (existente) wb.removeWorksheet(existente.id);
+
+  const template = new ExcelJS.Workbook();
+  await template.xlsx.load(base64ToArrayBuffer(PTP_LIMPEZA_TEMPLATE_BASE64));
+  const origem = template.getWorksheet(VERSO_SHEET_NAME) ?? template.worksheets[0];
+  if (!origem) throw new Error("Aba ENCHEDORA L3 não encontrada no template de PTP/Limpeza.");
+
+  const ws = wb.addWorksheet(VERSO_SHEET_NAME);
+  ws.model = { ...origem.model, id: ws.id, name: VERSO_SHEET_NAME };
+  return ws;
+}
+
+function mergeCellsIfNeeded(ws: ExcelJS.Worksheet, range: string): void {
+  try {
+    ws.mergeCells(range);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/already merged|Cannot merge/i.test(msg)) throw e;
+  }
+}
+
 function rotuloTurnoCabecalho(turno: Turno): string {
   const col = colunaPosicionalDoTurno(turno);
   if (col === 1) return "1° TURNO ou 12x36 Dia ou Comercial";
