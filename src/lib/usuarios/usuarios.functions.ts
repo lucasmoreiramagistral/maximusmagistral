@@ -136,6 +136,15 @@ const alterarStatusSchema = z.object({
   active: z.boolean(),
 });
 
+const trocarSenhaSchema = z.object({
+  id: z.string().uuid(),
+  novaSenha: z.string().min(6).max(72),
+});
+
+const desativarLiberarSchema = z.object({
+  id: z.string().uuid(),
+});
+
 // ───────────────────── Server Functions ─────────────────────
 
 export const listarUsuarios = createServerFn({ method: "GET" })
