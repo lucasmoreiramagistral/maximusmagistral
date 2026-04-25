@@ -566,6 +566,11 @@ function montarSegmentosObservacoes(grupos: ObsGrupo[]): string[] {
   const segmentos: string[] = [];
   for (const g of grupos) {
     const prefixo = `[${rotuloCurtoTurno(g.turno)}] `;
+    for (const o of g.verso) {
+      segmentos.push(
+        `Turno: ${rotuloCurtoTurno(o.turno)} | Operador: ${o.operador || "—"} | Tipo: ${o.tipo} | Item: ${o.item} | Obs: ${o.observacao} | Horário: ${o.horario || "—"}`,
+      );
+    }
     if (g.itens.length > 0) {
       segmentos.push(prefixo + g.itens.join(" • "));
     }
