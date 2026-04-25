@@ -71,6 +71,10 @@ async function assertAdminGestao(userId: string): Promise<void> {
   }
   if (!data.active) {
     throw new Response("Forbidden: usuário inativo", { status: 403 });
+  }
+  if (data.perfil !== "gestao") {
+    throw new Response("Forbidden: apenas usuários de gestão", { status: 403 });
+  }
 }
 
 /**
@@ -99,10 +103,6 @@ async function assertAdminHierarquia(userId: string): Promise<void> {
       "Forbidden: apenas desenvolvedor, gerente ou coordenador",
       { status: 403 },
     );
-  }
-}
-  if (data.perfil !== "gestao") {
-    throw new Response("Forbidden: apenas usuários de gestão", { status: 403 });
   }
 }
 
