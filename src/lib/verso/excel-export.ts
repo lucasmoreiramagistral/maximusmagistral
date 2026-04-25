@@ -299,9 +299,8 @@ export async function gerarVersoWorksheet(
   wb: ExcelJS.Workbook,
   opts: GerarVersoOpts,
 ): Promise<ExcelJS.Worksheet> {
-  const ws = wb.addWorksheet(VERSO_SHEET_NAME, {
-    pageSetup: { orientation: "landscape", paperSize: 9, fitToPage: true },
-  });
+  const ws = await criarWorksheetVersoDoTemplate(wb);
+  ws.pageSetup = { ...ws.pageSetup, orientation: "landscape", paperSize: 9, fitToPage: true };
 
   // Larguras de coluna (A vazia + B..S = 18 colunas úteis)
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
