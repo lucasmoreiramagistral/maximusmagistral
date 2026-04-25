@@ -747,7 +747,15 @@ export async function exportarFolhaDiaExcel(
     todosChecklistsConcluidos.push(...concluidos);
   }
 
-  const grupos = coletarObservacoesPorTurno(todosChecklistsConcluidos, anomalias);
+  const verso = await carregarVersoDoDia(folhaAtual).catch(() => ({
+    ptpJanelas: [],
+    limpezaTurnos: [],
+  }));
+  const grupos = coletarObservacoesPorTurno(
+    todosChecklistsConcluidos,
+    anomalias,
+    verso,
+  );
   const segmentos = montarSegmentosObservacoes(grupos);
   preencherObservacoesSegmentadas(ws, segmentos);
 
