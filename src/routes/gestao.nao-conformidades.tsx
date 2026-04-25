@@ -1,0 +1,405 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, AlertOctagon, Loader2 } from "lucide-react";
+import { AppHeader } from "@/components/app-header";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useChecklistsRemote } from "@/hooks/use-storage";
+import { useGuard } from "@/hooks/use-guard";
+import { supabase } from "@/integrations/supabase/client";
+import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
+import type { LimpezaTurno } from "@/lib/verso/types";
+import { agregarNcNr, type OrigemNcNr } from "@/lib/checklist/nao-conformidades";
+import { formatarDataBR } from "@/lib/operacao/data-operacional";
+import { formatarHora } from "@/lib/checklist/format";
+
+export const Route = createFileRoute("/gestao/nao-conformidades")({
+  head: () => ({
+    meta: [
+      { title: "Não conformidades — Gestão Industrial" },
+      {
+        name: "description",
+        content:
+          "Análise de não conformidades do checklist e itens não realizados da limpeza.",
+      },
+    ],
+  }),
+  component: NaoConformidadesPage,
+});
+
+const PERIODOS: { label: string; dias: number }[] = [
+  { label: "Últimos 7 dias", dias: 7 },
+  { label: "Últimos 30 dias", dias: 30 },
+  { label: "Últimos 90 dias", dias: 90 },
+];
+
+function NaoConformidadesPage() {
+  const { usuario, loading: authLoading } = useGuard("gestao");
+  const { data: checklists, loading: l1 } = useChecklistsRemote({ realtime: true });
+
+  const [dias, setDias] = useState(30);
+  const [origem, setOrigem] = useState<"todos" | OrigemNcNr>("todos");
+  const [turnoFiltro, setTurnoFiltro] = useState<string>("todos");
+
+  const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
+  const [l2, setL2] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    setL2(true);
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 90);
+    const dataIso = desde.toISOString().slice(0, 10);
+    void (async () => {
+      const { data, error } = await supabase
+        .from("limpeza_turnos" as never)
+        .select("*")
+        .gte("data_operacao", dataIso);
+      if (cancelado) return;
+      if (error) {
+        console.error("[gestao.nao-conformidades] limpeza fetch:", error);
+        setTurnosLimpeza([]);
+      } else {
+        setTurnosLimpeza(
+          ((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow),
+        );
+      }
+      setL2(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const ag = useMemo(
+    () => agregarNcNr(checklists, turnosLimpeza, dias),
+    [checklists, turnosLimpeza, dias],
+  );
+
+  const turnosDisponiveis = useMemo(() => {
+    return Array.from(new Set(ag.registros.map((r) => r.turno))).sort();
+  }, [ag.registros]);
+
+  const registrosFiltrados = useMemo(() => {
+    return ag.registros.filter((r) => {
+      if (origem !== "todos" && r.origem !== origem) return false;
+      if (turnoFiltro !== "todos" && r.turno !== turnoFiltro) return false;
+      return true;
+    });
+  }, [ag.registros, origem, turnoFiltro]);
+
+  const topItens = useMemo(() => {
+    const arr = Array.from(ag.porItem.entries()).map(([chave, v]) => ({
+      chave,
+      ...v,
+    }));
+    arr.sort((a, b) => b.qtd - a.qtd);
+    return arr.slice(0, 10);
+  }, [ag.porItem]);
+
+  const totalGeral = ag.totalNc + ag.totalNr;
+
+  if (authLoading || !usuario) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <AppHeader
+        titulo="Não conformidades"
+        subtitulo="NC do checklist e NR da limpeza"
+      />
+      <main className="mx-auto w-full max-w-[1300px] px-4 py-6 md:px-8 md:py-10">
+        <div className="mb-6 flex items-center gap-3">
+          <Button asChild variant="ghost" size="sm">
+            <Link to="/gestao">
+              <ArrowLeft className="mr-1 h-4 w-4" /> Voltar
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold md:text-3xl">
+              Não conformidades e Não realizados
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Problemas registrados no checklist e na limpeza
+            </p>
+          </div>
+        </div>
+
+        {/* Filtros */}
+        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+              Período
+            </label>
+            <Select value={String(dias)} onValueChange={(v) => setDias(Number(v))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PERIODOS.map((p) => (
+                  <SelectItem key={p.dias} value={String(p.dias)}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+              Origem
+            </label>
+            <Select value={origem} onValueChange={(v) => setOrigem(v as typeof origem)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="checklist">Checklist (NC)</SelectItem>
+                <SelectItem value="limpeza">Limpeza (NR)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+              Turno
+            </label>
+            <Select value={turnoFiltro} onValueChange={setTurnoFiltro}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os turnos</SelectItem>
+                {turnosDisponiveis.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* KPIs */}
+        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <KpiCard
+            titulo="NC do checklist"
+            valor={ag.totalNc}
+            tom="destructive"
+          />
+          <KpiCard titulo="NR da limpeza" valor={ag.totalNr} tom="warning" />
+          <KpiCard titulo="Total no período" valor={totalGeral} tom="muted" />
+        </div>
+
+        {l1 || l2 ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <>
+            {/* Top itens recorrentes */}
+            <section className="mb-8">
+              <h2 className="mb-3 text-lg font-bold">Itens mais recorrentes</h2>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-right">Qtd</TableHead>
+                      <TableHead className="text-right">% do total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {topItens.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                          Nada no período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {topItens.map((it) => (
+                      <TableRow key={it.chave}>
+                        <TableCell>
+                          <BadgeOrigem origem={it.origem} />
+                        </TableCell>
+                        <TableCell className="font-medium">{it.descricao}</TableCell>
+                        <TableCell className="text-right font-bold">{it.qtd}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {totalGeral === 0
+                            ? "—"
+                            : `${Math.round((it.qtd / totalGeral) * 100)}%`}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
+            {/* Distribuição por turno */}
+            <section className="mb-8">
+              <h2 className="mb-3 text-lg font-bold">Por turno</h2>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Turno</TableHead>
+                      <TableHead className="text-right">NC checklist</TableHead>
+                      <TableHead className="text-right">NR limpeza</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ag.porTurno.size === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                          Nada no período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {Array.from(ag.porTurno.entries())
+                      .sort((a, b) => b[1].total - a[1].total)
+                      .map(([turno, v]) => (
+                        <TableRow key={turno}>
+                          <TableCell className="font-medium">{turno}</TableCell>
+                          <TableCell className="text-right">{v.nc}</TableCell>
+                          <TableCell className="text-right">{v.nr}</TableCell>
+                          <TableCell className="text-right font-bold">{v.total}</TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
+            {/* Lista detalhada */}
+            <section>
+              <h2 className="mb-3 text-lg font-bold">
+                Registros ({registrosFiltrados.length})
+              </h2>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data</TableHead>
+                      <TableHead>Turno</TableHead>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Observação</TableHead>
+                      <TableHead>Operador</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {registrosFiltrados.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          Nenhum registro com os filtros atuais.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {registrosFiltrados.map((r, idx) => (
+                      <TableRow key={`${r.origem}-${r.data}-${r.itemNumero}-${idx}`}>
+                        <TableCell className="whitespace-nowrap">
+                          <div className="font-medium">{formatarDataBR(r.data)}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {formatarHora(r.dataHora)}
+                          </div>
+                        </TableCell>
+                        <TableCell>{r.turno}</TableCell>
+                        <TableCell>
+                          <BadgeOrigem origem={r.origem} />
+                          {r.momento && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {r.momento}
+                            </div>
+                          )}
+                          {r.grupo && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              {r.grupo}
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell className="max-w-[280px]">
+                          <div className="font-semibold">
+                            #{r.itemNumero} — {r.itemDescricao}
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[420px] whitespace-pre-wrap text-sm">
+                          {r.observacao}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">{r.operador}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function KpiCard({
+  titulo,
+  valor,
+  tom,
+}: {
+  titulo: string;
+  valor: number;
+  tom: "destructive" | "warning" | "muted";
+}) {
+  const cls =
+    tom === "destructive"
+      ? "text-destructive"
+      : tom === "warning"
+        ? "text-warning-foreground"
+        : "text-foreground";
+  const icone =
+    tom === "destructive" ? (
+      <AlertOctagon className="h-5 w-5 text-destructive" />
+    ) : null;
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center gap-2">
+        {icone}
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {titulo}
+        </p>
+      </div>
+      <p className={`mt-1 text-4xl font-bold ${cls}`}>{valor}</p>
+    </div>
+  );
+}
+
+function BadgeOrigem({ origem }: { origem: OrigemNcNr }) {
+  if (origem === "checklist") {
+    return <Badge variant="destructive">NC checklist</Badge>;
+  }
+  return (
+    <Badge className="bg-warning/20 text-warning-foreground hover:bg-warning/30">
+      NR limpeza
+    </Badge>
+  );
+}
