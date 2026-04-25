@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import {
   ClipboardCheck,
   AlertTriangle,
@@ -12,6 +12,15 @@ import {
   ClipboardList,
   Droplets,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -53,7 +62,7 @@ function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
   const rascunho = useRascunho();
   const checklistsRemote = useChecklists();
-  const navigate = useNavigate();
+  const [sigmaAvisoAberto, setSigmaAvisoAberto] = useState(false);
 
   const equipe = usuario?.equipePadrao ?? null;
   const turno = usuario?.turnoPadrao ?? null;
@@ -174,13 +183,6 @@ function OperadorHome() {
   ]);
 
   if (loading || !usuario) return <TelaCarregando />;
-
-  const irParaAnomaliaManual = () => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem("fm-checklist:anomalia-origem");
-    }
-    navigate({ to: "/operador/anomalia/nova" });
-  };
 
   // Cancela edição em andamento: limpa rascunho + flag de modo edição
   const cancelarEdicao = () => {
@@ -338,10 +340,10 @@ function OperadorHome() {
             badge={checklistOk ? "Concluído" : undefined}
           />
           <BotaoAcao
-            onClick={irParaAnomaliaManual}
+            onClick={() => setSigmaAvisoAberto(true)}
             icon={<AlertTriangle className="h-8 w-8" />}
-            titulo="Registrar anomalia"
-            descricao="Registrar manualmente uma anomalia"
+            titulo="Anomalias de manutenção"
+            descricao="Registre no aplicativo SIGMA"
           />
           <BotaoAcao
             to="/operador/verso/ptp"
@@ -383,6 +385,21 @@ function OperadorHome() {
           </div>
         </div>
       </main>
+
+      <AlertDialog open={sigmaAvisoAberto} onOpenChange={setSigmaAvisoAberto}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Anomalias de manutenção</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para registrar anomalias de manutenção, saia deste aplicativo e
+              entre no aplicativo SIGMA.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Entendi</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -5,8 +5,6 @@ import {
   XCircle,
   MinusCircle,
   AlertTriangle,
-  FileText,
-  ClipboardList,
   Pencil,
   Loader2,
   Check,
@@ -26,10 +24,6 @@ import { formatarHora } from "@/lib/checklist/format";
 import { checklistEmEdicao } from "@/lib/checklist/edicao";
 import { cn } from "@/lib/utils";
 
-const FLAG_RETORNO_ANOMALIA = "fm-checklist:retorno-anomalia";
-
-type DecisaoNC = "observacao" | "anomalia" | null;
-
 export const Route = createFileRoute("/operador/checklist")({
   head: () => ({ meta: [{ title: "Checklist em andamento" }] }),
   component: ChecklistPage,
@@ -42,9 +36,6 @@ function ChecklistPage() {
 
   const [erroGlobal, setErroGlobal] = useState("");
   const [itensComErro, setItensComErro] = useState<Set<number>>(new Set());
-  // Decisão NC por itemNumero (estável caso a ordem mude)
-  const [decisoesNC, setDecisoesNC] = useState<Record<number, DecisaoNC>>({});
-  const [abrindoAnomaliaItem, setAbrindoAnomaliaItem] = useState<number | null>(null);
   const [modoEdicao, setModoEdicao] = useState(false);
 
   // Indicador de salvamento: "idle" | "saving" | "saved"
@@ -65,55 +56,10 @@ function ChecklistPage() {
     if (!rascunho) navigate({ to: "/operador" });
   }, [usuario, loading, rascunho, navigate]);
 
-  // Marca modo edição + trata retorno de anomalia (scroll até o card de origem)
+  // Marca modo edição
   useEffect(() => {
     if (typeof window === "undefined" || !rascunho) return;
     setModoEdicao(checklistEmEdicao() === rascunho.id);
-
-    const retornoRaw = window.sessionStorage.getItem(FLAG_RETORNO_ANOMALIA);
-    if (!retornoRaw) return;
-    try {
-      const retorno = JSON.parse(retornoRaw) as { checklistId: string; itemNumero: number };
-      window.sessionStorage.removeItem(FLAG_RETORNO_ANOMALIA);
-      if (retorno.checklistId !== rascunho.id) return;
-      // pequeno delay para garantir que o ref já está montado
-      setTimeout(() => {
-        const el = cardRefs.current[retorno.itemNumero];
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 80);
-    } catch {
-      // ignora
-    }
-  }, [rascunho]);
-
-  // Recupera decisões NC já salvas (NC com observação ≥3 e sem anomaliaId → "observacao";
-  // NC com anomaliaId → "anomalia"). Garante consistência ao voltar.
-  // Recupera decisões NC já salvas a partir do rascunho persistido.
-  // Regra (sem campo extra no schema):
-  //   - NC com anomaliaId          → decisão "anomalia"
-  //   - NC com observação ≥ 3 chars → decisão "observacao" (operador já confirmou)
-  //   - caso contrário              → indefinida (operador ainda precisa escolher)
-  // Roda sempre que o rascunho muda (id ou conteúdo das respostas), para
-  // restaurar corretamente ao alternar entre momentos da mesma folha.
-  useEffect(() => {
-    if (!rascunho) return;
-    setDecisoesNC((prev) => {
-      const novo = { ...prev };
-      for (const r of rascunho.respostas) {
-        if (r.resposta !== "Não conforme") {
-          // limpa decisão se a resposta não é mais NC
-          if (novo[r.itemNumero]) delete novo[r.itemNumero];
-          continue;
-        }
-        if (r.anomaliaId) {
-          novo[r.itemNumero] = "anomalia";
-        } else if (r.observacao.trim().length >= 3 && !novo[r.itemNumero]) {
-          // tem observação válida e não há decisão na memória → assume "observacao"
-          novo[r.itemNumero] = "observacao";
-        }
-      }
-      return novo;
-    });
   }, [rascunho]);
 
   const itensDef: ItemChecklistDef[] = useMemo(() => {
@@ -170,45 +116,12 @@ function ChecklistPage() {
     setErroGlobal("");
   };
 
-  const setDecisao = (itemNumero: number, d: DecisaoNC) => {
-    setDecisoesNC((prev) => ({ ...prev, [itemNumero]: d }));
-    setErroGlobal("");
-  };
-
   const escolher = (itemNumero: number, r: Resposta) => {
-    if (abrindoAnomaliaItem !== null) return;
     const patch: Partial<RespostaItem> = {
       resposta: r,
       horarioVerificacao: new Date().toISOString(),
     };
-    if (r !== "Não conforme") {
-      setDecisao(itemNumero, null);
-    }
     atualizarRespostaPorNumero(itemNumero, patch);
-  };
-
-  const irParaAnomalia = (resp: RespostaItem) => {
-    if (abrindoAnomaliaItem !== null) return;
-    if (resp.observacao.trim().length < 3) {
-      setItensComErro((prev) => new Set(prev).add(resp.itemNumero));
-      setErroGlobal("Preencha a observação do item não conforme (mínimo 3 caracteres).");
-      return;
-    }
-    setAbrindoAnomaliaItem(resp.itemNumero);
-    if (typeof window !== "undefined") {
-      window.sessionStorage.setItem(
-        "fm-checklist:anomalia-origem",
-        JSON.stringify({
-          checklistId: rascunho.id,
-          itemNumero: resp.itemNumero,
-          descricao: resp.descricao,
-          equipe: rascunho.contexto.equipe,
-          turno: rascunho.contexto.turno,
-          retornarPara: "checklist",
-        }),
-      );
-    }
-    navigate({ to: "/operador/anomalia/nova" });
   };
 
   // Validação final: retorna lista de itensNumero com erro + mensagem
@@ -229,15 +142,6 @@ function ChecklistPage() {
           erros.push(r.itemNumero);
           continue;
         }
-        const dec = decisoesNC[r.itemNumero];
-        if (!r.anomaliaId && dec !== "observacao") {
-          erros.push(r.itemNumero);
-          continue;
-        }
-        if (dec === "anomalia" && !r.anomaliaId) {
-          erros.push(r.itemNumero);
-          continue;
-        }
       }
       if (def.tipo === "numerico" && r.resposta === "Conforme" && !r.valorNumerico.trim()) {
         erros.push(r.itemNumero);
@@ -255,21 +159,6 @@ function ChecklistPage() {
           r.resposta === "Não conforme" &&
           r.observacao.trim().length < 3,
       );
-      const algumNCSemDecisao = rascunho.respostas.some(
-        (r) =>
-          erros.includes(r.itemNumero) &&
-          r.resposta === "Não conforme" &&
-          r.observacao.trim().length >= 3 &&
-          !r.anomaliaId &&
-          decisoesNC[r.itemNumero] !== "observacao",
-      );
-      const algumNCSemAnomalia = rascunho.respostas.some(
-        (r) =>
-          erros.includes(r.itemNumero) &&
-          r.resposta === "Não conforme" &&
-          decisoesNC[r.itemNumero] === "anomalia" &&
-          !r.anomaliaId,
-      );
       const algumNumSemValor = rascunho.respostas.some((r) => {
         if (!erros.includes(r.itemNumero)) return false;
         const def = ITENS_CHECKLIST.find((i) => i.numero === r.itemNumero);
@@ -277,9 +166,7 @@ function ChecklistPage() {
       });
 
       if (algumPendente) mensagem = `Ainda existem ${erros.length} item(s) com pendência. Veja os destacados em vermelho.`;
-      else if (algumNCSemObs) mensagem = "Preencha a observação dos itens não conformes.";
-      else if (algumNCSemAnomalia) mensagem = "Conclua o registro da anomalia dos itens marcados.";
-      else if (algumNCSemDecisao) mensagem = "Escolha como tratar os itens não conformes.";
+      else if (algumNCSemObs) mensagem = "Preencha a observação dos itens não conformes (mínimo 3 caracteres).";
       else if (algumNumSemValor) mensagem = "Informe o valor medido nos itens numéricos conformes.";
       else mensagem = "Existem itens com pendência. Veja os destacados.";
     }
@@ -371,15 +258,10 @@ function ChecklistPage() {
                 }}
                 resposta={resp}
                 def={def}
-                decisao={decisoesNC[resp.itemNumero] ?? null}
                 temErro={itensComErro.has(resp.itemNumero)}
-                abrindoAnomalia={abrindoAnomaliaItem === resp.itemNumero}
-                bloqueado={abrindoAnomaliaItem !== null && abrindoAnomaliaItem !== resp.itemNumero}
                 modoEdicao={modoEdicao}
                 onResponder={(r) => escolher(resp.itemNumero, r)}
                 onAtualizar={(patch) => atualizarRespostaPorNumero(resp.itemNumero, patch)}
-                onSetDecisao={(d) => setDecisao(resp.itemNumero, d)}
-                onIrAnomalia={() => irParaAnomalia(resp)}
               />
             );
           })}
@@ -400,7 +282,6 @@ function ChecklistPage() {
             size="lg"
             className="h-12 px-5 text-sm md:h-14 md:px-6 md:text-base"
             onClick={voltarMomentos}
-            disabled={abrindoAnomaliaItem !== null}
           >
             ← Voltar
           </Button>
@@ -408,7 +289,6 @@ function ChecklistPage() {
             size="lg"
             className="h-12 px-6 text-sm font-semibold md:h-14 md:px-8 md:text-base"
             onClick={concluirMomento}
-            disabled={abrindoAnomaliaItem !== null}
           >
             Concluir momento →
           </Button>
@@ -455,29 +335,19 @@ function IndicadorSalvamento({ status }: { status: "idle" | "saving" | "saved" }
 function CardItem({
   resposta,
   def,
-  decisao,
   temErro,
-  abrindoAnomalia,
-  bloqueado,
   modoEdicao,
   refCallback,
   onResponder,
   onAtualizar,
-  onSetDecisao,
-  onIrAnomalia,
 }: {
   resposta: RespostaItem;
   def: ItemChecklistDef;
-  decisao: DecisaoNC;
   temErro: boolean;
-  abrindoAnomalia: boolean;
-  bloqueado: boolean;
   modoEdicao: boolean;
   refCallback: (el: HTMLDivElement | null) => void;
   onResponder: (r: Resposta) => void;
   onAtualizar: (patch: Partial<RespostaItem>) => void;
-  onSetDecisao: (d: DecisaoNC) => void;
-  onIrAnomalia: () => void;
 }) {
   const respondido = resposta.resposta !== null;
 
@@ -530,7 +400,6 @@ function CardItem({
           icon={<CheckCircle2 className="h-6 w-6" />}
           ativo={resposta.resposta === "Conforme"}
           cor="success"
-          disabled={bloqueado || abrindoAnomalia}
           onClick={() => onResponder("Conforme")}
         />
         <BotaoResposta
@@ -538,7 +407,6 @@ function CardItem({
           icon={<XCircle className="h-6 w-6" />}
           ativo={resposta.resposta === "Não conforme"}
           cor="destructive"
-          disabled={bloqueado || abrindoAnomalia}
           onClick={() => onResponder("Não conforme")}
         />
         {def.permiteNA && (
@@ -547,7 +415,6 @@ function CardItem({
             icon={<MinusCircle className="h-6 w-6" />}
             ativo={resposta.resposta === "Não aplicável"}
             cor="na"
-            disabled={bloqueado || abrindoAnomalia}
             onClick={() => onResponder("Não aplicável")}
           />
         )}
@@ -586,7 +453,7 @@ function CardItem({
         </div>
       )}
 
-      {/* Não conforme — observação inline + decisão */}
+      {/* Não conforme — só observação obrigatória (≥ 3 chars) */}
       {resposta.resposta === "Não conforme" && (
         <div className="mt-4 rounded-xl border-2 border-destructive/40 bg-destructive-soft/40 p-3 md:p-4">
           <label className="text-sm font-bold text-destructive md:text-base">
@@ -595,64 +462,14 @@ function CardItem({
           <Textarea
             value={resposta.observacao}
             onChange={(e) => onAtualizar({ observacao: e.target.value })}
-            placeholder="Descreva a não conformidade"
+            placeholder="Descreva a não conformidade (mínimo 3 caracteres)"
             className="mt-1.5 min-h-[100px] text-base"
           />
           {resposta.observacao.trim().length > 0 && resposta.observacao.trim().length < 3 && (
             <p className="mt-2 text-xs font-semibold text-destructive">Mínimo 3 caracteres</p>
           )}
-
-          {resposta.observacao.trim().length >= 3 && !resposta.anomaliaId && (
-            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-              <button
-                type="button"
-                disabled={bloqueado || abrindoAnomalia}
-                onClick={() => onSetDecisao("observacao")}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all disabled:opacity-50",
-                  decisao === "observacao"
-                    ? "border-primary bg-primary-soft shadow-sm ring-2 ring-primary/30"
-                    : "border-border bg-card hover:border-primary/40",
-                )}
-              >
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground md:text-base">
-                  <FileText className="h-5 w-5" /> Continuar só com observação
-                </span>
-                <span className="text-xs text-muted-foreground">Não abre anomalia formal</span>
-              </button>
-              <button
-                type="button"
-                disabled={bloqueado || abrindoAnomalia}
-                onClick={() => onSetDecisao("anomalia")}
-                className={cn(
-                  "flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all disabled:opacity-50",
-                  decisao === "anomalia"
-                    ? "border-warning bg-warning/25 shadow-sm ring-2 ring-warning/40"
-                    : "border-border bg-card hover:border-warning/50",
-                )}
-              >
-                <span className="inline-flex items-center gap-2 text-sm font-semibold text-foreground md:text-base">
-                  <ClipboardList className="h-5 w-5" /> Registrar anomalia formal
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  Quando exigir ação ou acompanhamento
-                </span>
-              </button>
-            </div>
-          )}
-
-          {decisao === "anomalia" && !resposta.anomaliaId && (
-            <div className="mt-3">
-              <Button
-                size="lg"
-                className="h-12 w-full bg-warning text-warning-foreground hover:bg-warning/90 md:w-auto"
-                onClick={onIrAnomalia}
-                disabled={bloqueado || abrindoAnomalia || resposta.observacao.trim().length < 3}
-              >
-                {abrindoAnomalia ? "Abrindo..." : "Ir para registro de anomalia →"}
-              </Button>
-            </div>
-          )}
+        </div>
+      )}
         </div>
       )}
 
