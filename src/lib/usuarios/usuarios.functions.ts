@@ -318,3 +318,99 @@ export const alterarStatusUsuario = createServerFn({ method: "POST" })
 
     return { ok: true as const };
   });
+
+/**
+ * Troca a senha de qualquer usuário (não exige a senha atual).
+ * Permitido para qualquer "gestao" ativo.
+ */
+export const trocarSenhaUsuario = createServerFn({ method: "POST" })
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .inputValidator((input: unknown) => trocarSenhaSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdminGestao(context.userId);
+
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+      password: data.novaSenha,
+    });
+
+    if (error) {
+      console.error("[trocarSenhaUsuario] erro:", error);
+      return { ok: false as const, erro: error.message ?? "Falha ao trocar senha" };
+    }
+
+    return { ok: true as const };
+  });
+
+/**
+ * Desativa o usuário E libera o login para reuso, renomeando o login/email
+ * atuais com sufixo "__desativado_<timestamp>". Mantém o user_id (preserva
+ * histórico operacional) mas o login original fica disponível para um novo
+ * cadastro. Apenas desenvolvedor/gerente/coordenador.
+ */
+export const desativarELiberarLogin = createServerFn({ method: "POST" })
+  .middleware([attachSupabaseAuth, requireSupabaseAuth])
+  .inputValidator((input: unknown) => desativarLiberarSchema.parse(input))
+  .handler(async ({ data, context }) => {
+    await assertAdminHierarquia(context.userId);
+
+    if (data.id === context.userId) {
+      return { ok: false as const, erro: "Você não pode desativar a si mesmo" };
+    }
+
+    // Carrega o profile alvo para conhecer login atual.
+    const { data: alvo, error: lookupErr } = await supabaseAdmin
+      .from("profiles")
+      .select("usuario, email_interno" as string)
+      .eq("id", data.id)
+      .maybeSingle<{ usuario: string; email_interno: string }>();
+
+    if (lookupErr || !alvo) {
+      return { ok: false as const, erro: "Usuário não encontrado" };
+    }
+
+    const ts = Date.now();
+    const sufixo = `__desativado_${ts}`;
+    const novoLogin = `${alvo.usuario}${sufixo}`.slice(0, 60);
+    const novoEmail = `${normalizarLogin(novoLogin)}@${EMAIL_DOMAIN}`;
+
+    // 1) Renomeia o e-mail no auth (libera o e-mail original).
+    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+      email: novoEmail,
+      email_confirm: true,
+    });
+    if (authErr) {
+      console.error("[desativarELiberarLogin] auth update falhou:", authErr);
+      return {
+        ok: false as const,
+        erro: authErr.message ?? "Falha ao liberar e-mail no auth",
+      };
+    }
+
+    // 2) Renomeia profile e marca inativo (libera o login original).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: profErr } = await (supabaseAdmin.from("profiles") as any)
+      .update({
+        usuario: novoLogin,
+        email_interno: novoEmail,
+        active: false,
+      })
+      .eq("id", data.id);
+
+    if (profErr) {
+      console.error("[desativarELiberarLogin] profile update falhou:", profErr);
+      // Tenta reverter o e-mail no auth para não deixar incoerente.
+      await supabaseAdmin.auth.admin.updateUserById(data.id, {
+        email: alvo.email_interno,
+      });
+      return {
+        ok: false as const,
+        erro: profErr.message ?? "Falha ao liberar login no profile",
+      };
+    }
+
+    return {
+      ok: true as const,
+      loginLiberado: alvo.usuario,
+      novoLogin,
+    };
+  });
