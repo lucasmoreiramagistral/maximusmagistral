@@ -379,6 +379,7 @@ interface ObsGrupo {
   turno: Turno;
   itens: string[];
   anomalias: string[];
+  verso: ObsVersoExcel[];
 }
 
 interface ObsVersoExcel {
@@ -411,7 +412,7 @@ function coletarObservacoesPorTurno(
   function getGrupo(t: Turno): ObsGrupo {
     let g = mapa.get(t);
     if (!g) {
-      g = { turno: t, itens: [], anomalias: [] };
+      g = { turno: t, itens: [], anomalias: [], verso: [] };
       mapa.set(t, g);
     }
     return g;
@@ -430,10 +431,11 @@ function coletarObservacoesPorTurno(
     const limpo = obs.observacao.trim();
     if (!limpo) return;
     const chave = `${turnoBaseObservacao(obs.turno)}|${obs.operador}|${obs.tipo}|${obs.item}|${limpo}|${obs.horario}`;
-    const existe = obsVerso.some(
+    const grupo = getGrupo(turnoBaseObservacao(obs.turno));
+    const existe = grupo.verso.some(
       (o) => `${turnoBaseObservacao(o.turno)}|${o.operador}|${o.tipo}|${o.item}|${o.observacao}|${o.horario}` === chave,
     );
-    if (!existe) obsVerso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
+    if (!existe) grupo.verso.push({ ...obs, turno: turnoBaseObservacao(obs.turno), observacao: limpo });
   }
 
   for (const c of checklists) {
