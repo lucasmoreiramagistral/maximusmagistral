@@ -78,6 +78,20 @@ function dataUrlParaBase64Limpo(dataUrl: string): string | null {
   return (partes.length > 1 ? partes[1] : normalizada).trim() || null;
 }
 
+/** Converte base64 em Uint8Array — mais confiável que passar base64 direto p/ o ExcelJS. */
+function base64ParaBytes(base64: string): Uint8Array | null {
+  try {
+    const limpo = base64.replace(/\s/g, "");
+    const bin = atob(limpo);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch (e) {
+    console.error("[verso/excel] base64ParaBytes falhou:", e);
+    return null;
+  }
+}
+
 async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
   const normalizada = normalizarDataUrlImagem(dataUrl);
   if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
@@ -204,9 +218,16 @@ async function inserirImagem(
   dataUrl: string,
   opts: InserirImagemOpts = {},
 ): Promise<void> {
-  const base64 = dataUrlParaBase64Limpo(await recortarAssinaturaParaExcel(dataUrl));
-  if (!base64) return;
-  const id = wb.addImage({ base64, extension: "png" });
+  const recortada = await recortarAssinaturaParaExcel(dataUrl);
+  const base64 = dataUrlParaBase64Limpo(recortada);
+  if (!base64) {
+    console.warn("[verso/excel] assinatura sem base64 válido — pulando.");
+    return;
+  }
+  const bytes = base64ParaBytes(base64);
+  if (!bytes) return;
+  // Usar buffer (Uint8Array) é mais confiável no browser que passar base64 direto.
+  const id = wb.addImage({ buffer: bytes as unknown as ExcelJS.Buffer, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
   const m2 = /^([A-Z]+)(\d+)$/.exec(b);
@@ -218,26 +239,17 @@ async function inserirImagem(
   const totalCols = c2 - c1 + 1;
   const totalRows = r2 - r1 + 1;
 
-  if (opts.centralizar) {
-    const lf = opts.larguraFracao ?? 0.6;
-    const af = opts.alturaFracao ?? 0.85;
-    const padX = opts.inicioXFracao ?? (1 - lf) / 2;
-    const padY = opts.inicioYFracao ?? (1 - af) / 2;
-    const tlCol = c1 - 1 + totalCols * padX;
-    const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
-    const tlRow = r1 - 1 + totalRows * padY;
-    const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
-    ws.addImage(id, {
-      tl: { col: tlCol, row: tlRow },
-      br: { col: brCol, row: brRow },
-      editAs: "oneCell",
-    } as unknown as Parameters<typeof ws.addImage>[1]);
-    return;
-  }
-
+  const lf = opts.larguraFracao ?? 0.9;
+  const af = opts.alturaFracao ?? 0.9;
+  const padX = opts.inicioXFracao ?? (1 - lf) / 2;
+  const padY = opts.inicioYFracao ?? (1 - af) / 2;
+  const tlCol = c1 - 1 + totalCols * padX;
+  const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
+  const tlRow = r1 - 1 + totalRows * padY;
+  const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
   ws.addImage(id, {
-    tl: { col: c1 - 1 + 0.1, row: r1 - 1 + 0.15 },
-    br: { col: c2 - 1 + (c2 - c1 + 1) - 0.1, row: r2 - 1 + (r2 - r1 + 1) - 0.1 },
+    tl: { col: tlCol, row: tlRow },
+    br: { col: brCol, row: brRow },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
 }
@@ -509,25 +521,27 @@ export async function gerarVersoWorksheet(
       continue;
     }
     const nome = (janela?.operadorNome || janela?.operadorLogin || "").trim();
-    const temAssinatura = !!janela?.assinaturaOperador?.dataUrl;
-    cell.value = nome && !temAssinatura ? `Visto: ${nome}` : "Visto:";
-    cell.font = { size: 7, bold: temAssinatura };
-    cell.alignment = { horizontal: "center", vertical: "top", wrapText: true };
+    // Sempre mostra "Visto: <nome>" na LINHA_VISTO; assinatura vai na linha de baixo.
+    cell.value = nome ? `Visto: ${nome}` : "Visto:";
+    cell.font = { size: 7, bold: !!nome };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
     if (janela?.assinaturaOperador?.dataUrl) {
       const colLetra = colNumParaLetra(colNum);
-      await inserirImagem(wb, ws, `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`, janela.assinaturaOperador.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.98,
-        alturaFracao: 0.88,
-      });
+      // Linha dedicada SÓ para a imagem — nada de texto que cubra.
       const sigCell = ws.getCell(`${colLetra}${LINHA_VISTO_ASSINATURA}`);
-      sigCell.value = nome || null;
-      sigCell.font = { size: 6, color: { argb: "FF444444" } };
-      sigCell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      sigCell.value = null;
+      sigCell.alignment = { horizontal: "center", vertical: "middle" };
+      await inserirImagem(
+        wb,
+        ws,
+        `${colLetra}${LINHA_VISTO_ASSINATURA}:${colLetra}${LINHA_VISTO_ASSINATURA}`,
+        janela.assinaturaOperador.dataUrl,
+        { larguraFracao: 0.95, alturaFracao: 0.95 },
+      );
     }
   }
-  ws.getRow(LINHA_VISTO).height = 16;
-  ws.getRow(LINHA_VISTO_ASSINATURA).height = 46;
+  ws.getRow(LINHA_VISTO).height = 18;
+  ws.getRow(LINHA_VISTO_ASSINATURA).height = 50;
 
   aplicarBordas(ws, `B7:S${LINHA_VISTO_ASSINATURA}`);
 
@@ -691,22 +705,29 @@ export async function gerarVersoWorksheet(
     const cell = ws.getCell(`${colA}${row}`);
     const lt = opts.limpezaTurnos.find((x) => x.turno === turno);
     const nome = lt?.liderNome ?? "";
-    cell.value = `${rotuloTurnoCurto(turno)}    ____________________________\n${nome}`;
-    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
-    cell.font = { size: 9 };
+    const temAssinaturaLider = !!lt?.assinaturaLider?.dataUrl;
+    if (temAssinaturaLider) {
+      cell.value = `${rotuloTurnoCurto(turno)} — ${nome}`;
+      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.font = { size: 7, color: { argb: "FF444444" } };
+    } else {
+      cell.value = `${rotuloTurnoCurto(turno)}    ____________________________\n${nome}`;
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = { size: 9 };
+    }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
       await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        centralizar: true,
-        larguraFracao: 0.78,
-        alturaFracao: 0.76,
+        larguraFracao: 0.85,
+        alturaFracao: 0.78,
+        inicioYFracao: 0.02,
       });
     }
   }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 50;
+  ws.getRow(LINHA_ASSIN_OP).height = 64;
 
   ws.mergeCells(`B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -721,19 +742,24 @@ export async function gerarVersoWorksheet(
     const cell = ws.getCell(`${colLetra}${LINHA_ASSIN_OP}`);
     const nome = (lt.operadorNome || lt.operadorLogin || "").trim();
     const temAssinatura = !!lt.assinaturaOperador?.dataUrl;
-    cell.value = temAssinatura ? (nome || "Assin. Oper. →") : nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
-    cell.alignment = { horizontal: "center", vertical: temAssinatura ? "bottom" : "middle", wrapText: true };
-    cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
-    cell.border = BORDA_FINA;
-    if (lt.assinaturaOperador?.dataUrl) {
+    if (temAssinatura) {
+      // Texto fica só com o nome embaixo; imagem ocupa a parte superior.
+      cell.value = nome || "";
+      cell.alignment = { horizontal: "center", vertical: "bottom", wrapText: true };
+      cell.font = { size: 7, color: { argb: "FF444444" } };
       await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
-        lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.98, alturaFracao: 0.82, inicioYFracao: 0.02 },
+        lt.assinaturaOperador!.dataUrl,
+        { larguraFracao: 0.95, alturaFracao: 0.78, inicioYFracao: 0.02 },
       );
+    } else {
+      cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
+      cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+      cell.font = { size: 8 };
     }
+    cell.border = BORDA_FINA;
   }
   // Garante borda nas células O/P/Q da linha 42 mesmo sem dado
   ["O", "P", "Q"].forEach((c) => {

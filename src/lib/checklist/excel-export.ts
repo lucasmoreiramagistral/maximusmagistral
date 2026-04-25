@@ -17,6 +17,7 @@ import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
+import { versoStorage } from "@/lib/verso/storage";
 import {
   fetchObservacoesVerso,
   formatarLinhaObservacao,
@@ -162,12 +163,25 @@ function preencherAssinaturaOperador(
   cellAss.alignment = { wrapText: true, vertical: "middle", horizontal: "left" };
 }
 
-/** Converte data URL "data:image/png;base64,..." em ArrayBuffer (compatível com ExcelJS).  */
+/** Converte data URL "data:image/png;base64,..." em base64 limpo. */
 function dataUrlParaBase64(dataUrl: string): string | null {
   try {
     const base64 = dataUrl.includes(",") ? dataUrl.split(",")[1] : dataUrl;
     return base64?.trim() || null;
   } catch {
+    return null;
+  }
+}
+
+function base64ParaBytes(base64: string): Uint8Array | null {
+  try {
+    const limpo = base64.replace(/\s/g, "");
+    const bin = atob(limpo);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch (e) {
+    console.error("[checklist/excel] base64ParaBytes falhou:", e);
     return null;
   }
 }
@@ -182,7 +196,12 @@ function inserirAssinaturaImagem(
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
-  const imageId = wb.addImage({ base64, extension: "png" });
+  const bytes = base64ParaBytes(base64);
+  if (!bytes) return;
+  const imageId = wb.addImage({
+    buffer: bytes as unknown as ExcelJS.Buffer,
+    extension: "png",
+  });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
   const start = /^([A-Z]+)(\d+)$/.exec(startAddress);
   const end = /^([A-Z]+)(\d+)$/.exec(endAddress);
@@ -820,12 +839,78 @@ async function carregarVersoDoDia(folha: FolhaChecklistDia) {
     folha.contexto.linha,
     folha.contexto.maquina,
   );
-  const [ptpJanelas, limpezaTurnos, observacoesVerso] = await Promise.all([
-    fetchPtpJanelas(folhaDiaKey),
-    fetchLimpezaTurnos(folhaDiaKey),
-    fetchObservacoesVerso(folhaDiaKey),
+  const [ptpRemoto, limpezaRemota, observacoesVerso] = await Promise.all([
+    fetchPtpJanelas(folhaDiaKey).catch((e) => {
+      console.error("[carregarVersoDoDia] fetchPtpJanelas falhou:", e);
+      return [] as PtpJanela[];
+    }),
+    fetchLimpezaTurnos(folhaDiaKey).catch((e) => {
+      console.error("[carregarVersoDoDia] fetchLimpezaTurnos falhou:", e);
+      return [] as LimpezaTurno[];
+    }),
+    fetchObservacoesVerso(folhaDiaKey).catch((e) => {
+      console.error("[carregarVersoDoDia] fetchObservacoesVerso falhou:", e);
+      return [];
+    }),
   ]);
+
+  // Mescla com o storage local — garante que o que o operador acabou de
+  // preencher (e ainda pode estar na fila offline) vá para o Excel.
+  const ptpLocal = versoStorage.getPtpJanelas(folhaDiaKey);
+  const limpezaLocal = versoStorage.getLimpezaTurnos(folhaDiaKey);
+
+  const ptpJanelas = mesclarPorChave(
+    ptpRemoto,
+    ptpLocal,
+    (j) => j.janelaCodigo,
+    melhorPtp,
+  );
+  const limpezaTurnos = mesclarPorChave(
+    limpezaRemota,
+    limpezaLocal,
+    (t) => t.turno,
+    melhorLimpeza,
+  );
+
   return { ptpJanelas, limpezaTurnos, observacoesVerso };
+}
+
+function mesclarPorChave<T>(
+  remotos: T[],
+  locais: T[],
+  chave: (x: T) => string,
+  escolher: (a: T, b: T) => T,
+): T[] {
+  const map = new Map<string, T>();
+  for (const r of remotos) map.set(chave(r), r);
+  for (const l of locais) {
+    const k = chave(l);
+    const ex = map.get(k);
+    map.set(k, ex ? escolher(ex, l) : l);
+  }
+  return Array.from(map.values());
+}
+
+/** Escolhe o registro PTP mais "completo": prioriza o que tem assinatura,
+ *  depois o de updatedAt mais recente. */
+function melhorPtp(a: PtpJanela, b: PtpJanela): PtpJanela {
+  const aTemAss = !!a.assinaturaOperador?.dataUrl;
+  const bTemAss = !!b.assinaturaOperador?.dataUrl;
+  if (aTemAss && !bTemAss) return a;
+  if (!aTemAss && bTemAss) return b;
+  const ta = Date.parse(a.updatedAt ?? "") || 0;
+  const tb = Date.parse(b.updatedAt ?? "") || 0;
+  return tb > ta ? b : a;
+}
+
+function melhorLimpeza(a: LimpezaTurno, b: LimpezaTurno): LimpezaTurno {
+  const aTemAss = !!a.assinaturaOperador?.dataUrl;
+  const bTemAss = !!b.assinaturaOperador?.dataUrl;
+  if (aTemAss && !bTemAss) return a;
+  if (!aTemAss && bTemAss) return b;
+  const ta = Date.parse(a.updatedAt ?? "") || 0;
+  const tb = Date.parse(b.updatedAt ?? "") || 0;
+  return tb > ta ? b : a;
 }
 
 /** Exporta o turno atual: aba ENCHEDORA 3 (frente preenchida só do turno)
