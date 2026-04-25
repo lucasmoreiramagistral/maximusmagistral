@@ -70,7 +70,7 @@ function OperadorItIndex() {
           />
         </div>
 
-        {/* Ata de Treinamento na Função — habilita acesso às IT */}
+        {/* Ata de Treinamento na Função — opcional, sem trava de acesso */}
         <div className="mt-8 rounded-2xl border-2 border-dashed border-primary/30 bg-primary-soft/30 p-5 md:p-6">
           <div className="flex items-start gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -81,8 +81,9 @@ function OperadorItIndex() {
                 Ata de Treinamento na Função
               </p>
               <p className="mt-1 text-sm text-muted-foreground md:text-base">
-                Sem ata, você não consegue abrir a IT. Cadastre uma vez por IT
-                (Operação ou Limpeza) com a assinatura de quem te ensinou.
+                Registro do treinamento que você recebeu, com a assinatura de
+                quem te ensinou. Pode ser cadastrada quando tiver tempo — não
+                bloqueia o acesso à IT.
               </p>
               <Link
                 to="/operador/it/ata"

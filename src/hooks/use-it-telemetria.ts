@@ -1,17 +1,24 @@
 // ============================================================
 // Hook de telemetria do viewer de IT.
-// - Recebe identidade confirmada do gate (nomeCompleto + nomeCanonico + deviceId)
-// - Cria UMA sessão por consulta (persistida em sessionStorage)
-// - Reusa sessão se: mesmo slug + canonico + device + < 4h + último heartbeat < 30min
-// - Heartbeat 60s (visibilidade + interação recente) → corte de 5min no painel
-// - Captura page_leave / it_close de forma defensiva
+//
+// Modelo atual (login próprio do operador):
+// - Identidade vem 100% do usuário autenticado (Supabase Auth + profile).
+//   `usuario.userId` é o `auth.users.id` (ver use-storage.ts: row.id).
+//   `usuario.nome` vem de `profiles.nome`.
+// - Não há mais modal de identidade, nem nome digitado, nem eventos
+//   `identidade_declarada` / `identidade_confirmada` / `identidade_trocada`.
+// - `device_id` continua sendo gravado (dado técnico para auditoria
+//   offline/queue e rastreio de erro), mas NÃO é identidade primária.
+// - Cria UMA sessão por consulta (persistida em sessionStorage).
+// - Reusa sessão se: mesmo slug + mesmo user_id + < 4h + último heartbeat < 30min.
+// - Heartbeat 60s (visibilidade + interação recente) → corte de 5min no painel.
+// - Captura page_leave / it_close de forma defensiva.
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
-import { supabase } from "@/integrations/supabase/client";
 import {
   insertItEvento,
   insertItSessao,
@@ -30,9 +37,9 @@ import type { ItDocSlug } from "@/lib/it/types";
 import {
   INATIVIDADE_LEVE_MS,
   JANELA_LEVE_MS,
-  isIdentidadeBypass,
+  canonizarNomeOperador,
+  obterOuCriarDeviceId,
   registrarUltimoHeartbeat,
-  type IdentidadeConfirmada,
 } from "@/lib/it/identidade";
 
 const HEARTBEAT_MS = 60_000; // 60s
@@ -49,7 +56,7 @@ interface SessaoPersistida {
   rota: string;
   contexto: ContextoOperadorIt;
   device_id: string;
-  nome_canonico: string;
+  user_id: string;
   ultimo_heartbeat: number;
 }
 
@@ -105,19 +112,14 @@ export interface ItTelemetriaApi {
 
 export interface UseItTelemetriaParams {
   slug: ItDocSlug;
-  identidade: IdentidadeConfirmada | null;
 }
 
 export function useItTelemetria(
   paramsOrSlug: ItDocSlug | UseItTelemetriaParams,
 ): ItTelemetriaApi {
-  // Backward-compat: aceita slug puro ou {slug, identidade}
   const params: UseItTelemetriaParams =
-    typeof paramsOrSlug === "string"
-      ? { slug: paramsOrSlug, identidade: null }
-      : paramsOrSlug;
-  const { slug, identidade } = params;
-  const bypass = isIdentidadeBypass(identidade?.nomeCanonico);
+    typeof paramsOrSlug === "string" ? { slug: paramsOrSlug } : paramsOrSlug;
+  const { slug } = params;
 
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
@@ -127,13 +129,15 @@ export function useItTelemetria(
   const inicioPaginaRef = useRef<number | null>(null);
   const inicioSessaoRef = useRef<number>(Date.now());
   const ultimaInteracaoRef = useRef<number>(Date.now());
-  const deviceIdRef = useRef<string | null>(identidade?.deviceId ?? null);
-  const nomeCanonicoRef = useRef<string | null>(
-    identidade?.nomeCanonico ?? null,
-  );
+  const deviceIdRef = useRef<string | null>(null);
   const userAgentRef = useRef<string | null>(
     typeof navigator !== "undefined" ? navigator.userAgent : null,
   );
+
+  // Inicializa device_id (dado técnico apenas, não-identidade) na montagem.
+  useEffect(() => {
+    deviceIdRef.current = obterOuCriarDeviceId();
+  }, []);
 
   const contextoRef = useRef<ContextoOperadorIt>({
     user_id: null,
@@ -144,18 +148,12 @@ export function useItTelemetria(
     data_operacional: null,
   });
 
-  // Atualiza refs quando identidade muda
-  useEffect(() => {
-    deviceIdRef.current = identidade?.deviceId ?? null;
-    nomeCanonicoRef.current = identidade?.nomeCanonico ?? null;
-  }, [identidade?.deviceId, identidade?.nomeCanonico]);
-
+  // Contexto = sempre derivado do usuário autenticado.
+  // Não há mais nome digitado nem confirmação manual.
   useEffect(() => {
     contextoRef.current = {
       user_id: usuario?.userId ?? null,
-      // Prioriza identidade declarada do gate; se não houver, cai no perfil
-      operador_nome:
-        identidade?.nomeCompleto ?? usuario?.nome ?? null,
+      operador_nome: usuario?.nome ?? null,
       perfil: usuario?.perfil ?? null,
       equipe: usuario?.equipePadrao ?? null,
       turno: usuario?.turnoPadrao ?? null,
@@ -164,25 +162,13 @@ export function useItTelemetria(
           ? calcularDataOperacional(usuario.equipePadrao, usuario.turnoPadrao)
           : null,
     };
-
-    if (!usuario?.userId) {
-      void supabase.auth.getUser().then(({ data }) => {
-        const authId = data.user?.id ?? null;
-        if (authId && contextoRef.current.user_id == null) {
-          contextoRef.current = { ...contextoRef.current, user_id: authId };
-        }
-      }).catch(() => { /* ignore */ });
-    }
-  }, [usuario, identidade?.nomeCompleto]);
+  }, [usuario]);
 
   const registrarEvento = useCallback(
     (tipo: TipoEventoIt, extras?: Partial<EventoIt>) => {
       try {
         const sessao = sessaoRef.current;
         if (!sessao) return;
-        // NÃO descarta mais por falta de user_id — eventos de operador identificado
-        // pelo gate (com device_id) são auditáveis mesmo se auth.getUser() ainda
-        // não respondeu. Telemetria nunca deve perder eventos válidos.
         const evento: EventoIt = {
           sessao_id: sessao.id,
           documento: sessao.documento,
@@ -206,16 +192,15 @@ export function useItTelemetria(
     [enfileirar],
   );
 
-  // ── abrir/reusar sessão (uma vez por slug) ──
+  // ── abrir/reusar sessão (uma vez por slug, assim que o usuário estiver carregado) ──
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (bypass) return; // acesso master: não abre sessão, não registra nada
-    if (!usuario) return;
-    if (!identidade) return; // espera o gate
+    if (!usuario?.userId) return; // espera o login carregar
 
     let cancelled = false;
-    const deviceId = identidade.deviceId;
-    const canonico = identidade.nomeCanonico;
+    const deviceId = deviceIdRef.current ?? obterOuCriarDeviceId();
+    deviceIdRef.current = deviceId;
+    const userId = usuario.userId;
     const userAgent = userAgentRef.current;
 
     (async () => {
@@ -223,8 +208,7 @@ export function useItTelemetria(
       const agora = Date.now();
       const podeReusar =
         persistida != null &&
-        persistida.device_id === deviceId &&
-        persistida.nome_canonico === canonico &&
+        persistida.user_id === userId &&
         agora - Date.parse(persistida.iniciado_em) < JANELA_LEVE_MS &&
         agora - persistida.ultimo_heartbeat < INATIVIDADE_LEVE_MS;
 
@@ -240,7 +224,7 @@ export function useItTelemetria(
         return;
       }
 
-      // Se havia sessão antiga, fecha-a antes de criar nova
+      // Se havia sessão antiga (de outro user, ou expirada), fecha-a antes de criar nova.
       if (persistida) {
         try {
           await updateItSessaoFechamento(
@@ -274,7 +258,7 @@ export function useItTelemetria(
         rota: sessao.rota,
         contexto: sessao.contexto,
         device_id: deviceId,
-        nome_canonico: canonico,
+        user_id: userId,
         ultimo_heartbeat: Date.now(),
       });
 
@@ -298,18 +282,12 @@ export function useItTelemetria(
       if (cancelled) return;
 
       registrarEvento("it_open", { metadata_json: { rota: sessao.rota } });
-      registrarEvento("identidade_confirmada", {
-        metadata_json: {
-          nome_canonico: canonico,
-          device_id: deviceId,
-        },
-      });
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [slug, usuario, identidade, enfileirar, registrarEvento]);
+  }, [slug, usuario?.userId, enfileirar, registrarEvento]);
 
   // ── page_leave / it_close ──
   const flushPageLeave = useCallback(() => {
@@ -346,7 +324,6 @@ export function useItTelemetria(
   // ── heartbeat + tracking de interação ──
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (bypass) return; // acesso master: sem heartbeat, sem rastro
 
     const marcarInteracao = () => {
       ultimaInteracaoRef.current = Date.now();
@@ -360,9 +337,7 @@ export function useItTelemetria(
       if (typeof document === "undefined") return;
       if (document.visibilityState !== "visible") return;
       if (Date.now() - ultimaInteracaoRef.current > INTERACAO_MAX_AGE_MS) return;
-      // Atualiza heartbeat persistido (entre sessões)
       registrarUltimoHeartbeat(Date.now());
-      // Atualiza heartbeat na sessão persistida (pra reuso)
       const persistida = lerSessaoPersistida(slug);
       if (persistida) {
         escreverSessaoPersistida(slug, {
@@ -384,7 +359,6 @@ export function useItTelemetria(
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (bypass) return; // acesso master: não dispara close/beacon
 
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
@@ -468,6 +442,10 @@ export function useItTelemetria(
     (tipo, extras) => registrarEvento(tipo, extras),
     [registrarEvento],
   );
+
+  // Hint para canonização — manter import vivo (canonização ainda é usada em
+  // outros pontos do app, ex.: cadastro de ata e fallback de agregação).
+  void canonizarNomeOperador;
 
   return useMemo(
     () => ({ trackEvento, trackPageView }),
