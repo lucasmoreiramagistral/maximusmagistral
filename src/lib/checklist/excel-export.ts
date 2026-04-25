@@ -17,6 +17,11 @@ import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
+import {
+  fetchObservacoesVerso,
+  formatarLinhaObservacao,
+  type ObservacaoVerso,
+} from "@/lib/verso/observacoes";
 import { janelasPtpDoTurno, LIMPEZA_ITENS_DEF } from "@/lib/verso/constants";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { colunaPosicionalDoTurno } from "@/lib/operacao/escalas";
@@ -352,6 +357,7 @@ function coletarObservacoesPorTurno(
   verso?: {
     ptpJanelas?: PtpJanela[];
     limpezaTurnos?: LimpezaTurno[];
+    observacoesVerso?: ObservacaoVerso[];
   },
 ): ObsGrupo[] {
   const mapa = new Map<Turno, ObsGrupo>();
@@ -399,9 +405,14 @@ function coletarObservacoesPorTurno(
     grupo.anomalias.push(textoAnomalia(a));
   }
 
+  const observacoesEspelho = verso?.observacoesVerso ?? [];
+  const usarEspelhoVerso = observacoesEspelho.length > 0;
+
   // ─── Limpeza: 1 entrada por item NR com observação ──────────────────
+  // Se a tabela-espelho oficial já tem observações, ela é a fonte da frente;
+  // os dados brutos abaixo ficam apenas como fallback para histórico não espelhado.
   const limpezaTurnos = verso?.limpezaTurnos ?? [];
-  for (const lt of limpezaTurnos) {
+  for (const lt of usarEspelhoVerso ? [] : limpezaTurnos) {
     if (lt.status === "pendente" || lt.status === "rascunho") continue;
     const grupo = getGrupo(turnoBaseObservacao(lt.turno));
     for (const it of lt.itens) {
@@ -417,7 +428,7 @@ function coletarObservacoesPorTurno(
   }
 
   // ─── PTP: 1 entrada por janela com observação ──────────────────────
-  const ptpJanelas = verso?.ptpJanelas ?? [];
+  const ptpJanelas = usarEspelhoVerso ? [] : (verso?.ptpJanelas ?? []);
   if (ptpJanelas.length > 0) {
     // Mapeia janelaCodigo → turno (primeiro turno que cobre aquela janela).
     const turnosPossiveis: Turno[] = [
@@ -445,6 +456,12 @@ function coletarObservacoesPorTurno(
         `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
       );
     }
+  }
+
+  for (const o of observacoesEspelho) {
+    const turno = turnoDaObservacaoEspelho(o);
+    const grupo = getGrupo(turnoBaseObservacao(turno));
+    grupo.itens.push(formatarLinhaObservacao(o));
   }
 
   // Ordem fixa: Dia → Noite → 3º
