@@ -475,8 +475,8 @@ function coletarObservacoesPorTurno(
       if (!texto) continue;
       const turno = turnoDeJanela.get(j.janelaCodigo);
       if (!turno) continue;
-      const grupo = getGrupo(turnoBaseObservacao(turno));
-      grupo.itens.push(
+      addItemObs(
+        turno,
         `PTP ${j.janelaCodigo} (${j.janelaInicio}–${j.janelaFim}) — ${texto}`,
       );
     }
@@ -484,8 +484,7 @@ function coletarObservacoesPorTurno(
 
   for (const o of observacoesEspelho) {
     const turno = turnoDaObservacaoEspelho(o);
-    const grupo = getGrupo(turnoBaseObservacao(turno));
-    grupo.itens.push(formatarLinhaObservacao(o));
+    addItemObs(turno, formatarLinhaObservacao(o));
   }
 
   // Ordem fixa: Dia → Noite → 3º
