@@ -811,11 +811,12 @@ async function carregarVersoDoDia(folha: FolhaChecklistDia) {
     folha.contexto.linha,
     folha.contexto.maquina,
   );
-  const [ptpJanelas, limpezaTurnos] = await Promise.all([
+  const [ptpJanelas, limpezaTurnos, observacoesVerso] = await Promise.all([
     fetchPtpJanelas(folhaDiaKey),
     fetchLimpezaTurnos(folhaDiaKey),
+    fetchObservacoesVerso(folhaDiaKey),
   ]);
-  return { ptpJanelas, limpezaTurnos };
+  return { ptpJanelas, limpezaTurnos, observacoesVerso };
 }
 
 /** Exporta o turno atual: aba ENCHEDORA 3 (frente preenchida só do turno)
