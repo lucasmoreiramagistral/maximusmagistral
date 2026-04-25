@@ -237,6 +237,8 @@ function PtpJanelaDetalhe() {
     const agora = new Date().toISOString();
     // Status: NÃO conta análise de ângulo. Só os 5 defeitos.
     const status = concluir ? deriveStatusJanela(itens, naoRodou) : "rascunho";
+    // Nome real do operador (vem do profile via login próprio).
+    const nomeOperador = (usuario.nome || "").trim() || "Operador";
     return {
       ...janelaBase,
       itens,
@@ -244,11 +246,11 @@ function PtpJanelaDetalhe() {
       observacao: observacao.trim() || null,
       statusJanela: status,
       operadorLogin: concluir ? usuario.usuario : janelaBase.operadorLogin ?? usuario.usuario,
-      operadorNome: concluir ? "Operador" : janelaBase.operadorNome ?? "Operador",
+      operadorNome: concluir ? nomeOperador : janelaBase.operadorNome ?? nomeOperador,
       operadorUserId: usuario.userId ?? janelaBase.operadorUserId ?? null,
       assinaturaOperador:
         concluir && assinatura
-          ? { dataUrl: assinatura, nome: "Operador", assinadoEm: agora }
+          ? { dataUrl: assinatura, nome: nomeOperador, assinadoEm: agora }
           : janelaBase.assinaturaOperador ?? null,
       assinadoEm: concluir ? agora : janelaBase.assinadoEm ?? null,
       ultimaEdicaoPorLogin: usuario.usuario,
