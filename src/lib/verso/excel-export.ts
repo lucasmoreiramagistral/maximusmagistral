@@ -673,7 +673,7 @@ export async function gerarVersoWorksheet(
   ws.getCell(`B${LINHA_ASSIN_LIDER}`).font = { bold: true, size: 9 };
   ws.getCell(`B${LINHA_ASSIN_LIDER}`).alignment = { horizontal: "right", vertical: "middle" };
 
-  blocosLider.forEach(({ turno, range }) => {
+  for (const { turno, range } of blocosLider) {
     const [a, b] = range.split(":");
     const m1 = /^([A-Z]+)(\d+)$/.exec(a)!;
     const m2 = /^([A-Z]+)(\d+)$/.exec(b)!;
@@ -689,13 +689,13 @@ export async function gerarVersoWorksheet(
     cell.font = { size: 9 };
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
+      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
         centralizar: true,
-        larguraFracao: 0.55,
-        alturaFracao: 0.7,
+        larguraFracao: 0.78,
+        alturaFracao: 0.76,
       });
     }
-  });
+  }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
@@ -719,12 +719,12 @@ export async function gerarVersoWorksheet(
     cell.font = { size: temAssinatura ? 6 : 8, color: temAssinatura ? { argb: "FF444444" } : undefined };
     cell.border = BORDA_FINA;
     if (lt.assinaturaOperador?.dataUrl) {
-      inserirImagem(
+      await inserirImagem(
         wb,
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador.dataUrl,
-        { centralizar: true, larguraFracao: 0.9, alturaFracao: 0.72, inicioYFracao: 0.05 },
+        { centralizar: true, larguraFracao: 0.98, alturaFracao: 0.82, inicioYFracao: 0.02 },
       );
     }
   }
