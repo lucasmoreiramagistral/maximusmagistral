@@ -59,7 +59,7 @@ export function NcResolverDialog({ registro, usuario, onClose, onSaved }: Props)
         resolvidoEm: new Date(quando).toISOString(),
         resolvidoPor: {
           userId: usuario.userId ?? null,
-          login: usuario.login,
+          login: usuario.usuario,
           nome: usuario.nome,
         },
       });
