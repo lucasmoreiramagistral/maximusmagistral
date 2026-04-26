@@ -638,7 +638,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.82, alturaFracao: 0.62, inicioXFracao: 0.09, inicioYFracao: 0.32 },
+        { larguraFracao: 0.96, alturaFracao: 0.78, inicioXFracao: 0.02, inicioYFracao: 0.20 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -856,7 +856,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 0.82, alturaFracao: 0.62, inicioXFracao: 0.09, inicioYFracao: 0.32 },
+        { larguraFracao: 0.96, alturaFracao: 0.78, inicioXFracao: 0.02, inicioYFracao: 0.20 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
