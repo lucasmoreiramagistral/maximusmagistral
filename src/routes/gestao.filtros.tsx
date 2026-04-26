@@ -18,21 +18,18 @@ import { getFiltros, setFiltros } from "@/lib/checklist/filtros";
 import type { EstadoVersoFiltro, Filtros } from "@/lib/checklist/filtros";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type {
-  CategoriaAnomalia,
-  CriticidadeAnomalia,
   Equipe,
   MomentoChecklist,
-  StatusAnomalia,
   Turno,
 } from "@/lib/checklist/types";
 
-type Origem = "anomalias" | "checklists" | "gestao";
+type Origem = "checklists" | "gestao";
 
 export const Route = createFileRoute("/gestao/filtros")({
   head: () => ({ meta: [{ title: "Filtros — Gestão Industrial" }] }),
   validateSearch: (search: Record<string, unknown>): { origem?: Origem } => {
     const o = search.origem;
-    if (o === "anomalias" || o === "checklists" || o === "gestao") return { origem: o };
+    if (o === "checklists" || o === "gestao") return { origem: o };
     return {};
   },
   component: FiltrosPage,
@@ -40,18 +37,6 @@ export const Route = createFileRoute("/gestao/filtros")({
 
 const TURNOS: Turno[] = ["12x36 Dia", "12x36 Noite", "3º Turno"];
 const EQUIPES: Equipe[] = ["Karolainny", "Valderlan", "Nilson", "Bruno"];
-const STATUS: StatusAnomalia[] = ["Aberta", "Em andamento", "Resolvida"];
-const CRITICIDADES: CriticidadeAnomalia[] = ["Baixa", "Média", "Alta", "Crítica"];
-const CATEGORIAS: CategoriaAnomalia[] = [
-  "Mecânica",
-  "Elétrica",
-  "Automação",
-  "Processo",
-  "Segurança",
-  "Limpeza / 5S",
-  "Outro",
-];
-const EQUIPAMENTOS_AFETADOS = ["Enchedora 3", "Unimix 3", "Trocador de Calor 3", "Outro"];
 
 // Manaus = UTC-4 (sem horário de verão)
 function hojeManausYMD(offsetDias = 0): string {
@@ -157,7 +142,7 @@ function FiltrosPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader titulo="Filtros" subtitulo="Filtre checklists e anomalias" voltarPara="/gestao" />
+      <AppHeader titulo="Filtros" subtitulo="Filtre checklists e folhas do dia" voltarPara="/gestao" />
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-7">
           <Section titulo="Período">
