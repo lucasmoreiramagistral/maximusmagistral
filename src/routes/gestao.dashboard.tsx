@@ -157,8 +157,8 @@ function DashboardGestao() {
   const hojeIso = useMemo(() => agora.toISOString().slice(0, 10), [agora]);
   const saudeHoje = useMemo(() => {
     const checklistsHoje = checklists.filter((c) => c.contexto.data === hojeIso);
-    const folhasCompletas = checklistsHoje.filter((c) =>
-      c.respostas.every((r) => r.resposta && r.resposta !== "A executar"),
+    const folhasCompletas = checklistsHoje.filter(
+      (c) => c.respostas.length > 0 && c.respostas.every((r) => !!r.resposta),
     ).length;
     const completude =
       checklistsHoje.length === 0
