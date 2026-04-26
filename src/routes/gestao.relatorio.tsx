@@ -48,7 +48,6 @@ import {
   calcularDisciplinaFM09,
   calcularFaixasHorarias,
   filtrarChecklists,
-  reportFmt,
   type FiltrosRelatorio,
 } from "@/lib/checklist/reporting";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
