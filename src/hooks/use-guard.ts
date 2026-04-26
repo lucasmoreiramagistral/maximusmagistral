@@ -28,13 +28,13 @@ export function useGuard(perfilEsperado?: Perfil): {
       navigate({ to: "/" });
       return;
     }
+    // Perfil "manutencao" foi descontinuado — empurra de volta pro login.
+    if (usuario.perfil === "manutencao") {
+      navigate({ to: "/" });
+      return;
+    }
     if (perfilEsperado && usuario.perfil !== perfilEsperado) {
-      const destino =
-        usuario.perfil === "operador"
-          ? "/operador"
-          : usuario.perfil === "manutencao"
-            ? "/manutencao"
-            : "/gestao";
+      const destino = usuario.perfil === "operador" ? "/operador" : "/gestao";
       navigate({ to: destino });
     }
   }, [usuario, loading, perfilEsperado, navigate]);

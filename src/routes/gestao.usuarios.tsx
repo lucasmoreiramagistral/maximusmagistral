@@ -836,7 +836,6 @@ function UsuarioFormDialog({
                 <SelectContent>
                   <SelectItem value="operador">Operador</SelectItem>
                   <SelectItem value="gestao">Gestão</SelectItem>
-                  <SelectItem value="manutencao">Manutenção</SelectItem>
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">

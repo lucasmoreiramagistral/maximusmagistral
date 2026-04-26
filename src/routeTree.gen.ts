@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OperadorIndexRouteImport } from './routes/operador.index'
-import { Route as ManutencaoIndexRouteImport } from './routes/manutencao.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
@@ -21,8 +20,6 @@ import { Route as OperadorHistoricoRouteImport } from './routes/operador.histori
 import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
 import { Route as OperadorConfirmacaoRouteImport } from './routes/operador.confirmacao'
 import { Route as OperadorChecklistRouteImport } from './routes/operador.checklist'
-import { Route as ManutencaoFiltrosRouteImport } from './routes/manutencao.filtros'
-import { Route as ManutencaoAnomaliasRouteImport } from './routes/manutencao.anomalias'
 import { Route as GestaoUsuariosRouteImport } from './routes/gestao.usuarios'
 import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
 import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-conformidades'
@@ -36,11 +33,9 @@ import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.vers
 import { Route as OperadorItAtaRouteImport } from './routes/operador.it.ata'
 import { Route as OperadorItDocRouteImport } from './routes/operador.it.$doc'
 import { Route as OperadorAnomaliaNovaRouteImport } from './routes/operador.anomalia.nova'
-import { Route as ManutencaoAnomaliaNovaRouteImport } from './routes/manutencao.anomalia.nova'
 import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
 import { Route as OperadorVisualizarAnomaliaIdRouteImport } from './routes/operador.visualizar.anomalia.$id'
 import { Route as OperadorVersoPtpJanelaCodigoRouteImport } from './routes/operador.verso.ptp.$janelaCodigo'
-import { Route as ManutencaoVisualizarAnomaliaIdRouteImport } from './routes/manutencao.visualizar.anomalia.$id'
 import { Route as GestaoVisualizarDiaFolhaKeyRouteImport } from './routes/gestao.visualizar.dia.$folhaKey'
 import { Route as GestaoVisualizarChecklistIdRouteImport } from './routes/gestao.visualizar.checklist.$id'
 import { Route as GestaoVisualizarAnomaliaIdRouteImport } from './routes/gestao.visualizar.anomalia.$id'
@@ -53,11 +48,6 @@ const IndexRoute = IndexRouteImport.update({
 const OperadorIndexRoute = OperadorIndexRouteImport.update({
   id: '/operador/',
   path: '/operador/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ManutencaoIndexRoute = ManutencaoIndexRouteImport.update({
-  id: '/manutencao/',
-  path: '/manutencao/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoIndexRoute = GestaoIndexRouteImport.update({
@@ -103,16 +93,6 @@ const OperadorConfirmacaoRoute = OperadorConfirmacaoRouteImport.update({
 const OperadorChecklistRoute = OperadorChecklistRouteImport.update({
   id: '/operador/checklist',
   path: '/operador/checklist',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ManutencaoFiltrosRoute = ManutencaoFiltrosRouteImport.update({
-  id: '/manutencao/filtros',
-  path: '/manutencao/filtros',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ManutencaoAnomaliasRoute = ManutencaoAnomaliasRouteImport.update({
-  id: '/manutencao/anomalias',
-  path: '/manutencao/anomalias',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoUsuariosRoute = GestaoUsuariosRouteImport.update({
@@ -180,11 +160,6 @@ const OperadorAnomaliaNovaRoute = OperadorAnomaliaNovaRouteImport.update({
   path: '/operador/anomalia/nova',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ManutencaoAnomaliaNovaRoute = ManutencaoAnomaliaNovaRouteImport.update({
-  id: '/manutencao/anomalia/nova',
-  path: '/manutencao/anomalia/nova',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OperadorVisualizarChecklistIdRoute =
   OperadorVisualizarChecklistIdRouteImport.update({
     id: '/operador/visualizar/checklist/$id',
@@ -202,12 +177,6 @@ const OperadorVersoPtpJanelaCodigoRoute =
     id: '/$janelaCodigo',
     path: '/$janelaCodigo',
     getParentRoute: () => OperadorVersoPtpRoute,
-  } as any)
-const ManutencaoVisualizarAnomaliaIdRoute =
-  ManutencaoVisualizarAnomaliaIdRouteImport.update({
-    id: '/manutencao/visualizar/anomalia/$id',
-    path: '/manutencao/visualizar/anomalia/$id',
-    getParentRoute: () => rootRouteImport,
   } as any)
 const GestaoVisualizarDiaFolhaKeyRoute =
   GestaoVisualizarDiaFolhaKeyRouteImport.update({
@@ -238,8 +207,6 @@ export interface FileRoutesByFullPath {
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
-  '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
-  '/manutencao/filtros': typeof ManutencaoFiltrosRoute
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
@@ -249,9 +216,7 @@ export interface FileRoutesByFullPath {
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
-  '/manutencao/': typeof ManutencaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
-  '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -260,7 +225,6 @@ export interface FileRoutesByFullPath {
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
-  '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
   '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
@@ -275,8 +239,6 @@ export interface FileRoutesByTo {
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
-  '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
-  '/manutencao/filtros': typeof ManutencaoFiltrosRoute
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
@@ -286,9 +248,7 @@ export interface FileRoutesByTo {
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao': typeof GestaoIndexRoute
-  '/manutencao': typeof ManutencaoIndexRoute
   '/operador': typeof OperadorIndexRoute
-  '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -297,7 +257,6 @@ export interface FileRoutesByTo {
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
-  '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
   '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
@@ -313,8 +272,6 @@ export interface FileRoutesById {
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
   '/gestao/relatorio': typeof GestaoRelatorioRoute
   '/gestao/usuarios': typeof GestaoUsuariosRoute
-  '/manutencao/anomalias': typeof ManutencaoAnomaliasRoute
-  '/manutencao/filtros': typeof ManutencaoFiltrosRoute
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
@@ -324,9 +281,7 @@ export interface FileRoutesById {
   '/operador/resumo': typeof OperadorResumoRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
-  '/manutencao/': typeof ManutencaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
-  '/manutencao/anomalia/nova': typeof ManutencaoAnomaliaNovaRoute
   '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -335,7 +290,6 @@ export interface FileRoutesById {
   '/gestao/visualizar/anomalia/$id': typeof GestaoVisualizarAnomaliaIdRoute
   '/gestao/visualizar/checklist/$id': typeof GestaoVisualizarChecklistIdRoute
   '/gestao/visualizar/dia/$folhaKey': typeof GestaoVisualizarDiaFolhaKeyRoute
-  '/manutencao/visualizar/anomalia/$id': typeof ManutencaoVisualizarAnomaliaIdRoute
   '/operador/verso/ptp/$janelaCodigo': typeof OperadorVersoPtpJanelaCodigoRoute
   '/operador/visualizar/anomalia/$id': typeof OperadorVisualizarAnomaliaIdRoute
   '/operador/visualizar/checklist/$id': typeof OperadorVisualizarChecklistIdRoute
@@ -352,8 +306,6 @@ export interface FileRouteTypes {
     | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
-    | '/manutencao/anomalias'
-    | '/manutencao/filtros'
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
@@ -363,9 +315,7 @@ export interface FileRouteTypes {
     | '/operador/resumo'
     | '/operador/validacao-lider'
     | '/gestao/'
-    | '/manutencao/'
     | '/operador/'
-    | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -374,7 +324,6 @@ export interface FileRouteTypes {
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
-    | '/manutencao/visualizar/anomalia/$id'
     | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
@@ -389,8 +338,6 @@ export interface FileRouteTypes {
     | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
-    | '/manutencao/anomalias'
-    | '/manutencao/filtros'
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
@@ -400,9 +347,7 @@ export interface FileRouteTypes {
     | '/operador/resumo'
     | '/operador/validacao-lider'
     | '/gestao'
-    | '/manutencao'
     | '/operador'
-    | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -411,7 +356,6 @@ export interface FileRouteTypes {
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
-    | '/manutencao/visualizar/anomalia/$id'
     | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
@@ -426,8 +370,6 @@ export interface FileRouteTypes {
     | '/gestao/nao-conformidades'
     | '/gestao/relatorio'
     | '/gestao/usuarios'
-    | '/manutencao/anomalias'
-    | '/manutencao/filtros'
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
@@ -437,9 +379,7 @@ export interface FileRouteTypes {
     | '/operador/resumo'
     | '/operador/validacao-lider'
     | '/gestao/'
-    | '/manutencao/'
     | '/operador/'
-    | '/manutencao/anomalia/nova'
     | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -448,7 +388,6 @@ export interface FileRouteTypes {
     | '/gestao/visualizar/anomalia/$id'
     | '/gestao/visualizar/checklist/$id'
     | '/gestao/visualizar/dia/$folhaKey'
-    | '/manutencao/visualizar/anomalia/$id'
     | '/operador/verso/ptp/$janelaCodigo'
     | '/operador/visualizar/anomalia/$id'
     | '/operador/visualizar/checklist/$id'
@@ -464,8 +403,6 @@ export interface RootRouteChildren {
   GestaoNaoConformidadesRoute: typeof GestaoNaoConformidadesRoute
   GestaoRelatorioRoute: typeof GestaoRelatorioRoute
   GestaoUsuariosRoute: typeof GestaoUsuariosRoute
-  ManutencaoAnomaliasRoute: typeof ManutencaoAnomaliasRoute
-  ManutencaoFiltrosRoute: typeof ManutencaoFiltrosRoute
   OperadorChecklistRoute: typeof OperadorChecklistRoute
   OperadorConfirmacaoRoute: typeof OperadorConfirmacaoRoute
   OperadorContextoRoute: typeof OperadorContextoRoute
@@ -475,16 +412,13 @@ export interface RootRouteChildren {
   OperadorResumoRoute: typeof OperadorResumoRoute
   OperadorValidacaoLiderRoute: typeof OperadorValidacaoLiderRoute
   GestaoIndexRoute: typeof GestaoIndexRoute
-  ManutencaoIndexRoute: typeof ManutencaoIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
-  ManutencaoAnomaliaNovaRoute: typeof ManutencaoAnomaliaNovaRoute
   OperadorAnomaliaNovaRoute: typeof OperadorAnomaliaNovaRoute
   OperadorVersoLimpezaRoute: typeof OperadorVersoLimpezaRoute
   OperadorVersoPtpRoute: typeof OperadorVersoPtpRouteWithChildren
   GestaoVisualizarAnomaliaIdRoute: typeof GestaoVisualizarAnomaliaIdRoute
   GestaoVisualizarChecklistIdRoute: typeof GestaoVisualizarChecklistIdRoute
   GestaoVisualizarDiaFolhaKeyRoute: typeof GestaoVisualizarDiaFolhaKeyRoute
-  ManutencaoVisualizarAnomaliaIdRoute: typeof ManutencaoVisualizarAnomaliaIdRoute
   OperadorVisualizarAnomaliaIdRoute: typeof OperadorVisualizarAnomaliaIdRoute
   OperadorVisualizarChecklistIdRoute: typeof OperadorVisualizarChecklistIdRoute
 }
@@ -503,13 +437,6 @@ declare module '@tanstack/react-router' {
       path: '/operador'
       fullPath: '/operador/'
       preLoaderRoute: typeof OperadorIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/manutencao/': {
-      id: '/manutencao/'
-      path: '/manutencao'
-      fullPath: '/manutencao/'
-      preLoaderRoute: typeof ManutencaoIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/': {
@@ -573,20 +500,6 @@ declare module '@tanstack/react-router' {
       path: '/operador/checklist'
       fullPath: '/operador/checklist'
       preLoaderRoute: typeof OperadorChecklistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/manutencao/filtros': {
-      id: '/manutencao/filtros'
-      path: '/manutencao/filtros'
-      fullPath: '/manutencao/filtros'
-      preLoaderRoute: typeof ManutencaoFiltrosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/manutencao/anomalias': {
-      id: '/manutencao/anomalias'
-      path: '/manutencao/anomalias'
-      fullPath: '/manutencao/anomalias'
-      preLoaderRoute: typeof ManutencaoAnomaliasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/usuarios': {
@@ -680,13 +593,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorAnomaliaNovaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/manutencao/anomalia/nova': {
-      id: '/manutencao/anomalia/nova'
-      path: '/manutencao/anomalia/nova'
-      fullPath: '/manutencao/anomalia/nova'
-      preLoaderRoute: typeof ManutencaoAnomaliaNovaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/operador/visualizar/checklist/$id': {
       id: '/operador/visualizar/checklist/$id'
       path: '/operador/visualizar/checklist/$id'
@@ -707,13 +613,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/operador/verso/ptp/$janelaCodigo'
       preLoaderRoute: typeof OperadorVersoPtpJanelaCodigoRouteImport
       parentRoute: typeof OperadorVersoPtpRoute
-    }
-    '/manutencao/visualizar/anomalia/$id': {
-      id: '/manutencao/visualizar/anomalia/$id'
-      path: '/manutencao/visualizar/anomalia/$id'
-      fullPath: '/manutencao/visualizar/anomalia/$id'
-      preLoaderRoute: typeof ManutencaoVisualizarAnomaliaIdRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/gestao/visualizar/dia/$folhaKey': {
       id: '/gestao/visualizar/dia/$folhaKey'
@@ -774,8 +673,6 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoNaoConformidadesRoute: GestaoNaoConformidadesRoute,
   GestaoRelatorioRoute: GestaoRelatorioRoute,
   GestaoUsuariosRoute: GestaoUsuariosRoute,
-  ManutencaoAnomaliasRoute: ManutencaoAnomaliasRoute,
-  ManutencaoFiltrosRoute: ManutencaoFiltrosRoute,
   OperadorChecklistRoute: OperadorChecklistRoute,
   OperadorConfirmacaoRoute: OperadorConfirmacaoRoute,
   OperadorContextoRoute: OperadorContextoRoute,
@@ -785,16 +682,13 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorResumoRoute: OperadorResumoRoute,
   OperadorValidacaoLiderRoute: OperadorValidacaoLiderRoute,
   GestaoIndexRoute: GestaoIndexRoute,
-  ManutencaoIndexRoute: ManutencaoIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,
-  ManutencaoAnomaliaNovaRoute: ManutencaoAnomaliaNovaRoute,
   OperadorAnomaliaNovaRoute: OperadorAnomaliaNovaRoute,
   OperadorVersoLimpezaRoute: OperadorVersoLimpezaRoute,
   OperadorVersoPtpRoute: OperadorVersoPtpRouteWithChildren,
   GestaoVisualizarAnomaliaIdRoute: GestaoVisualizarAnomaliaIdRoute,
   GestaoVisualizarChecklistIdRoute: GestaoVisualizarChecklistIdRoute,
   GestaoVisualizarDiaFolhaKeyRoute: GestaoVisualizarDiaFolhaKeyRoute,
-  ManutencaoVisualizarAnomaliaIdRoute: ManutencaoVisualizarAnomaliaIdRoute,
   OperadorVisualizarAnomaliaIdRoute: OperadorVisualizarAnomaliaIdRoute,
   OperadorVisualizarChecklistIdRoute: OperadorVisualizarChecklistIdRoute,
 }
