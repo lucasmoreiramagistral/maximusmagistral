@@ -226,7 +226,32 @@ interface InserirImagemOpts {
   alturaFracao?: number;
   inicioXFracao?: number;
   inicioYFracao?: number;
+  preservarAssinaturaGrande?: boolean;
 }
+
+const ASSINATURA_PTP_VISTO_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.82,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.08,
+  preservarAssinaturaGrande: true,
+};
+
+const ASSINATURA_LIMPEZA_LIDER_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.84,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.06,
+  preservarAssinaturaGrande: true,
+};
+
+const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.84,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.08,
+  preservarAssinaturaGrande: true,
+};
 
 /** Mede dimensões de imagem base64 PNG (largura/altura em px). */
 async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
