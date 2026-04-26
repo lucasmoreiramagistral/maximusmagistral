@@ -9,6 +9,7 @@ import {
   UserPlus,
   AlertOctagon,
   ArrowRight,
+  LayoutDashboard,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { useChecklistsRemote } from "@/hooks/use-storage";
