@@ -228,6 +228,31 @@ interface InserirImagemOpts {
   inicioYFracao?: number;
 }
 
+// Presets das assinaturas — mantêm a imagem dentro da área branca da célula
+// sem cruzar as bordas pretas (margem de segurança aplicada em inserirImagem).
+const ASSINATURA_PTP_VISTO_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.94,
+  alturaFracao: 0.68,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.14,
+};
+const ASSINATURA_LIMPEZA_LIDER_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.94,
+  alturaFracao: 0.72,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.08,
+};
+const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.94,
+  alturaFracao: 0.72,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.12,
+};
+
+// Margem de segurança (em frações de coluna/linha) para não cruzar a borda preta.
+const SAFETY_COL = 0.04;
+const SAFETY_ROW = 0.08;
+
 /** Mede dimensões de imagem base64 PNG (largura/altura em px). */
 async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
   if (typeof Image === "undefined") return null;
