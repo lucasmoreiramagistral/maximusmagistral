@@ -149,11 +149,14 @@ async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
     }
     if (maxX < minX || maxY < minY) return normalizada;
 
-    const pad = Math.max(8, Math.round(Math.max(maxX - minX, maxY - minY) * 0.12));
-    const sx = Math.max(0, minX - pad);
-    const sy = Math.max(0, minY - pad);
-    const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
-    const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
+    const conteudoW = maxX - minX + 1;
+    const conteudoH = maxY - minY + 1;
+    const padX = Math.max(4, Math.min(24, Math.round(conteudoW * 0.04)));
+    const padY = Math.max(4, Math.min(16, Math.round(conteudoH * 0.08)));
+    const sx = Math.max(0, minX - padX);
+    const sy = Math.max(0, minY - padY);
+    const sw = Math.min(width - sx, conteudoW + padX * 2);
+    const sh = Math.min(height - sy, conteudoH + padY * 2);
     const out = document.createElement("canvas");
     out.width = sw;
     out.height = sh;
