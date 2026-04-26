@@ -650,7 +650,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 90;
+  ws.getRow(LINHA_VISTO).height = 105;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -681,7 +681,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.72, inicioXFracao: 0.0, inicioYFracao: 0.26 },
+        ASSINATURA_PTP_VISTO_PRESET,
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -828,7 +828,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
   const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
-  ws.getRow(LINHA_ASSIN_LIDER).height = 80;
+  ws.getRow(LINHA_ASSIN_LIDER).height = 90;
 
   const blocosLider: { turno: Turno; range: string }[] = [
     { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
@@ -864,18 +864,19 @@ export async function gerarVersoWorksheet(
     }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 1.0,
-        alturaFracao: 0.78,
-        inicioXFracao: 0.0,
-        inicioYFracao: 0.18,
-      });
+      await inserirImagem(
+        wb,
+        ws,
+        `${colA}${row}:${colB}${row}`,
+        lt.assinaturaLider.dataUrl,
+        ASSINATURA_LIMPEZA_LIDER_PRESET,
+      );
     }
   }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 95;
+  ws.getRow(LINHA_ASSIN_OP).height = 110;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -899,7 +900,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.78, inicioXFracao: 0.0, inicioYFracao: 0.20 },
+        ASSINATURA_LIMPEZA_OPERADOR_PRESET,
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
