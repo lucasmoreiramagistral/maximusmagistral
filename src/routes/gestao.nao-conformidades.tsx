@@ -170,9 +170,16 @@ function NaoConformidadesPage() {
     () => calcularKpisTempo(registrosParaAnalise),
     [registrosParaAnalise],
   );
-  const agingPendentes = useMemo(
+  const agingPendentesTodas = useMemo(
     () => calcularAgingPendentes(registrosParaAnalise),
     [registrosParaAnalise],
+  );
+  const agingPendentes = useMemo(
+    () =>
+      agingFiltro === "sla"
+        ? agingPendentesTodas.filter((x) => x.estouroSla)
+        : agingPendentesTodas,
+    [agingPendentesTodas, agingFiltro],
   );
   const itensCronicos = useMemo(
     () => calcularItensCronicos(registrosParaAnalise).slice(0, 10),
