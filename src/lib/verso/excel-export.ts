@@ -149,11 +149,14 @@ async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
     }
     if (maxX < minX || maxY < minY) return normalizada;
 
-    const pad = Math.max(8, Math.round(Math.max(maxX - minX, maxY - minY) * 0.12));
-    const sx = Math.max(0, minX - pad);
-    const sy = Math.max(0, minY - pad);
-    const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
-    const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
+    const conteudoW = maxX - minX + 1;
+    const conteudoH = maxY - minY + 1;
+    const padX = Math.max(4, Math.min(24, Math.round(conteudoW * 0.04)));
+    const padY = Math.max(4, Math.min(16, Math.round(conteudoH * 0.08)));
+    const sx = Math.max(0, minX - padX);
+    const sy = Math.max(0, minY - padY);
+    const sw = Math.min(width - sx, conteudoW + padX * 2);
+    const sh = Math.min(height - sy, conteudoH + padY * 2);
     const out = document.createElement("canvas");
     out.width = sw;
     out.height = sh;
@@ -226,7 +229,32 @@ interface InserirImagemOpts {
   alturaFracao?: number;
   inicioXFracao?: number;
   inicioYFracao?: number;
+  preservarAssinaturaGrande?: boolean;
 }
+
+const ASSINATURA_PTP_VISTO_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.82,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.08,
+  preservarAssinaturaGrande: true,
+};
+
+const ASSINATURA_LIMPEZA_LIDER_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.84,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.06,
+  preservarAssinaturaGrande: true,
+};
+
+const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.99,
+  alturaFracao: 0.84,
+  inicioXFracao: 0.005,
+  inicioYFracao: 0.08,
+  preservarAssinaturaGrande: true,
+};
 
 /** Mede dimensões de imagem base64 PNG (largura/altura em px). */
 async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
@@ -309,13 +337,28 @@ async function inserirImagem(
       usaHPx = caixaHPx;
       usaWPx = caixaHPx * ratioImg;
     }
+
+    if (opts.preservarAssinaturaGrande) {
+      const alturaMinimaAssinaturaPx = Math.min(caixaHPx, alturaDisponivelPx * 0.76);
+      if (usaHPx < alturaMinimaAssinaturaPx) {
+        usaHPx = alturaMinimaAssinaturaPx;
+        usaWPx = Math.min(caixaWPx, Math.max(usaWPx, alturaMinimaAssinaturaPx * ratioImg));
+      }
+    }
   }
 
   // Centraliza a imagem dentro da área (padX/padY definem onde a área começa)
   const sobraWPx = caixaWPx - usaWPx;
   const sobraHPx = caixaHPx - usaHPx;
   const offsetXPx = larguraDisponivelPx * padX + sobraWPx / 2;
-  const offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
+  let offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
+  if (opts.preservarAssinaturaGrande) {
+    const brIdealPx = alturaDisponivelPx * Math.min(0.92, Math.max(0.88, padY + af));
+    const brMaxPx = alturaDisponivelPx * 0.94;
+    offsetYPx = brIdealPx - usaHPx;
+    if (offsetYPx + usaHPx > brMaxPx) offsetYPx = brMaxPx - usaHPx;
+    offsetYPx = Math.max(0, offsetYPx);
+  }
 
   // Converte offset px → fração de col/row
   function pxParaColFrac(offset: number): number {
@@ -607,7 +650,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 90;
+  ws.getRow(LINHA_VISTO).height = 105;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -638,7 +681,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.72, inicioXFracao: 0.0, inicioYFracao: 0.26 },
+        ASSINATURA_PTP_VISTO_PRESET,
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -785,7 +828,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
   const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
-  ws.getRow(LINHA_ASSIN_LIDER).height = 80;
+  ws.getRow(LINHA_ASSIN_LIDER).height = 90;
 
   const blocosLider: { turno: Turno; range: string }[] = [
     { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
@@ -821,18 +864,19 @@ export async function gerarVersoWorksheet(
     }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 1.0,
-        alturaFracao: 0.78,
-        inicioXFracao: 0.0,
-        inicioYFracao: 0.18,
-      });
+      await inserirImagem(
+        wb,
+        ws,
+        `${colA}${row}:${colB}${row}`,
+        lt.assinaturaLider.dataUrl,
+        ASSINATURA_LIMPEZA_LIDER_PRESET,
+      );
     }
   }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 95;
+  ws.getRow(LINHA_ASSIN_OP).height = 110;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -856,7 +900,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.78, inicioXFracao: 0.0, inicioYFracao: 0.20 },
+        ASSINATURA_LIMPEZA_OPERADOR_PRESET,
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
