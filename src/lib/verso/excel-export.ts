@@ -838,7 +838,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
   const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
-  ws.getRow(LINHA_ASSIN_LIDER).height = 80;
+  ws.getRow(LINHA_ASSIN_LIDER).height = 90;
 
   const blocosLider: { turno: Turno; range: string }[] = [
     { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
