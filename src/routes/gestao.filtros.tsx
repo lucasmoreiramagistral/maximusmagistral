@@ -321,14 +321,14 @@ function FiltrosPage() {
                     Ver checklists filtrados
                   </Button>
                 )}
-                {(origem === "anomalias" || origem === "gestao" || !origem) && (
+                {(origem === "gestao" || !origem) && (
                   <Button
                     size="lg"
-                    variant={origem === "anomalias" ? "default" : "outline"}
+                    variant="outline"
                     className="h-12 flex-1 text-base font-semibold"
-                    onClick={() => navigate({ to: "/gestao/anomalias" })}
+                    onClick={() => navigate({ to: "/gestao/nao-conformidades" })}
                   >
-                    Ver anomalias filtradas
+                    Ver não conformidades
                   </Button>
                 )}
               </div>
