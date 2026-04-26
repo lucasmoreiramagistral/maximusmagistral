@@ -237,6 +237,55 @@ export function calcularPerformanceTurno(
   return out;
 }
 
+export interface PerformanceEquipe {
+  equipe: string;
+  total: number;
+  resolvidas: number;
+  pendentes: number;
+  percentualResolvido: number;
+  tempoMedioResolucao: number | null;
+  pendentesAcimaSla: number;
+}
+
+export function calcularPerformanceEquipe(
+  registros: RegistroComStatus[],
+  agoraIso: string = new Date().toISOString(),
+): PerformanceEquipe[] {
+  const porEquipe = new Map<string, RegistroComStatus[]>();
+  for (const x of registros) {
+    const e = x.registro.equipe;
+    const lst = porEquipe.get(e) ?? [];
+    lst.push(x);
+    porEquipe.set(e, lst);
+  }
+
+  const out: PerformanceEquipe[] = [];
+  for (const [equipe, lst] of porEquipe.entries()) {
+    const total = lst.length;
+    const resolvidas = lst.filter((x) => x.resolucao).length;
+    const pendentes = total - resolvidas;
+    const tempos = lst
+      .filter((x) => x.resolucao)
+      .map((x) => diffDias(x.registro.dataHora, x.resolucao!.resolvidoEm));
+    const tempoMedio =
+      tempos.length === 0 ? null : tempos.reduce((s, n) => s + n, 0) / tempos.length;
+    const acimaSla = lst.filter(
+      (x) => !x.resolucao && diffDias(x.registro.dataHora, agoraIso) > SLA_DIAS,
+    ).length;
+    out.push({
+      equipe,
+      total,
+      resolvidas,
+      pendentes,
+      percentualResolvido: total === 0 ? 0 : (resolvidas / total) * 100,
+      tempoMedioResolucao: tempoMedio,
+      pendentesAcimaSla: acimaSla,
+    });
+  }
+  out.sort((a, b) => b.pendentesAcimaSla - a.pendentesAcimaSla || b.total - a.total);
+  return out;
+}
+
 /** Formata duração em dias para texto curto: "3h", "1,2 d", "12 d". */
 export function formatarDias(dias: number | null): string {
   if (dias === null) return "—";

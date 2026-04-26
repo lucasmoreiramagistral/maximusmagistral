@@ -1,69 +1,86 @@
-## Análise de aging (envelhecimento) de NCs/NRs
+## Objetivo
 
-Adicionar uma seção de **gestão industrial** na tela `/gestao/nao-conformidades` mostrando o que está há mais tempo sem ser resolvido — tipo o que se vê em sistema de TPM / 5S / qualidade de chão de fábrica.
+Reformar a página **Gerar Relatório** (`/gestao/relatorio`) para remover tudo que é específico de **Anomalias** e dar foco total nas **Não Conformidades (NC do checklist)** e **Não Realizadas (NR da limpeza)**, com aging, SLA, reincidência e tratativa por turno/equipe — alinhado ao que já existe na tela `/gestao/nao-conformidades`.
 
-### O que vai aparecer na tela
+## O que sai
 
-**1. KPIs de tempo de resposta** (linha nova de cards, acima dos atuais)
-- **Tempo médio de resolução** (das que já foram resolvidas no período) — ex.: "2,4 dias"
-- **Tempo médio em aberto** (das pendentes, contando até hoje) — ex.: "5,1 dias"
-- **Mais antiga em aberto** — ex.: "12 dias" + qual item
-- **% resolvidas em até 24h** — indicador de agilidade da gestão
-- **SLA estourado** (pendentes > 7 dias) — contador destacado em vermelho
+Remover do `gestao.relatorio.tsx`:
 
-**2. Tabela "Aging — pendentes mais antigas"** (nova seção, logo abaixo dos KPIs)
-Lista as **NCs/NRs ainda em aberto**, ordenadas da mais antiga pra mais nova, com:
-- Data de abertura
-- Dias em aberto (com badge colorido: verde ≤2d, amarelo 3-7d, vermelho >7d)
-- Turno · Origem (NC/NR)
-- Item + observação resumida
-- Operador que registrou
-- Botão "Resolver" (igual ao da lista detalhada)
+- **Bloco 3 — "Anomalias e Tratativa"** (KPIs por status, gráficos por categoria/equipamento, "abertas há +24h", top itens geradores).
+- **Bloco 5 — "Causas, Equipamentos e Recorrência"** (é totalmente baseado em anomalias).
+- KPIs de anomalias dentro do **Bloco 1 — Resumo Executivo** (Anomalias, Abertas, Em andamento, Resolvidas, Tempo médio até iniciar, Tempo médio de resolução).
+- Filtros que só fazem sentido para anomalias: **Status da anomalia, Criticidade, Categoria, Equipamento afetado**.
+- Hook `useAnomaliasRemote` e funções `filtrarAnomalias`, `calcularAnomaliasTratativa`, `calcularRecorrencia`, `calcularComparativos` (passam a receber arrays vazios ou a versão é refeita sem anomalias).
+- Texto/subtítulo "anomalias e tratativa" do `AppHeader`.
+- O Bloco 4 ("Faixas Horárias Críticas") perde a barra de anomalias — fica só NC + Observações.
+- O Bloco 6 ("Comparativo por Equipe e Turno") perde colunas de anomalia (Anom./folha, T. médio resol., % mesmo dia ficam baseadas em **resolução de NC/NR**).
+- O Bloco 7 ("Ação imediata") tem suas regras refeitas para olhar **NC/NR pendentes** em vez de anomalias críticas.
 
-Mostra as **15 mais antigas** com botão "ver todas" que filtra a lista detalhada de baixo.
+## O que entra (foco em NC/NR)
 
-**3. Tabela "Itens crônicos"** (substitui ou complementa a "Itens mais recorrentes" atual)
-Pra cada item recorrente, mostra:
-- Descrição do item
-- Quantas vezes apareceu no período
-- **Quantas ainda estão pendentes**
-- **Tempo médio de resolução** desse item específico
-- **Reincidência**: quantas vezes voltou após ter sido resolvido (mesmo item, mesmo turno, em datas diferentes)
+Renomeio o relatório para **"Relatório de Não Conformidades e Não Realizadas — Linha 3"** e reorganizo em blocos novos, reutilizando o que já existe em `src/lib/nao-conformidades/aging.ts` e `src/lib/checklist/nao-conformidades.ts`.
 
-**4. Tabela "Performance por turno"** (enriquece a "Por turno" atual)
-Adiciona colunas:
-- % resolvido
-- Tempo médio de resolução do turno
-- Pendentes > 7d
+### Novo Bloco 1 — Resumo Executivo (NC/NR)
+KPIs:
+- Folhas registradas, Folhas completas, % completude, Itens avaliados, % Conformes.
+- **Total NC** (checklist) + **Total NR** (limpeza).
+- **Pendentes** (sem resolução), **Resolvidas**.
+- **Tempo médio de resolução** (dias) — `calcularKpisTempo`.
+- **% resolvidas em até 24h**.
+- **Pendência mais antiga** (dias + descrição curta).
+- **SLA estourado** (>7d).
 
-### Como o tempo é calculado
+### Novo Bloco 2 — Disciplina do Checklist FM09 (mantido)
+Sem mudança, já é independente de anomalias (`calcularDisciplinaFM09` recebe `[]` no lugar de anomalias).
 
-- **Abertura** = `dataHora` do registro (já existe em `RegistroNcNr`)
-- **Fechamento** = `resolvidoEm` da resolução correspondente (já existe em `ResolucaoNcNr`)
-- **Tempo de resolução** = fechamento − abertura
-- **Tempo em aberto** = agora − abertura (pra pendentes)
-- **Reincidência** = mesmo `item_numero` + `origem`, mesmo turno, em registros com `data` diferentes, sendo que houve uma resolução no meio
+### Novo Bloco 3 — Aging das Pendências (NC/NR)
+- Toggle **Todas / Só SLA estourado** (>7d), igual ao da tela `/gestao/nao-conformidades`.
+- Tabela das 20 pendências mais antigas: Origem (NC/NR), Data, Turno, Item, Descrição, Observação curta, Dias em aberto (badge verde/amarelo/vermelho via `tomAging`).
+- Sem botão "Resolver" aqui (relatório é leitura).
 
-Tudo calculado em memória no front, **sem mudar schema e sem SQL novo**. Os dados já estão disponíveis nos hooks atuais (`ag.registros` + `resolucoes`).
+### Novo Bloco 4 — Faixas Horárias Críticas
+Mantém o gráfico, mas só com **NC** e **Observações** (sem barra de anomalias). Adapto `calcularFaixasHorarias` chamando com `anomalias = []`.
 
-### Arquivos
+### Novo Bloco 5 — Itens Crônicos (reincidência)
+Reaproveita `calcularItensCronicos`. Tabela: Origem, Item, Descrição, Ocorrências, Pendentes, Reincidências, Tempo médio resolução. Top 15.
 
-- **Novo** `src/lib/nao-conformidades/aging.ts` — funções puras de cálculo (média, aging, reincidência, percentis). Testáveis isoladamente.
-- **Editado** `src/routes/gestao.nao-conformidades.tsx` — adiciona as 4 novas seções usando o agregador acima, antes da lista detalhada existente. Mantém todos os filtros (período, turno, origem) afetando os cálculos.
-- **Reaproveitado** componente `KpiCard` e `BadgeOrigem` que já existem no arquivo.
+### Novo Bloco 6 — Performance por Turno (resolução de NC/NR)
+Reaproveita `calcularPerformanceTurno`. Tabela: Turno, Total, Resolvidas, Pendentes, % Resolvido, Tempo médio resolução, Pendentes acima do SLA. Adicionalmente uma versão por **Equipe** (nova função `calcularPerformancePorEquipe` em `aging.ts` — mesma lógica agrupando por `registro.equipe`).
 
-### Resumo visual da página depois da mudança
+### Novo Bloco 7 — Ação Imediata
+Regras novas (substituem `calcularAcoesImediatas` por uma local):
+- "X pendência(s) com SLA estourado (>7d)".
+- "Y item(ns) crônico(s) com reincidência ≥ 2".
+- "Turno Z concentra a maior carga pendente".
+- "Faixa horária HH–HH concentra a maior incidência de NC".
+- "% de pendentes acima de N% — risco de acúmulo".
 
-```text
-[ Filtros: Período | Origem | Turno | Status ]
+### Blocos 8–12 do Verso (PTP/Limpeza)
+Permanecem como estão. Já são independentes de anomalia.
 
-[ KPIs originais: NC | NR | Pendentes | Resolvidas | Total ]
-[ KPIs novos:    Tempo médio resolução | Tempo médio aberto | Mais antiga | % em 24h | SLA estourado ]
+## Filtros
 
-[ Aging — pendentes mais antigas (15) ]   ← nova
-[ Itens crônicos / reincidência ]         ← nova (substitui "mais recorrentes")
-[ Performance por turno ]                 ← turbinada
-[ Registros (lista detalhada existente) ]
-```
+Após remoção, ficam apenas: **Data inicial, Data final, Turno, Equipe, Momento do checklist**. Atalhos (Hoje/Ontem/7d/30d/Mês) permanecem.
 
-Sem mudanças no banco, sem SQL pra rodar.
+## Mudanças técnicas
+
+### Arquivos editados
+- `src/routes/gestao.relatorio.tsx`
+  - Remover imports/uso de `useAnomaliasRemote`, `calcularAnomaliasTratativa`, `calcularRecorrencia`, `calcularAcoesImediatas`, `filtrarAnomalias`, e os tipos `StatusAnomalia/CriticidadeAnomalia/CategoriaAnomalia` que vierem por tabela.
+  - Adicionar imports de `useChecklistsRemote` (já tem), `useLimpezaTurnos` (ou hook equivalente já em uso na tela `/gestao/nao-conformidades`), `useNcResolucoes`, `agregarNcNr`, `chaveRegistro`, `calcularAgingPendentes`, `calcularKpisTempo`, `calcularItensCronicos`, `calcularPerformanceTurno`, `formatarDias`, `tomAging`, `SLA_DIAS`.
+  - Construir o array `RegistroComStatus[]` (mesma lógica usada em `gestao.nao-conformidades.tsx` linhas 118–135) e aplicar filtros de turno/equipe/momento sobre ele.
+  - Refatorar Blocos 1, 4, 6 e 7; remover Blocos 3 e 5; adicionar Blocos novos (Aging, Crônicos, Performance turno).
+  - Atualizar `head().title`, `meta description`, `AppHeader.subtitulo`.
+  - Atualizar `FILTROS_PADRAO` removendo campos de anomalia.
+
+### Novo helper
+- `src/lib/nao-conformidades/aging.ts`: adicionar `calcularPerformanceEquipe(registros, agora)` (gêmea de `calcularPerformanceTurno`, mas agrupando por `registro.equipe`).
+
+### Compatibilidade
+- `FiltrosRelatorio` em `src/lib/checklist/reporting.ts` continua tendo os campos antigos para não quebrar outras chamadas, mas a UI deixa de usá-los. (Sem mudança no arquivo.)
+- `calcularDisciplinaFM09`, `calcularFaixasHorarias`, `calcularResumoExecutivo`, `calcularComparativos` continuam sendo chamadas, porém com `anomalias = []`. Os campos relativos a anomalia no resultado simplesmente serão ignorados na UI.
+
+## Garantias
+- Build TS e lint devem continuar passando — nenhum novo `any`, sem alterações de schema/banco.
+- Verso (Blocos 8–12) intacto.
+- Comportamento de impressão (`print:`) mantido nos blocos restantes.

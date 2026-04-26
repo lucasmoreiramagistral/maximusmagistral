@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Component, useMemo, useState, type ReactNode } from "react";
+import { Component, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useVersoRelatorioRemote } from "@/hooks/use-verso-relatorio";
 import {
   calcularAlertasVerso,
@@ -27,7 +27,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { FileBarChart2, Filter as FilterIcon, AlertTriangle, ClipboardList } from "lucide-react";
+import { FileBarChart2, Filter as FilterIcon, ClipboardList } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { Button } from "@/components/ui/button";
@@ -41,31 +41,49 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useGuard } from "@/hooks/use-guard";
-import { useChecklistsRemote, useAnomaliasRemote } from "@/hooks/use-storage";
+import { useChecklistsRemote } from "@/hooks/use-storage";
 import { useEdicoesPorPeriodo } from "@/hooks/use-edicoes-periodo";
 import {
   calcularResumoExecutivo,
   calcularDisciplinaFM09,
-  calcularAnomaliasTratativa,
   calcularFaixasHorarias,
-  calcularRecorrencia,
-  calcularComparativos,
-  calcularAcoesImediatas,
-  filtrarAnomalias,
   filtrarChecklists,
-  reportFmt,
   type FiltrosRelatorio,
 } from "@/lib/checklist/reporting";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
+import { supabase } from "@/integrations/supabase/client";
+import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
+import type { LimpezaTurno } from "@/lib/verso/types";
+import { useResolucoesNcNr } from "@/hooks/use-nc-resolucoes";
+import {
+  agregarNcNr,
+  type RegistroNcNr,
+} from "@/lib/checklist/nao-conformidades";
+import {
+  chaveRegistro,
+  chaveResolucao,
+  type ResolucaoNcNr,
+} from "@/lib/nao-conformidades/resolucoes";
+import {
+  calcularAgingPendentes,
+  calcularItensCronicos,
+  calcularKpisTempo,
+  calcularPerformanceEquipe,
+  calcularPerformanceTurno,
+  formatarDias,
+  tomAging,
+  SLA_DIAS,
+  type RegistroComStatus,
+} from "@/lib/nao-conformidades/aging";
 
 export const Route = createFileRoute("/gestao/relatorio")({
   head: () => ({
     meta: [
-      { title: "Relatório Gerencial Operacional — Linha 3" },
+      { title: "Relatório de Não Conformidades e Não Realizadas — Linha 3" },
       {
         name: "description",
         content:
-          "Consolidação de checklist FM09, anomalias, tratativa e recorrências da Linha 3.",
+          "Análise gerencial de NC do checklist FM09 e itens não realizados na limpeza, com aging, SLA e reincidência.",
       },
     ],
   }),
@@ -101,85 +119,226 @@ const FILTROS_PADRAO: FiltrosRelatorio = {
   equipamentoAfetado: "Todos",
 };
 
+function diffDiasYMD(de: string, ate: string): number {
+  const a = new Date(de + "T00:00:00").getTime();
+  const b = new Date(ate + "T00:00:00").getTime();
+  return Math.max(1, Math.round((b - a) / 86_400_000) + 1);
+}
+
 function RelatorioPage() {
   const { usuario, loading } = useGuard("gestao");
   const { data: checklists } = useChecklistsRemote({ realtime: true });
-  const { data: anomalias } = useAnomaliasRemote({ realtime: true });
+  const { data: resolucoes } = useResolucoesNcNr(180);
 
   const [rascunho, setRascunho] = useState<FiltrosRelatorio>(FILTROS_PADRAO);
   const [aplicado, setAplicado] = useState<FiltrosRelatorio>(FILTROS_PADRAO);
+  const [agingFiltro, setAgingFiltro] = useState<"todas" | "sla">("todas");
+
+  // Carregamento de turnos de limpeza para NR (mesmo padrão da tela /gestao/nao-conformidades)
+  const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
+  useEffect(() => {
+    let cancelado = false;
+    const desde = new Date();
+    desde.setDate(desde.getDate() - 180);
+    const dataIso = desde.toISOString().slice(0, 10);
+    void (async () => {
+      const { data, error } = await supabase
+        .from("limpeza_turnos" as never)
+        .select("*")
+        .gte("data_operacao", dataIso);
+      if (cancelado) return;
+      if (error) {
+        console.error("[gestao.relatorio] limpeza fetch:", error);
+        setTurnosLimpeza([]);
+      } else {
+        setTurnosLimpeza(
+          ((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow),
+        );
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
 
   const { counts: edicoesPeriodo } = useEdicoesPorPeriodo(
     aplicado.dataInicio,
     aplicado.dataFim,
   );
 
-  // Listas dinâmicas a partir dos dados carregados
+  // Listas dinâmicas a partir dos checklists
   const equipesDisponiveis = useMemo(() => {
     const s = new Set<string>();
     checklists.forEach((c) => s.add(c.contexto.equipe));
-    anomalias.forEach((a) => s.add(a.equipe));
     return Array.from(s).sort();
-  }, [checklists, anomalias]);
+  }, [checklists]);
 
   const turnosDisponiveis = useMemo(() => {
     const s = new Set<string>();
     checklists.forEach((c) => s.add(c.contexto.turno));
-    anomalias.forEach((a) => s.add(a.turno));
     return Array.from(s).sort();
-  }, [checklists, anomalias]);
-
-  const categoriasDisponiveis = useMemo(() => {
-    const s = new Set<string>();
-    anomalias.forEach((a) => s.add(a.categoria));
-    return Array.from(s).sort();
-  }, [anomalias]);
-
-  const equipamentosDisponiveis = useMemo(() => {
-    const s = new Set<string>();
-    anomalias.forEach((a) => s.add(a.equipamentoAfetado ?? "Enchedora 3"));
-    return Array.from(s).sort();
-  }, [anomalias]);
+  }, [checklists]);
 
   // Dados filtrados
   const checklistsFiltrados = useMemo(
     () => filtrarChecklists(checklists, aplicado),
     [checklists, aplicado],
   );
-  const anomaliasFiltradas = useMemo(
-    () => filtrarAnomalias(anomalias, aplicado),
-    [anomalias, aplicado],
+
+  // Janela em dias que cobre o intervalo selecionado
+  const diasJanela = useMemo(
+    () => diffDiasYMD(aplicado.dataInicio, aplicado.dataFim),
+    [aplicado.dataInicio, aplicado.dataFim],
   );
 
+  // Agregação NC + NR (filtragem por período da janela; depois aplicamos filtros)
+  const agregado = useMemo(
+    () => agregarNcNr(checklists, turnosLimpeza, diasJanela),
+    [checklists, turnosLimpeza, diasJanela],
+  );
+
+  const resolucoesPorChave = useMemo(() => {
+    const m = new Map<string, ResolucaoNcNr>();
+    for (const r of resolucoes) m.set(chaveResolucao(r), r);
+    return m;
+  }, [resolucoes]);
+
+  // Aplicar filtros (data início/fim, turno, equipe, momento) sobre os registros
+  const registrosComStatus = useMemo<RegistroComStatus[]>(() => {
+    return agregado.registros
+      .filter((r) => {
+        if (r.data < aplicado.dataInicio) return false;
+        if (r.data > aplicado.dataFim) return false;
+        if (aplicado.turno && aplicado.turno !== "Todos" && r.turno !== aplicado.turno)
+          return false;
+        if (
+          aplicado.equipe &&
+          aplicado.equipe !== "Todas" &&
+          r.equipe !== aplicado.equipe
+        )
+          return false;
+        if (
+          aplicado.momento &&
+          aplicado.momento !== "Todos" &&
+          r.origem === "checklist" &&
+          r.momento !== aplicado.momento
+        )
+          return false;
+        return true;
+      })
+      .map((r) => ({
+        registro: r,
+        resolucao: resolucoesPorChave.get(chaveRegistro(r)) ?? null,
+      }));
+  }, [agregado.registros, aplicado, resolucoesPorChave]);
+
+  const totalNc = useMemo(
+    () => registrosComStatus.filter((x) => x.registro.origem === "checklist").length,
+    [registrosComStatus],
+  );
+  const totalNr = useMemo(
+    () => registrosComStatus.filter((x) => x.registro.origem === "limpeza").length,
+    [registrosComStatus],
+  );
+  const pendentes = useMemo(
+    () => registrosComStatus.filter((x) => !x.resolucao).length,
+    [registrosComStatus],
+  );
+  const resolvidasCount = useMemo(
+    () => registrosComStatus.filter((x) => x.resolucao).length,
+    [registrosComStatus],
+  );
+
+  const kpisTempo = useMemo(
+    () => calcularKpisTempo(registrosComStatus),
+    [registrosComStatus],
+  );
+
+  const agingTodas = useMemo(
+    () => calcularAgingPendentes(registrosComStatus),
+    [registrosComStatus],
+  );
+  const agingFiltrado = useMemo(
+    () => (agingFiltro === "sla" ? agingTodas.filter((x) => x.estouroSla) : agingTodas),
+    [agingTodas, agingFiltro],
+  );
+
+  const cronicos = useMemo(
+    () => calcularItensCronicos(registrosComStatus),
+    [registrosComStatus],
+  );
+  const perfTurno = useMemo(
+    () => calcularPerformanceTurno(registrosComStatus),
+    [registrosComStatus],
+  );
+  const perfEquipe = useMemo(
+    () => calcularPerformanceEquipe(registrosComStatus),
+    [registrosComStatus],
+  );
+
+  // Resumo executivo de checklist (somente parte de NC/observações)
   const resumo = useMemo(
-    () => calcularResumoExecutivo(checklistsFiltrados, anomaliasFiltradas),
-    [checklistsFiltrados, anomaliasFiltradas],
+    () => calcularResumoExecutivo(checklistsFiltrados, []),
+    [checklistsFiltrados],
   );
   const disciplina = useMemo(
-    () => calcularDisciplinaFM09(checklistsFiltrados, anomaliasFiltradas, edicoesPeriodo),
-    [checklistsFiltrados, anomaliasFiltradas, edicoesPeriodo],
-  );
-  const tratativa = useMemo(
-    () => calcularAnomaliasTratativa(anomaliasFiltradas),
-    [anomaliasFiltradas],
+    () => calcularDisciplinaFM09(checklistsFiltrados, [], edicoesPeriodo),
+    [checklistsFiltrados, edicoesPeriodo],
   );
   const faixas = useMemo(
-    () => calcularFaixasHorarias(checklistsFiltrados, anomaliasFiltradas),
-    [checklistsFiltrados, anomaliasFiltradas],
+    () => calcularFaixasHorarias(checklistsFiltrados, []),
+    [checklistsFiltrados],
   );
-  const recorrencia = useMemo(
-    () => calcularRecorrencia(checklistsFiltrados, anomaliasFiltradas),
-    [checklistsFiltrados, anomaliasFiltradas],
-  );
-  const comparativos = useMemo(
-    () => calcularComparativos(checklistsFiltrados, anomaliasFiltradas),
-    [checklistsFiltrados, anomaliasFiltradas],
-  );
-  const acoes = useMemo(
-    () =>
-      calcularAcoesImediatas(anomaliasFiltradas, recorrencia, faixas, comparativos),
-    [anomaliasFiltradas, recorrencia, faixas, comparativos],
-  );
+
+  // Ações imediatas (regras locais focadas em NC/NR)
+  const acoes = useMemo(() => {
+    const itens: { texto: string; destaque: "destructive" | "warning" | "primary" }[] =
+      [];
+    if (kpisTempo.slaEstourado > 0) {
+      itens.push({
+        texto: `${kpisTempo.slaEstourado} pendência(s) com SLA estourado (>${SLA_DIAS} dias).`,
+        destaque: "destructive",
+      });
+    }
+    const reincidentes = cronicos.filter((c) => c.reincidencias >= 2);
+    if (reincidentes.length > 0) {
+      itens.push({
+        texto: `${reincidentes.length} item(ns) crônico(s) com reincidência ≥ 2 — investigar causa raiz.`,
+        destaque: "warning",
+      });
+    }
+    const turnoCarga = [...perfTurno].sort((a, b) => b.pendentes - a.pendentes)[0];
+    if (turnoCarga && turnoCarga.pendentes > 0) {
+      itens.push({
+        texto: `Turno ${turnoCarga.turno} concentra a maior carga pendente (${turnoCarga.pendentes}).`,
+        destaque: "warning",
+      });
+    }
+    const faixaTop = [...faixas].sort((a, b) => b.nc - a.nc)[0];
+    if (faixaTop && faixaTop.nc > 0) {
+      itens.push({
+        texto: `Faixa ${faixaTop.label} concentra a maior incidência de NC (${faixaTop.nc}).`,
+        destaque: "primary",
+      });
+    }
+    const total = pendentes + resolvidasCount;
+    if (total > 0) {
+      const pct = (pendentes / total) * 100;
+      if (pct >= 60) {
+        itens.push({
+          texto: `${pct.toFixed(0)}% dos registros do período seguem pendentes — risco de acúmulo.`,
+          destaque: "destructive",
+        });
+      }
+    }
+    if (kpisTempo.maisAntigaDias !== null && kpisTempo.maisAntigaDias > SLA_DIAS) {
+      itens.push({
+        texto: `Pendência mais antiga: ${formatarDias(kpisTempo.maisAntigaDias)} — ${kpisTempo.maisAntigaItem ?? "—"}.`,
+        destaque: "destructive",
+      });
+    }
+    return itens;
+  }, [kpisTempo, cronicos, perfTurno, faixas, pendentes, resolvidasCount]);
 
   // ─── Verso (PTP + Limpeza) ──────────────────────────────────────────
   const versoRel = useVersoRelatorioRemote(aplicado.dataInicio, aplicado.dataFim);
@@ -219,12 +378,6 @@ function RelatorioPage() {
     () => registrosVersoForaDoRecorte(referenciaFrente, versoRel.ptp, versoRel.limpeza),
     [referenciaFrente, versoRel.ptp, versoRel.limpeza],
   );
-  const filtrosIncompativeisAtivos =
-    (aplicado.statusAnomalia && aplicado.statusAnomalia !== "Todos") ||
-    (aplicado.criticidade && aplicado.criticidade !== "Todas") ||
-    (aplicado.categoria && aplicado.categoria !== "Todas") ||
-    (aplicado.momento && aplicado.momento !== "Todos") ||
-    (aplicado.equipamentoAfetado && aplicado.equipamentoAfetado !== "Todos");
 
   if (loading || !usuario) return <TelaCarregando />;
 
@@ -252,14 +405,13 @@ function RelatorioPage() {
     setAplicado(FILTROS_PADRAO);
   };
 
-  const semDados =
-    checklistsFiltrados.length === 0 && anomaliasFiltradas.length === 0;
+  const semDados = checklistsFiltrados.length === 0 && registrosComStatus.length === 0;
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        titulo="Relatório Gerencial Operacional"
-        subtitulo="Linha 3 — Checklist FM09, não conformidades, anomalias e tratativa"
+        titulo="Relatório de NC e NR"
+        subtitulo="Linha 3 — Não conformidades do checklist e itens não realizados na limpeza"
         voltarPara="/gestao"
       />
 
@@ -344,40 +496,6 @@ function RelatorioPage() {
               }
               opcoes={["Todos", ...MOMENTOS_CHECKLIST]}
             />
-            <FiltroSelect
-              label="Status da anomalia"
-              value={String(rascunho.statusAnomalia ?? "Todos")}
-              onChange={(v) =>
-                setRascunho({
-                  ...rascunho,
-                  statusAnomalia: v as FiltrosRelatorio["statusAnomalia"],
-                })
-              }
-              opcoes={["Todos", "Aberta", "Em andamento", "Resolvida"]}
-            />
-            <FiltroSelect
-              label="Criticidade"
-              value={String(rascunho.criticidade ?? "Todas")}
-              onChange={(v) =>
-                setRascunho({
-                  ...rascunho,
-                  criticidade: v as FiltrosRelatorio["criticidade"],
-                })
-              }
-              opcoes={["Todas", "Crítica", "Alta", "Média", "Baixa"]}
-            />
-            <FiltroSelect
-              label="Categoria"
-              value={String(rascunho.categoria ?? "Todas")}
-              onChange={(v) => setRascunho({ ...rascunho, categoria: v })}
-              opcoes={["Todas", ...categoriasDisponiveis]}
-            />
-            <FiltroSelect
-              label="Equipamento afetado"
-              value={String(rascunho.equipamentoAfetado ?? "Todos")}
-              onChange={(v) => setRascunho({ ...rascunho, equipamentoAfetado: v })}
-              opcoes={["Todos", ...equipamentosDisponiveis]}
-            />
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
@@ -402,8 +520,8 @@ function RelatorioPage() {
           <EstadoVazio />
         ) : (
           <>
-            {/* BLOCO 1 */}
-            <Bloco titulo="1 · Resumo Executivo">
+            {/* BLOCO 1 — Resumo executivo NC/NR */}
+            <Bloco titulo="1 · Resumo Executivo (NC e NR)">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 <Kpi titulo="Folhas registradas" valor={resumo.folhasRegistradas} />
                 <Kpi
@@ -418,35 +536,52 @@ function RelatorioPage() {
                   sub={`${resumo.pctNaoConformes}% NC`}
                   destaque="success"
                 />
-                <Kpi titulo="Anomalias" valor={resumo.totalAnomalias} />
                 <Kpi
-                  titulo="Abertas"
-                  valor={resumo.abertas}
-                  destaque="destructive"
+                  titulo="Não conformidades"
+                  valor={totalNc}
+                  destaque={totalNc > 0 ? "destructive" : undefined}
                 />
                 <Kpi
-                  titulo="Em andamento"
-                  valor={resumo.emAndamento}
-                  destaque="warning"
+                  titulo="Não realizadas"
+                  valor={totalNr}
+                  destaque={totalNr > 0 ? "warning" : undefined}
                 />
                 <Kpi
-                  titulo="Resolvidas"
-                  valor={resumo.resolvidas}
-                  sub={`${resumo.pctResolvidasMesmoDia}% no mesmo dia`}
+                  titulo="Pendentes"
+                  valor={pendentes}
+                  destaque={pendentes > 0 ? "destructive" : "success"}
+                />
+                <Kpi titulo="Resolvidas" valor={resolvidasCount} destaque="success" />
+                <Kpi
+                  titulo="Tempo médio resolução"
+                  valor={formatarDias(kpisTempo.tempoMedioResolucao)}
+                />
+                <Kpi
+                  titulo="% resolvidas em ≤ 24h"
+                  valor={
+                    kpisTempo.percentualEm24h === null
+                      ? "—"
+                      : `${kpisTempo.percentualEm24h.toFixed(0)}%`
+                  }
                   destaque="success"
                 />
                 <Kpi
-                  titulo="Tempo médio até iniciar"
-                  valor={reportFmt.fmtHoras(resumo.tempoMedioInicioHoras)}
+                  titulo="Pendência mais antiga"
+                  valor={formatarDias(kpisTempo.maisAntigaDias)}
+                  sub={kpisTempo.maisAntigaItem ?? undefined}
+                  destaque={
+                    (kpisTempo.maisAntigaDias ?? 0) > SLA_DIAS ? "destructive" : undefined
+                  }
                 />
                 <Kpi
-                  titulo="Tempo médio de resolução"
-                  valor={reportFmt.fmtHoras(resumo.tempoMedioResolucaoHoras)}
+                  titulo={`SLA estourado (>${SLA_DIAS}d)`}
+                  valor={kpisTempo.slaEstourado}
+                  destaque={kpisTempo.slaEstourado > 0 ? "destructive" : "success"}
                 />
               </div>
             </Bloco>
 
-            {/* BLOCO 2 */}
+            {/* BLOCO 2 — Disciplina FM09 */}
             <Bloco titulo="2 · Disciplina do Checklist FM09">
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <TabelaSimples
@@ -510,112 +645,57 @@ function RelatorioPage() {
                 <h4 className="mb-2 text-sm font-semibold text-foreground">
                   Top 5 itens com mais NC
                 </h4>
-                <GraficoBarrasItens dados={disciplina.topItensNC} cor="var(--color-destructive)" />
+                <GraficoBarrasItens
+                  dados={disciplina.topItensNC}
+                  cor="var(--color-destructive)"
+                />
+              </div>
+            </Bloco>
+
+            {/* BLOCO 3 — Aging das pendências */}
+            <Bloco titulo="3 · Aging das Pendências (NC e NR)">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-muted-foreground">
+                  Pendências ordenadas da mais antiga para a mais recente. SLA = {SLA_DIAS}{" "}
+                  dias.
+                </p>
+                <div className="flex gap-1.5 rounded-lg border border-border bg-muted/40 p-1">
+                  <button
+                    onClick={() => setAgingFiltro("todas")}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      agingFiltro === "todas"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Todas ({agingTodas.length})
+                  </button>
+                  <button
+                    onClick={() => setAgingFiltro("sla")}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                      agingFiltro === "sla"
+                        ? "bg-background text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    SLA estourado ({agingTodas.filter((x) => x.estouroSla).length})
+                  </button>
+                </div>
               </div>
 
-              {disciplina.topItensObservados.length > 0 && (
-                <TabelaSimples
-                  titulo="Top 5 itens com observações"
-                  colunas={["Item", "Descrição", "Observações"]}
-                  linhas={disciplina.topItensObservados.map((r) => [
-                    `Item ${r.numero}`,
-                    r.descricao,
-                    r.total,
-                  ])}
-                />
+              {agingFiltrado.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+                  {agingFiltro === "sla"
+                    ? "Nenhuma pendência acima do SLA. ✅"
+                    : "Sem pendências no período. ✅"}
+                </p>
+              ) : (
+                <TabelaAging linhas={agingFiltrado.slice(0, 20)} />
               )}
             </Bloco>
 
-            {/* BLOCO 3 */}
-            <Bloco titulo="3 · Anomalias e Tratativa">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {tratativa.porStatus.map((s) => (
-                  <Kpi
-                    key={s.chave}
-                    titulo={s.chave}
-                    valor={s.total}
-                    destaque={
-                      s.chave === "Aberta"
-                        ? "destructive"
-                        : s.chave === "Em andamento"
-                          ? "warning"
-                          : "success"
-                    }
-                  />
-                ))}
-                <Kpi
-                  titulo="Tempo médio até iniciar"
-                  valor={reportFmt.fmtHoras(tratativa.tempoMedioInicioHoras)}
-                />
-                <Kpi
-                  titulo="Tempo médio de resolução"
-                  valor={reportFmt.fmtHoras(tratativa.tempoMedioResolucaoHoras)}
-                />
-              </div>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <div>
-                  <h4 className="mb-2 text-sm font-semibold text-foreground">
-                    Anomalias por categoria
-                  </h4>
-                  <GraficoBarras
-                    dados={tratativa.porCategoria}
-                    cor="var(--color-chart-1)"
-                  />
-                </div>
-                <div>
-                  <h4 className="mb-2 text-sm font-semibold text-foreground">
-                    Por equipamento afetado
-                  </h4>
-                  <GraficoBarras
-                    dados={tratativa.porEquipamento}
-                    cor="var(--color-chart-2)"
-                  />
-                </div>
-              </div>
-
-              {tratativa.abertasMais24h.length > 0 && (
-                <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/5 p-4">
-                  <div className="mb-2 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <h4 className="text-sm font-semibold text-destructive">
-                      Abertas há mais de 24h ({tratativa.abertasMais24h.length})
-                    </h4>
-                  </div>
-                  <ul className="space-y-1 text-sm text-foreground">
-                    {tratativa.abertasMais24h.slice(0, 8).map((a) => (
-                      <li key={a.id} className="flex items-start gap-2">
-                        <span className="text-muted-foreground">
-                          {new Date(a.criadoEm).toLocaleString("pt-BR", {
-                            timeZone: "America/Manaus",
-                          })}
-                        </span>
-                        <span>—</span>
-                        <span className="flex-1">{a.descricao}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {a.criticidade}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {tratativa.topItensGeradores.length > 0 && (
-                <TabelaSimples
-                  titulo="Top 5 itens que mais geraram anomalia"
-                  colunas={["Item", "Descrição", "Anomalias"]}
-                  linhas={tratativa.topItensGeradores.map((r) => [
-                    `Item ${r.numero}`,
-                    r.descricao,
-                    r.total,
-                  ])}
-                />
-              )}
-            </Bloco>
-
-            {/* BLOCO 4 */}
-            <Bloco titulo="4 · Faixas Horárias Críticas">
+            {/* BLOCO 4 — Faixas horárias */}
+            <Bloco titulo="4 · Faixas Horárias Críticas (NC)">
               <div className="h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={faixas}>
@@ -640,64 +720,91 @@ function RelatorioPage() {
                       name="Observações"
                       fill="var(--color-chart-3)"
                     />
-                    <Bar
-                      dataKey="anomalias"
-                      name="Anomalias"
-                      fill="var(--color-warning)"
-                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </Bloco>
 
-            {/* BLOCO 5 */}
-            <Bloco titulo="5 · Causas, Equipamentos e Recorrência">
-              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            {/* BLOCO 5 — Itens crônicos */}
+            <Bloco titulo="5 · Itens Crônicos e Reincidência">
+              {cronicos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Sem itens crônicos no período.
+                </p>
+              ) : (
                 <TabelaSimples
-                  titulo="Top categorias"
-                  colunas={["Categoria", "Total"]}
-                  linhas={recorrencia.topCategorias.map((r) => [r.chave, r.total])}
-                />
-                <TabelaSimples
-                  titulo="Top equipamentos afetados"
-                  colunas={["Equipamento", "Total"]}
-                  linhas={recorrencia.topEquipamentos.map((r) => [r.chave, r.total])}
-                />
-                <TabelaSimples
-                  titulo="Descrições recorrentes"
-                  colunas={["Descrição", "Ocorrências"]}
-                  linhas={recorrencia.topDescricoes.map((r) => [r.descricao, r.total])}
-                />
-                <TabelaSimples
-                  titulo="Itens FM09 mais reincidentes"
-                  colunas={["Item", "Descrição", "Total"]}
-                  linhas={recorrencia.topItensReincidentes.map((r) => [
-                    `Item ${r.numero}`,
-                    r.descricao,
-                    r.total,
-                  ])}
-                />
-              </div>
-              {recorrencia.itemCategoria.length > 0 && (
-                <TabelaSimples
-                  titulo="Item × Categoria — top 5"
-                  colunas={["Item", "Categoria", "Ocorrências"]}
-                  linhas={recorrencia.itemCategoria.map((r) => [
-                    r.item,
-                    r.categoria,
-                    r.total,
+                  titulo="Top 15 itens com mais ocorrências"
+                  colunas={[
+                    "Origem",
+                    "Item",
+                    "Descrição",
+                    "Ocorrências",
+                    "Pendentes",
+                    "Reincidências",
+                    "T. médio resol.",
+                  ]}
+                  linhas={cronicos.slice(0, 15).map((c) => [
+                    c.origem === "checklist" ? "NC" : "NR",
+                    `Item ${c.itemNumero}`,
+                    c.descricao,
+                    c.ocorrencias,
+                    c.pendentes,
+                    c.reincidencias,
+                    formatarDias(c.tempoMedioResolucao),
                   ])}
                 />
               )}
             </Bloco>
 
-            {/* BLOCO 6 */}
-            <Bloco titulo="6 · Comparativo por Equipe e Turno">
-              <TabelaComparativa titulo="Por equipe" linhas={comparativos.porEquipe} />
-              <TabelaComparativa titulo="Por turno" linhas={comparativos.porTurno} />
+            {/* BLOCO 6 — Performance por turno e equipe */}
+            <Bloco titulo="6 · Performance de Resolução">
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <TabelaSimples
+                  titulo="Por turno"
+                  colunas={[
+                    "Turno",
+                    "Total",
+                    "Resolv.",
+                    "Pend.",
+                    "% Resolv.",
+                    "T. médio",
+                    "Acima SLA",
+                  ]}
+                  linhas={perfTurno.map((r) => [
+                    r.turno,
+                    r.total,
+                    r.resolvidas,
+                    r.pendentes,
+                    `${r.percentualResolvido.toFixed(0)}%`,
+                    formatarDias(r.tempoMedioResolucao),
+                    r.pendentesAcimaSla,
+                  ])}
+                />
+                <TabelaSimples
+                  titulo="Por equipe"
+                  colunas={[
+                    "Equipe",
+                    "Total",
+                    "Resolv.",
+                    "Pend.",
+                    "% Resolv.",
+                    "T. médio",
+                    "Acima SLA",
+                  ]}
+                  linhas={perfEquipe.map((r) => [
+                    r.equipe,
+                    r.total,
+                    r.resolvidas,
+                    r.pendentes,
+                    `${r.percentualResolvido.toFixed(0)}%`,
+                    formatarDias(r.tempoMedioResolucao),
+                    r.pendentesAcimaSla,
+                  ])}
+                />
+              </div>
             </Bloco>
 
-            {/* BLOCO 7 */}
+            {/* BLOCO 7 — Ação imediata */}
             <Bloco titulo="7 · O que exige ação imediata">
               {acoes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
@@ -750,13 +857,6 @@ function RelatorioPage() {
                 </Bloco>
               ) : (
                 <>
-                  {filtrosIncompativeisAtivos && (
-                    <p className="mb-3 rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                      Indicadores do verso seguem data/turno/equipe da frente e não
-                      variam por filtros específicos de anomalias.
-                    </p>
-                  )}
-
                   {/* BLOCO 8 — Resumo do verso */}
                   <Bloco titulo="8 · Verso da folha — Resumo">
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -807,7 +907,6 @@ function RelatorioPage() {
                             : undefined
                         }
                       />
-                      {/* ── Análise de Ângulo (aderência/verificação — não é defeito) ── */}
                       <Kpi
                         titulo="Análise de Ângulo"
                         valor={`${resumoVerso.analiseAnguloRealizadas} / ${resumoVerso.analiseAnguloEsperadas}`}
@@ -830,9 +929,7 @@ function RelatorioPage() {
                         titulo="Pendências Ângulo"
                         valor={resumoVerso.analiseAnguloPendentes}
                         destaque={
-                          resumoVerso.analiseAnguloPendentes > 0
-                            ? "warning"
-                            : undefined
+                          resumoVerso.analiseAnguloPendentes > 0 ? "warning" : undefined
                         }
                       />
                     </div>
@@ -861,10 +958,7 @@ function RelatorioPage() {
                       <TabelaSimples
                         titulo="Top itens (ocorrências reais)"
                         colunas={["Item", "Ocorrências"]}
-                        linhas={diagPtp.topItens.map((r) => [
-                          r.nome,
-                          r.ocorrencias,
-                        ])}
+                        linhas={diagPtp.topItens.map((r) => [r.nome, r.ocorrencias])}
                       />
                     </div>
                     <div className="mt-4">
@@ -890,12 +984,9 @@ function RelatorioPage() {
                           ])}
                       />
                     )}
-                    {/* ── Análise de Ângulo por Janela (aderência) ── */}
                     {diagPtp.analiseAnguloPorJanela.length > 0 && (
                       <div className="mt-4">
-                        <TabelaAnaliseAngulo
-                          linhas={diagPtp.analiseAnguloPorJanela}
-                        />
+                        <TabelaAnaliseAngulo linhas={diagPtp.analiseAnguloPorJanela} />
                       </div>
                     )}
                   </Bloco>
@@ -1101,6 +1192,92 @@ function TabelaSimples({
   );
 }
 
+// ──────────────── Tabela de Aging ────────────────
+type AgingItemProp = {
+  registro: RegistroNcNr;
+  diasEmAberto: number;
+  estouroSla: boolean;
+};
+
+function TabelaAging({ linhas }: { linhas: AgingItemProp[] }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-border bg-background">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/30">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Origem
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Data
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Turno
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Item
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Descrição
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Observação
+              </th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-muted-foreground">
+                Em aberto
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((x, i) => {
+              const tom = tomAging(x.diasEmAberto);
+              const cls =
+                tom === "success"
+                  ? "border-success/30 bg-success/10 text-success"
+                  : tom === "warning"
+                    ? "border-warning/30 bg-warning/10 text-warning-foreground"
+                    : "border-destructive/30 bg-destructive/10 text-destructive";
+              return (
+                <tr key={i} className="border-t border-border">
+                  <td className="px-3 py-2">
+                    <span className="rounded-md border border-border bg-muted/40 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      {x.registro.origem === "checklist" ? "NC" : "NR"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs text-foreground">
+                    {x.registro.data}
+                  </td>
+                  <td className="px-3 py-2 text-foreground">{x.registro.turno}</td>
+                  <td className="px-3 py-2 text-foreground">
+                    #{x.registro.itemNumero}
+                  </td>
+                  <td className="px-3 py-2 text-foreground">
+                    {x.registro.itemDescricao}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground">
+                    {x.registro.observacao.length > 80
+                      ? x.registro.observacao.slice(0, 80) + "…"
+                      : x.registro.observacao}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`}
+                    >
+                      {formatarDias(x.diasEmAberto)}
+                      {x.estouroSla ? " · SLA" : ""}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function GraficoNaoRealizadosPorDia({
   dados,
 }: {
@@ -1119,7 +1296,6 @@ function GraficoNaoRealizadosPorDia({
     return d && m ? `${d}/${m}` : iso;
   };
 
-  // Cor por gravidade (relativa ao pico do período)
   const corPorTotal = (total: number): string => {
     if (total === 0) return "var(--color-success)";
     if (pico.total <= 0) return "var(--color-success)";
@@ -1135,7 +1311,6 @@ function GraficoNaoRealizadosPorDia({
     cor: corPorTotal(r.total),
   }));
 
-  // Largura mínima pra caber barras confortáveis e habilitar scroll horizontal se passar
   const larguraPorBarra = 56;
   const larguraMin = serie.length * larguraPorBarra + 60;
 
@@ -1151,8 +1326,8 @@ function GraficoNaoRealizadosPorDia({
       </div>
       <p className="mb-3 text-xs text-muted-foreground">
         Cada barra é um dia. Quanto mais alta e mais vermelha, pior. Pico em{" "}
-        <span className="font-medium text-foreground">{formatarData(pico.data)}</span>{" "}
-        ({pico.total}).
+        <span className="font-medium text-foreground">{formatarData(pico.data)}</span> (
+        {pico.total}).
       </p>
 
       <div className="overflow-x-auto">
@@ -1260,7 +1435,6 @@ function GraficoBarras({
     chaveLabel: formatarChave ? formatarChave(d.chave) : d.chave,
   }));
   const maxTotal = Math.max(...dadosFormatados.map((d) => d.total), 0);
-  // Espaço extra à direita pra caber o rótulo de valor sem cortar
   const alturaPorBarra = 36;
   const altura = Math.max(220, dadosFormatados.length * alturaPorBarra + 40);
   return (
@@ -1272,7 +1446,11 @@ function GraficoBarras({
           margin={{ top: 8, right: 32, bottom: 8, left: 8 }}
           barCategoryGap={8}
         >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" horizontal={false} />
+          <CartesianGrid
+            strokeDasharray="3 3"
+            stroke="var(--color-border)"
+            horizontal={false}
+          />
           <XAxis
             type="number"
             stroke="var(--color-muted-foreground)"
@@ -1328,46 +1506,6 @@ function GraficoBarrasItens({
     descricao: d.descricao,
   }));
   return <GraficoBarras dados={transformados} cor={cor} />;
-}
-
-function TabelaComparativa({
-  titulo,
-  linhas,
-}: {
-  titulo: string;
-  linhas: {
-    chave: string;
-    folhasRegistradas: number;
-    taxaCompletude: number;
-    ncPorFolha: number;
-    anomaliasPorFolha: number;
-    tempoMedioResolucaoHoras: number;
-    pctResolvidasMesmoDia: number;
-  }[];
-}) {
-  return (
-    <TabelaSimples
-      titulo={titulo}
-      colunas={[
-        "Chave",
-        "Folhas",
-        "Completude",
-        "NC/folha",
-        "Anom./folha",
-        "T. médio resol.",
-        "% mesmo dia",
-      ]}
-      linhas={linhas.map((r) => [
-        r.chave,
-        r.folhasRegistradas,
-        `${r.taxaCompletude}%`,
-        r.ncPorFolha,
-        r.anomaliasPorFolha,
-        reportFmt.fmtHoras(r.tempoMedioResolucaoHoras),
-        `${r.pctResolvidasMesmoDia}%`,
-      ])}
-    />
-  );
 }
 
 function EstadoVazio() {
@@ -1471,16 +1609,17 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
 
   const renderMarca = (realizada: boolean, naoRodou: boolean) => {
     if (naoRodou) {
-      return (
-        <span className="font-mono text-xs text-muted-foreground">NR</span>
-      );
+      return <span className="font-mono text-xs text-muted-foreground">NR</span>;
     }
     return realizada ? (
       <span className="font-mono text-base text-success" aria-label="Realizada">
         ✓
       </span>
     ) : (
-      <span className="font-mono text-base text-muted-foreground" aria-label="Não realizada">
+      <span
+        className="font-mono text-base text-muted-foreground"
+        aria-label="Não realizada"
+      >
         —
       </span>
     );
@@ -1548,9 +1687,7 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
                   <td className="px-3 py-2 text-foreground">{r.turno}</td>
                   <td className="px-3 py-2 text-foreground">
                     <span className="font-mono text-xs">{r.janelaCodigo}</span>{" "}
-                    <span className="text-xs text-muted-foreground">
-                      {r.janelaRotulo}
-                    </span>
+                    <span className="text-xs text-muted-foreground">{r.janelaRotulo}</span>
                   </td>
                   <td className="px-3 py-2 text-center">
                     {renderMarca(r.v1Realizada, naoRodou)}
@@ -1568,4 +1705,3 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
     </div>
   );
 }
-
