@@ -109,20 +109,6 @@ function dataUrlParaBase64Limpo(dataUrl: string): string | null {
   return (partes.length > 1 ? partes[1] : normalizada).trim() || null;
 }
 
-/** Converte base64 em Uint8Array — mais confiável que passar base64 direto p/ o ExcelJS. */
-function base64ParaArrayBuffer(base64: string): ArrayBuffer | null {
-  try {
-    const limpo = base64.replace(/\s/g, "");
-    const bin = atob(limpo);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes.buffer;
-  } catch (e) {
-    console.error("[verso/excel] base64ParaArrayBuffer falhou:", e);
-    return null;
-  }
-}
-
 async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
   const normalizada = normalizarDataUrlImagem(dataUrl);
   if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
