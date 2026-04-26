@@ -156,6 +156,32 @@ function NaoConformidadesPage() {
     return arr.slice(0, 10);
   }, [ag.porItem]);
 
+  // Filtrados pelos mesmos filtros (origem/turno) — para análises industriais.
+  const registrosParaAnalise = useMemo(() => {
+    return registrosComStatus.filter(({ registro: r }) => {
+      if (origem !== "todos" && r.origem !== origem) return false;
+      if (turnoFiltro !== "todos" && r.turno !== turnoFiltro) return false;
+      return true;
+    });
+  }, [registrosComStatus, origem, turnoFiltro]);
+
+  const kpisTempo = useMemo(
+    () => calcularKpisTempo(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
+  const agingPendentes = useMemo(
+    () => calcularAgingPendentes(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
+  const itensCronicos = useMemo(
+    () => calcularItensCronicos(registrosParaAnalise).slice(0, 10),
+    [registrosParaAnalise],
+  );
+  const performanceTurno = useMemo(
+    () => calcularPerformanceTurno(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
+
   const totalGeral = ag.totalNc + ag.totalNr;
   const totalResolvidas = registrosComStatus.filter((x) => x.resolucao).length;
   const totalPendentes = totalGeral - totalResolvidas;
