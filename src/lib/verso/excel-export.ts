@@ -375,9 +375,37 @@ async function inserirImagem(
   const brCol = pxParaColFrac(offsetXPx + usaWPx);
   const brRow = pxParaRowFrac(offsetYPx + usaHPx);
 
+  // ── Área segura: nunca cruzar borda direita/inferior da célula. ──
+  // Limites máximos absolutos (em fração de coluna/linha do ExcelJS,
+  // que é 0-indexada: célula r vai de r-1 a r).
+  const limiteColMax = c2 - SAFETY_COL;
+  const limiteRowMax = r2 - SAFETY_ROW;
+  const limiteColMin = c1 - 1; // topo da célula c1
+  const limiteRowMin = r1 - 1; // topo da célula r1
+
+  // Largura/altura atuais da imagem em frações de col/row.
+  const larguraImgFrac = brCol - tlCol;
+  const alturaImgFrac = brRow - tlRow;
+
+  // Eixo X — empurra para a esquerda se ultrapassar à direita.
+  let brColFinal = Math.min(brCol, limiteColMax);
+  let tlColFinal = brColFinal - larguraImgFrac;
+  if (tlColFinal < limiteColMin) {
+    tlColFinal = limiteColMin;
+    brColFinal = Math.min(tlColFinal + larguraImgFrac, limiteColMax);
+  }
+
+  // Eixo Y — empurra para cima se ultrapassar embaixo, com trava de topo.
+  let brRowFinal = Math.min(brRow, limiteRowMax);
+  let tlRowFinal = brRowFinal - alturaImgFrac;
+  if (tlRowFinal < limiteRowMin) {
+    tlRowFinal = limiteRowMin;
+    brRowFinal = Math.min(tlRowFinal + alturaImgFrac, limiteRowMax);
+  }
+
   ws.addImage(id, {
-    tl: { col: tlCol, row: tlRow },
-    br: { col: brCol, row: brRow },
+    tl: { col: tlColFinal, row: tlRowFinal },
+    br: { col: brColFinal, row: brRowFinal },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
   void totalCols;
