@@ -228,31 +228,6 @@ interface InserirImagemOpts {
   inicioYFracao?: number;
 }
 
-// Presets das assinaturas — mantêm a imagem dentro da área branca da célula
-// sem cruzar as bordas pretas (margem de segurança aplicada em inserirImagem).
-const ASSINATURA_PTP_VISTO_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.94,
-  alturaFracao: 0.68,
-  inicioXFracao: 0.03,
-  inicioYFracao: 0.14,
-};
-const ASSINATURA_LIMPEZA_LIDER_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.94,
-  alturaFracao: 0.72,
-  inicioXFracao: 0.03,
-  inicioYFracao: 0.08,
-};
-const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.94,
-  alturaFracao: 0.72,
-  inicioXFracao: 0.03,
-  inicioYFracao: 0.12,
-};
-
-// Margem de segurança (em frações de coluna/linha) para não cruzar a borda preta.
-const SAFETY_COL = 0.04;
-const SAFETY_ROW = 0.08;
-
 /** Mede dimensões de imagem base64 PNG (largura/altura em px). */
 async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
   if (typeof Image === "undefined") return null;
@@ -375,37 +350,9 @@ async function inserirImagem(
   const brCol = pxParaColFrac(offsetXPx + usaWPx);
   const brRow = pxParaRowFrac(offsetYPx + usaHPx);
 
-  // ── Área segura: nunca cruzar borda direita/inferior da célula. ──
-  // Limites máximos absolutos (em fração de coluna/linha do ExcelJS,
-  // que é 0-indexada: célula r vai de r-1 a r).
-  const limiteColMax = c2 - SAFETY_COL;
-  const limiteRowMax = r2 - SAFETY_ROW;
-  const limiteColMin = c1 - 1; // topo da célula c1
-  const limiteRowMin = r1 - 1; // topo da célula r1
-
-  // Largura/altura atuais da imagem em frações de col/row.
-  const larguraImgFrac = brCol - tlCol;
-  const alturaImgFrac = brRow - tlRow;
-
-  // Eixo X — empurra para a esquerda se ultrapassar à direita.
-  let brColFinal = Math.min(brCol, limiteColMax);
-  let tlColFinal = brColFinal - larguraImgFrac;
-  if (tlColFinal < limiteColMin) {
-    tlColFinal = limiteColMin;
-    brColFinal = Math.min(tlColFinal + larguraImgFrac, limiteColMax);
-  }
-
-  // Eixo Y — empurra para cima se ultrapassar embaixo, com trava de topo.
-  let brRowFinal = Math.min(brRow, limiteRowMax);
-  let tlRowFinal = brRowFinal - alturaImgFrac;
-  if (tlRowFinal < limiteRowMin) {
-    tlRowFinal = limiteRowMin;
-    brRowFinal = Math.min(tlRowFinal + alturaImgFrac, limiteRowMax);
-  }
-
   ws.addImage(id, {
-    tl: { col: tlColFinal, row: tlRowFinal },
-    br: { col: brColFinal, row: brRowFinal },
+    tl: { col: tlCol, row: tlRow },
+    br: { col: brCol, row: brRow },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
   void totalCols;
@@ -660,7 +607,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 105;
+  ws.getRow(LINHA_VISTO).height = 90;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -691,7 +638,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        ASSINATURA_PTP_VISTO_PRESET,
+        { larguraFracao: 1.0, alturaFracao: 0.72, inicioXFracao: 0.0, inicioYFracao: 0.26 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -838,7 +785,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
   const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
-  ws.getRow(LINHA_ASSIN_LIDER).height = 90;
+  ws.getRow(LINHA_ASSIN_LIDER).height = 80;
 
   const blocosLider: { turno: Turno; range: string }[] = [
     { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
@@ -874,19 +821,18 @@ export async function gerarVersoWorksheet(
     }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      await inserirImagem(
-        wb,
-        ws,
-        `${colA}${row}:${colB}${row}`,
-        lt.assinaturaLider.dataUrl,
-        ASSINATURA_LIMPEZA_LIDER_PRESET,
-      );
+      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
+        larguraFracao: 1.0,
+        alturaFracao: 0.78,
+        inicioXFracao: 0.0,
+        inicioYFracao: 0.18,
+      });
     }
   }
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 110;
+  ws.getRow(LINHA_ASSIN_OP).height = 95;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -910,7 +856,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        ASSINATURA_LIMPEZA_OPERADOR_PRESET,
+        { larguraFracao: 1.0, alturaFracao: 0.78, inicioXFracao: 0.0, inicioYFracao: 0.20 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
