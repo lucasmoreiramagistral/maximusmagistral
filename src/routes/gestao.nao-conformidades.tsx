@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, AlertOctagon, Loader2 } from "lucide-react";
+import { ArrowLeft, AlertOctagon, CheckCircle2, Clock3, Loader2, Undo2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,9 +24,22 @@ import { useGuard } from "@/hooks/use-guard";
 import { supabase } from "@/integrations/supabase/client";
 import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
 import type { LimpezaTurno } from "@/lib/verso/types";
-import { agregarNcNr, type OrigemNcNr } from "@/lib/checklist/nao-conformidades";
+import {
+  agregarNcNr,
+  type OrigemNcNr,
+  type RegistroNcNr,
+} from "@/lib/checklist/nao-conformidades";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 import { formatarHora } from "@/lib/checklist/format";
+import { useResolucoesNcNr } from "@/hooks/use-nc-resolucoes";
+import {
+  chaveRegistro,
+  chaveResolucao,
+  reabrir,
+  type ResolucaoNcNr,
+} from "@/lib/nao-conformidades/resolucoes";
+import { NcResolverDialog } from "@/components/nc-resolver-dialog";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/gestao/nao-conformidades")({
   head: () => ({
@@ -35,7 +48,7 @@ export const Route = createFileRoute("/gestao/nao-conformidades")({
       {
         name: "description",
         content:
-          "Análise de não conformidades do checklist e itens não realizados da limpeza.",
+          "Análise de não conformidades do checklist e itens não realizados da limpeza, com fluxo de resolução pela gestão.",
       },
     ],
   }),
@@ -48,13 +61,18 @@ const PERIODOS: { label: string; dias: number }[] = [
   { label: "Últimos 90 dias", dias: 90 },
 ];
 
+type StatusFiltro = "todos" | "pendente" | "resolvida";
+
 function NaoConformidadesPage() {
   const { usuario, loading: authLoading } = useGuard("gestao");
   const { data: checklists, loading: l1 } = useChecklistsRemote({ realtime: true });
+  const { data: resolucoes, refetch: refetchResolucoes } = useResolucoesNcNr(90);
 
   const [dias, setDias] = useState(30);
   const [origem, setOrigem] = useState<"todos" | OrigemNcNr>("todos");
   const [turnoFiltro, setTurnoFiltro] = useState<string>("todos");
+  const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("pendente");
+  const [registroAbrindo, setRegistroAbrindo] = useState<RegistroNcNr | null>(null);
 
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
   const [l2, setL2] = useState(true);
@@ -91,17 +109,34 @@ function NaoConformidadesPage() {
     [checklists, turnosLimpeza, dias],
   );
 
+  // Mapa: chave do registro → resolução (se existir).
+  const resolucoesPorChave = useMemo(() => {
+    const m = new Map<string, ResolucaoNcNr>();
+    for (const r of resolucoes) m.set(chaveResolucao(r), r);
+    return m;
+  }, [resolucoes]);
+
+  // Registros enriquecidos com a resolução correspondente.
+  const registrosComStatus = useMemo(() => {
+    return ag.registros.map((r) => ({
+      registro: r,
+      resolucao: resolucoesPorChave.get(chaveRegistro(r)) ?? null,
+    }));
+  }, [ag.registros, resolucoesPorChave]);
+
   const turnosDisponiveis = useMemo(() => {
     return Array.from(new Set(ag.registros.map((r) => r.turno))).sort();
   }, [ag.registros]);
 
   const registrosFiltrados = useMemo(() => {
-    return ag.registros.filter((r) => {
+    return registrosComStatus.filter(({ registro: r, resolucao }) => {
       if (origem !== "todos" && r.origem !== origem) return false;
       if (turnoFiltro !== "todos" && r.turno !== turnoFiltro) return false;
+      if (statusFiltro === "pendente" && resolucao) return false;
+      if (statusFiltro === "resolvida" && !resolucao) return false;
       return true;
     });
-  }, [ag.registros, origem, turnoFiltro]);
+  }, [registrosComStatus, origem, turnoFiltro, statusFiltro]);
 
   const topItens = useMemo(() => {
     const arr = Array.from(ag.porItem.entries()).map(([chave, v]) => ({
@@ -113,6 +148,19 @@ function NaoConformidadesPage() {
   }, [ag.porItem]);
 
   const totalGeral = ag.totalNc + ag.totalNr;
+  const totalResolvidas = registrosComStatus.filter((x) => x.resolucao).length;
+  const totalPendentes = totalGeral - totalResolvidas;
+
+  const reabrirResolucao = async (r: ResolucaoNcNr) => {
+    if (!confirm("Reabrir esta não conformidade? A resolução será apagada.")) return;
+    try {
+      await reabrir(r.id);
+      toast.success("Reaberta.");
+      void refetchResolucoes();
+    } catch {
+      toast.error("Não foi possível reabrir.");
+    }
+  };
 
   if (authLoading || !usuario) {
     return (
@@ -140,13 +188,13 @@ function NaoConformidadesPage() {
               Não conformidades e Não realizados
             </h1>
             <p className="text-sm text-muted-foreground">
-              Problemas registrados no checklist e na limpeza
+              Marque como resolvida quando a gestão tratar o problema na linha.
             </p>
           </div>
         </div>
 
         {/* Filtros */}
-        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-4">
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
               Período
@@ -197,16 +245,32 @@ function NaoConformidadesPage() {
               </SelectContent>
             </Select>
           </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase text-muted-foreground">
+              Status
+            </label>
+            <Select
+              value={statusFiltro}
+              onValueChange={(v) => setStatusFiltro(v as StatusFiltro)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pendente">Pendentes</SelectItem>
+                <SelectItem value="resolvida">Resolvidas</SelectItem>
+                <SelectItem value="todos">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         {/* KPIs */}
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <KpiCard
-            titulo="NC do checklist"
-            valor={ag.totalNc}
-            tom="destructive"
-          />
+        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+          <KpiCard titulo="NC do checklist" valor={ag.totalNc} tom="destructive" />
           <KpiCard titulo="NR da limpeza" valor={ag.totalNr} tom="warning" />
+          <KpiCard titulo="Pendentes" valor={totalPendentes} tom="destructive" />
+          <KpiCard titulo="Resolvidas" valor={totalResolvidas} tom="success" />
           <KpiCard titulo="Total no período" valor={totalGeral} tom="muted" />
         </div>
 
@@ -307,18 +371,22 @@ function NaoConformidadesPage() {
                       <TableHead>Item</TableHead>
                       <TableHead>Observação</TableHead>
                       <TableHead>Operador</TableHead>
+                      <TableHead className="min-w-[220px]">Status / Ação</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {registrosFiltrados.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                           Nenhum registro com os filtros atuais.
                         </TableCell>
                       </TableRow>
                     )}
-                    {registrosFiltrados.map((r, idx) => (
-                      <TableRow key={`${r.origem}-${r.data}-${r.itemNumero}-${idx}`}>
+                    {registrosFiltrados.map(({ registro: r, resolucao }, idx) => (
+                      <TableRow
+                        key={`${r.origem}-${r.origemId}-${r.itemNumero}-${idx}`}
+                        className={resolucao ? "bg-success/5" : ""}
+                      >
                         <TableCell className="whitespace-nowrap">
                           <div className="font-medium">{formatarDataBR(r.data)}</div>
                           <div className="text-xs text-muted-foreground">
@@ -348,6 +416,23 @@ function NaoConformidadesPage() {
                           {r.observacao}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{r.operador}</TableCell>
+                        <TableCell>
+                          {resolucao ? (
+                            <ResolvidaCelula
+                              resolucao={resolucao}
+                              onReabrir={() => void reabrirResolucao(resolucao)}
+                            />
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => setRegistroAbrindo(r)}
+                            >
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              Marcar resolvida
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -356,7 +441,49 @@ function NaoConformidadesPage() {
             </section>
           </>
         )}
+
+        <NcResolverDialog
+          registro={registroAbrindo}
+          usuario={usuario}
+          onClose={() => setRegistroAbrindo(null)}
+          onSaved={() => void refetchResolucoes()}
+        />
       </main>
+    </div>
+  );
+}
+
+function ResolvidaCelula({
+  resolucao,
+  onReabrir,
+}: {
+  resolucao: ResolucaoNcNr;
+  onReabrir: () => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-1.5">
+        <Badge className="bg-success/20 text-success-foreground hover:bg-success/30">
+          <CheckCircle2 className="mr-1 h-3 w-3" /> Resolvida
+        </Badge>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 px-2 text-xs"
+          onClick={onReabrir}
+          title="Reabrir"
+        >
+          <Undo2 className="mr-1 h-3 w-3" /> Reabrir
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        <Clock3 className="mr-1 inline h-3 w-3" />
+        {formatarDataBR(resolucao.resolvidoEm.slice(0, 10))} ·{" "}
+        {formatarHora(resolucao.resolvidoEm)} · {resolucao.resolvidoPorNome}
+      </p>
+      <p className="max-w-[260px] whitespace-pre-wrap text-xs text-foreground">
+        {resolucao.oQueFoiFeito}
+      </p>
     </div>
   );
 }
@@ -368,17 +495,21 @@ function KpiCard({
 }: {
   titulo: string;
   valor: number;
-  tom: "destructive" | "warning" | "muted";
+  tom: "destructive" | "warning" | "muted" | "success";
 }) {
   const cls =
     tom === "destructive"
       ? "text-destructive"
       : tom === "warning"
         ? "text-warning-foreground"
-        : "text-foreground";
+        : tom === "success"
+          ? "text-success"
+          : "text-foreground";
   const icone =
     tom === "destructive" ? (
       <AlertOctagon className="h-5 w-5 text-destructive" />
+    ) : tom === "success" ? (
+      <CheckCircle2 className="h-5 w-5 text-success" />
     ) : null;
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
