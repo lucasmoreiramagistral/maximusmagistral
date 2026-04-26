@@ -106,7 +106,7 @@ export async function marcarResolvida(
   };
   const { data, error } = await supabase
     .from("nao_conformidade_resolucoes" as never)
-    .upsert(payload, { onConflict: "origem,origem_id,item_numero" })
+    .upsert(payload as never, { onConflict: "origem,origem_id,item_numero" })
     .select("*")
     .single();
   if (error) {
