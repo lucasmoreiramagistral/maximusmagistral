@@ -39,6 +39,15 @@ import {
   type ResolucaoNcNr,
 } from "@/lib/nao-conformidades/resolucoes";
 import { NcResolverDialog } from "@/components/nc-resolver-dialog";
+import {
+  calcularAgingPendentes,
+  calcularItensCronicos,
+  calcularKpisTempo,
+  calcularPerformanceTurno,
+  formatarDias,
+  tomAging,
+  SLA_DIAS,
+} from "@/lib/nao-conformidades/aging";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/gestao/nao-conformidades")({
