@@ -660,7 +660,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 90;
+  ws.getRow(LINHA_VISTO).height = 105;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
