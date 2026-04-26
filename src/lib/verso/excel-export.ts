@@ -380,9 +380,9 @@ export async function gerarVersoWorksheet(
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
   const widthsBS = [
     8, 6, 6, 18, 6, 6, // B..G — descrições
-    13, 13, 13, 13,    // H..K — janelas 1°T (J01..J04)
-    13, 13, 13, 16,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
-    16, 16, 13, 13,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
+    18, 18, 18, 18,    // H..K — janelas 1°T (J01..J04) — alargado p/ assinaturas
+    18, 18, 18, 26,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O (larga)
+    26, 26, 18, 18,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q (larga)
   ];
   widthsBS.forEach((w, i) => {
     ws.getColumn(i + 2).width = w;
@@ -607,7 +607,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 15 — Vistos por janela ────────────────────────────────
   const LINHA_VISTO = 15;
-  ws.getRow(LINHA_VISTO).height = 132;
+  ws.getRow(LINHA_VISTO).height = 90;
   mergeCellsIfNeeded(ws, `B${LINHA_VISTO}:G${LINHA_VISTO}`);
   const cellVisto = ws.getCell(`B${LINHA_VISTO}`);
   cellVisto.value =
@@ -638,7 +638,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 0.96, alturaFracao: 0.78, inicioXFracao: 0.02, inicioYFracao: 0.20 },
+        { larguraFracao: 1.0, alturaFracao: 0.72, inicioXFracao: 0.0, inicioYFracao: 0.26 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -785,7 +785,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 41 — Assinaturas dos LÍDERES (3 turnos) ──────────────
   const LINHA_ASSIN_LIDER = LIMPEZA_FIM + 1; // 41
-  ws.getRow(LINHA_ASSIN_LIDER).height = 50;
+  ws.getRow(LINHA_ASSIN_LIDER).height = 80;
 
   const blocosLider: { turno: Turno; range: string }[] = [
     { turno: "12x36 Dia", range: `C${LINHA_ASSIN_LIDER}:F${LINHA_ASSIN_LIDER}` },
@@ -822,9 +822,9 @@ export async function gerarVersoWorksheet(
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
       await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 0.96,
+        larguraFracao: 1.0,
         alturaFracao: 0.78,
-        inicioXFracao: 0.02,
+        inicioXFracao: 0.0,
         inicioYFracao: 0.18,
       });
     }
@@ -832,7 +832,7 @@ export async function gerarVersoWorksheet(
 
   // ─── Linha 42 — Assin. Operador (O/P/Q) ─────────────────────────
   const LINHA_ASSIN_OP = LINHA_ASSIN_LIDER + 1; // 42
-  ws.getRow(LINHA_ASSIN_OP).height = 110;
+  ws.getRow(LINHA_ASSIN_OP).height = 95;
 
   mergeCellsIfNeeded(ws, `B${LINHA_ASSIN_OP}:N${LINHA_ASSIN_OP}`);
   const cellLeg = ws.getCell(`B${LINHA_ASSIN_OP}`);
@@ -856,7 +856,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 0.96, alturaFracao: 0.78, inicioXFracao: 0.02, inicioYFracao: 0.20 },
+        { larguraFracao: 1.0, alturaFracao: 0.78, inicioXFracao: 0.0, inicioYFracao: 0.20 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
