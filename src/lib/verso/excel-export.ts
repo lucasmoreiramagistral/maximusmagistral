@@ -109,20 +109,6 @@ function dataUrlParaBase64Limpo(dataUrl: string): string | null {
   return (partes.length > 1 ? partes[1] : normalizada).trim() || null;
 }
 
-/** Converte base64 em Uint8Array — mais confiável que passar base64 direto p/ o ExcelJS. */
-function base64ParaArrayBuffer(base64: string): ArrayBuffer | null {
-  try {
-    const limpo = base64.replace(/\s/g, "");
-    const bin = atob(limpo);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes.buffer;
-  } catch (e) {
-    console.error("[verso/excel] base64ParaArrayBuffer falhou:", e);
-    return null;
-  }
-}
-
 async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
   const normalizada = normalizarDataUrlImagem(dataUrl);
   if (!normalizada || typeof document === "undefined" || typeof Image === "undefined") {
@@ -250,16 +236,14 @@ async function inserirImagem(
   opts: InserirImagemOpts = {},
 ): Promise<void> {
   const recortada = await recortarAssinaturaParaExcel(dataUrl);
-  const base64 = dataUrlParaBase64Limpo(recortada);
-  if (!base64) {
+  const imagem = normalizarDataUrlImagem(recortada);
+  if (!imagem || !dataUrlParaBase64Limpo(imagem)) {
     console.warn("[verso/excel] assinatura sem base64 válido — pulando.");
     return;
   }
-  const buffer = base64ParaArrayBuffer(base64);
-  if (!buffer) return;
-  // ArrayBuffer evita o bug em que o ExcelJS recebia Uint8Array e gerava um
-  // desenho vazio/sem a assinatura em alguns navegadores.
-  const id = wb.addImage({ buffer: buffer as unknown as ExcelJS.Buffer, extension: "png" });
+  // Usar `base64` com o data URL completo é o caminho nativo do ExcelJS no
+  // browser; evita imagem vazia causada por ArrayBuffer/Buffer em alguns builds.
+  const id = wb.addImage({ base64: imagem, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
   const m2 = /^([A-Z]+)(\d+)$/.exec(b);
