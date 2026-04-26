@@ -1,94 +1,96 @@
-## Objetivo
+## Diagnóstico: o que está vivo, o que é "enchimento de linguiça" e o que precisa ser arrumado
 
-Criar uma tela nova **Dashboard Gestão** (`/gestao/dashboard`), pensada para abrir o turno e bater o olho em **30 segundos** e entender: o que está pegando fogo, onde está pegando fogo, quem está resolvendo e o que está envelhecendo.
+Fiz uma varredura completa. Resumo do que descobri:
 
-Hoje a `/gestao` é só um menu de atalhos, a `/gestao/nao-conformidades` é uma tela operacional com filtros e botão "Resolver", e a `/gestao/relatorio` é um relatório longo para imprimir. Falta a camada do meio: um **dashboard real**, visual, sem filtros pesados, focado em decisão.
+---
 
-## O que entra na tela `/gestao/dashboard`
+### Bloco 1 — Código MORTO de "Anomalias" (legado, não faz mais parte do produto)
 
-Layout em grid responsivo, sem necessidade de impressão. Tudo em tempo real (mesmos hooks que as outras telas usam).
+Você decidiu que o foco passa a ser **NC (Não Conformidades) + NR (Não Realizados)**, e que anomalias de manutenção vão para o app SIGMA externo (já está escrito isso na tela do operador). Mas o esqueleto antigo de Anomalias continua inteiro no projeto, ocupando espaço e confundindo a navegação:
 
-### Cabeçalho
-- Título: **"Dashboard Gestão — Linha 3"**.
-- Toggle de período: **Hoje · 7 dias · 30 dias** (default 7d).
-- Indicador "Atualizado em tempo real" + relógio.
+**Rotas que ninguém abre mais (e devem sumir):**
+- `/operador/anomalia/nova` — operador agora só vê o aviso "use o SIGMA"
+- `/operador/visualizar/anomalia/$id`
+- `/gestao/anomalias` (lista) e `/gestao/visualizar/anomalia/$id` — não estão no menu da gestão; só sobra um botão escondido em `/gestao/filtros`
+- Componente `AnomaliaDetalhe` em `checklist-detalhe.tsx`
+- Componente `anomalia-detalhe-gestao.tsx`
+- Hook `use-anomalia-atualizacoes.ts`
+- Função `insertAnomalia` em `supabase-storage.ts` e fila offline `anomaliasPendentes` em `use-connection-status.ts`
 
-### Bloco 1 — Faixa de Status (4 KPIs grandes, com cor semafórica)
-- **Pendências abertas** (NC+NR) — vermelho se > 0.
-- **SLA estourado (>7d)** — vermelho se > 0, com mini-link "ver lista".
-- **Resolvidas em 24h (%)** — verde ≥70%, amarelo 40–70%, vermelho <40%.
-- **Tempo médio de resolução** — em dias.
+**O que fica (não mexer):**
+- Campo `anomaliaId` nas respostas do checklist e na tabela do banco — isso continua sendo escrito no fluxo NC do checklist e é referenciado por relatórios/contadores. Removo só o que de fato não é mais navegável.
+- `useAnomaliasRemote` continua sendo chamado em telas que somam "Anomalias da folha" → vou trocar por contagem de NC/NR ou remover esses números fantasmas.
 
-### Bloco 2 — Saúde Operacional (3 cards lado a lado)
-- **Completude do checklist hoje** (folhas completas / esperadas) com barra de progresso.
-- **Aderência da limpeza hoje** (% itens realizados) com barra.
-- **PTPs concluídos hoje** (janelas fechadas / abertas) com barra.
+**Textos com "anomalia" que sobraram em telas de produção e devem virar NC/NR:**
+- Tela de login (`index.tsx`): descrições dos perfis dizem "registrar anomalias" / "consultar anomalias"
+- `/gestao/filtros`: aba "Status da anomalia", "Categoria da anomalia", botão "Ver anomalias filtradas"
+- `/operador/historico`: link para visualizar anomalia
+- `gestao.checklists.tsx`: card "Anomalias por folha"
 
-### Bloco 3 — Heatmap "Onde dói mais"
-Grade visual **Turno × Origem (NC / NR)** com a contagem de pendências em cada célula, colorida por intensidade. Bate o olho e enxerga "Turno B está acumulando NR".
+---
 
-### Bloco 4 — Top 5 Itens Crônicos
-Lista compacta com ranking, badge de origem (NC/NR), nº ocorrências, nº reincidências e barra horizontal proporcional. Fonte: `calcularItensCronicos` (já existe).
+### Bloco 2 — Hooks/arquivos sub-utilizados ou redundantes
 
-### Bloco 5 — Aging das 8 pendências mais antigas
-Tabela enxuta: Item · Turno · Aberto há (badge verde/amarelo/vermelho via `tomAging`) · botão "Abrir" que leva para `/gestao/nao-conformidades` já filtrada.
+Mantidos por enquanto, mas vale revisar:
+- `use-offline-queue.ts` é só um `re-export` do `use-connection-status.ts` (alias histórico). Limpar para que cada hook tenha um lar.
+- Após apagar Anomalias, a fila offline (`anomaliasPendentes`) e suas migrações de localStorage podem ser cortadas — sobra só `checklistsPendentes` e `versoPendente`.
 
-### Bloco 6 — Tendência (últimos 14 dias)
-Gráfico de barras simples (CSS, sem nova lib): NC abertas vs Resolvidas por dia. Mostra se a curva está achatando ou subindo.
+---
 
-### Bloco 7 — Performance por Turno e por Equipe
-Duas mini-tabelas lado a lado, baseadas em `calcularPerformanceTurno` e `calcularPerformanceEquipe` (já existem). Mostram: Total · % Resolvido · Tempo médio · Acima do SLA.
+### Bloco 3 — Validação Operador → Gestão (o que chega e o que NÃO chega)
 
-### Bloco 8 — Alertas inteligentes
-Lista de "ações imediatas" geradas dinamicamente:
-- "X pendência(s) com SLA estourado — turno Y concentra Z delas."
-- "Item #N ('descrição') reincidiu K vezes."
-- "Faixa horária HH–HH com pico de NCs hoje."
-- "Limpeza do turno Y abaixo de 80% de aderência."
-Cada alerta é um card com ícone, severidade e link para a tela específica.
+Boa notícia: o **fluxo de dados crítico está funcionando** em tempo real (verifiquei nas requisições Supabase do preview):
+- Checklist do operador → `checklists` (RT) → Gestão lê em `useChecklistsRemote`
+- Limpeza de turno → `limpeza_turnos` (RT) → Gestão lê em `useLimpezaTurnos`
+- PTP → `ptp_janelas` (RT) → Gestão lê via verso/relatório
+- Resoluções de NC/NR → `nao_conformidade_resolucoes` (RT) → Dashboard, Relatório e Aging
+- Edições de checklist/verso → `useEdicoesChecklist`, `useEdicoesPorPeriodo` → Relatório
 
-## Diferenciação das telas existentes
+Pontos de atrito identificados que vou corrigir:
 
-| Tela | Função |
-|---|---|
-| `/gestao` (home) | Atalhos / menu |
-| `/gestao/dashboard` (NOVA) | Visão executiva em 30s, leitura rápida |
-| `/gestao/nao-conformidades` | Operacional: filtrar, resolver, reabrir |
-| `/gestao/relatorio` | Relatório longo, formatado para impressão |
+**1. Card "Anomalias" continua aparecendo na lista de checklists da gestão**, mas como ninguém mais abre anomalias por ali, esse contador é puro "enfeite". Trocar por contador de **NC do checklist + NR da limpeza** da folha.
 
-Nenhum bloco é cópia: o dashboard prioriza **densidade visual** (heatmap, barras, semáforos), enquanto o relatório prioriza **texto formal e impressão** e a tela de NC prioriza **ação** (botão Resolver).
+**2. Tela `/gestao/filtros`** ainda oferece filtrar por status/categoria de anomalia e botão "Ver anomalias filtradas" → tirar essa coluna inteira; manter só os filtros de checklist/limpeza que efetivamente alimentam o restante.
 
-## Mudanças técnicas
+**3. Tela `/gestao/index` (home)** está OK e prioriza o card vermelho de NC/NR — manter.
 
-### Arquivo novo
-- `src/routes/gestao.dashboard.tsx` — rota nova, componentes locais para os blocos (todos isolados na própria página, nenhum componente extraído porque é uso único).
+**4. `/operador/historico`** mostra anomalias salvas no localStorage — depois da remoção, fica só o histórico de checklists, que é o que faz sentido hoje.
 
-### Helpers novos
-- `src/lib/nao-conformidades/dashboard.ts`:
-  - `calcularHeatmapTurnoOrigem(registros)` → matriz `{ turno, nc, nr, total }[]`.
-  - `calcularSerieDiaria(registros, dias)` → `{ data, abertas, resolvidas }[]` para o gráfico de tendência.
-  - `gerarAlertas(registros, agora)` → `Alerta[]` com severidade, mensagem e link sugerido.
-- Reutiliza tudo que já existe em `src/lib/nao-conformidades/aging.ts` (KPIs tempo, aging, crônicos, performance turno/equipe).
+**5. Aviso bonito**: a página de login (`index.tsx`) precisa atualizar a copy "registrar anomalias" → "registrar não conformidades" para manter coerência.
 
-### Hooks usados (todos já existem)
-- `useChecklistsRemote` (real-time)
-- `useResolucoesNcNr`
-- Carregamento direto de `limpeza_turnos` (mesmo padrão da tela de NCs)
-- `useGuard("gestao")`
-- `useLimpezaTurnos` / `usePtpJanelas` para os cards de saúde operacional do dia.
+---
 
-### Integração com as outras telas
-- Adicionar **um card "Dashboard"** no menu `src/routes/gestao.index.tsx` (ícone `LayoutDashboard`), no topo do grid de atalhos, antes de "Checklists".
-- **Não mexer** em `/gestao/nao-conformidades` nem em `/gestao/relatorio`.
+### Bloco 4 — A gestão é útil de verdade?
 
-### Sem mudanças
-- Schema do banco: nenhuma.
-- RLS: nenhuma.
-- Tipos compartilhados: nenhuma alteração quebrando.
+Hoje a gestão tem 7 ferramentas, e cada uma tem propósito real:
 
-## Critérios de aceite
-- A página abre em < 1s com cache do React Query.
-- Todos os blocos renderizam mesmo com dados vazios (estados "sem dados ainda").
-- Responsivo: em mobile vira coluna única, KPIs em grid 2×2.
-- Cliques nos KPIs e alertas levam para a tela correspondente já com filtro pré-aplicado quando faz sentido (ex.: SLA estourado → `/gestao/nao-conformidades?aging=sla`).
-- Build (`tsc --noEmit` + `bun run build`) e lint sem novos erros.
+| Tela | Útil? | Por quê |
+|---|---|---|
+| Dashboard | Sim | KPIs, aging, heatmap, alertas em tempo real |
+| Checklists | Sim | Auditoria do que o operador preencheu, agrupado por folha do dia |
+| Não conformidades | Sim | Lista única NC + NR com filtro de SLA, ação "marcar como resolvida" |
+| Filtros | Parcial | Funciona para checklist; coluna de anomalias precisa sair |
+| Gerar Relatório | Sim | Já refatorado para focar em NC + NR + Verso (PTP/Limpeza) |
+| Inteligência das ITs | Sim | Telemetria de uso das instruções de trabalho |
+| Cadastrar Usuário | Sim | Admin de hierarquia/módulos |
+
+Não vi tela "fantasma" ainda em uso — o problema é mesmo o **legado Anomalias** que está sobrando na navegação e nos contadores.
+
+---
+
+## Plano de execução (na próxima passagem em modo build)
+
+1. **Excluir as rotas de Anomalias**: `operador.anomalia.nova.tsx`, `operador.visualizar.anomalia.$id.tsx`, `gestao.anomalias.tsx`, `gestao.visualizar.anomalia.$id.tsx` (o `routeTree.gen.ts` se regenera sozinho).
+2. **Excluir componentes/hooks órfãos**: `anomalia-detalhe-gestao.tsx`, `use-anomalia-atualizacoes.ts`, função `AnomaliaDetalhe` em `checklist-detalhe.tsx`, `insertAnomalia` em `supabase-storage.ts`, `use-offline-queue.ts` (alias).
+3. **Limpar fila offline**: remover bloco `anomaliasPendentes` de `use-connection-status.ts` e a chave correspondente do `storage`.
+4. **Atualizar copy do login** (`src/routes/index.tsx`): trocar "registrar/consultar anomalias" por "registrar/consultar não conformidades".
+5. **`/operador/index`**: remover o card "Anomalias de manutenção" + dialog do SIGMA (vira ruído visual sem ação real). Se preferir manter o aviso, a gente deixa só como nota no rodapé.
+6. **`/operador/historico`**: remover bloco de anomalias; ficar só com checklists locais.
+7. **`/gestao/checklists`**: trocar contador "Anomalias por folha" por "NC checklist + NR limpeza" (vindo de `agregarNcNr`).
+8. **`/gestao/filtros`**: remover seções "Status da anomalia" e "Categoria da anomalia" e o botão "Ver anomalias filtradas". Limpar `Origem = "anomalias"` do tipo.
+9. **Tirar `useAnomaliasRemote`** de `gestao.visualizar.dia.$folhaKey.tsx`, `gestao.visualizar.checklist.$id.tsx` e `gestao.checklists.tsx` (passa array vazio onde alguma função antiga ainda exigir, ou removo o parâmetro).
+10. **Validar build**: rodar `tsc --noEmit` e `bun run build`.
+
+Resultado esperado: ~10 arquivos a menos, navegação coerente com o foco de NC/NR, zero textos confusos sobre anomalia, e nenhuma quebra no fluxo de dados Operador → Gestão.
+
+> Importante: **não vou tocar no banco**. As tabelas `anomalias` e `anomalia_atualizacoes` continuam no Supabase (com os dados históricos preservados), só não são mais lidas pela aplicação. Se mais pra frente você quiser arquivar/dropar elas, faço uma migration separada.
