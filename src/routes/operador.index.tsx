@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   ClipboardCheck,
-  AlertTriangle,
   History,
   Play,
   CheckCircle2,
@@ -12,15 +11,6 @@ import {
   ClipboardList,
   Droplets,
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { TelaCarregando } from "@/components/tela-carregando";
