@@ -81,6 +81,7 @@ function NaoConformidadesPage() {
   const [origem, setOrigem] = useState<"todos" | OrigemNcNr>("todos");
   const [turnoFiltro, setTurnoFiltro] = useState<string>("todos");
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("pendente");
+  const [agingFiltro, setAgingFiltro] = useState<"todas" | "sla">("todas");
   const [registroAbrindo, setRegistroAbrindo] = useState<RegistroNcNr | null>(null);
 
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
@@ -169,9 +170,16 @@ function NaoConformidadesPage() {
     () => calcularKpisTempo(registrosParaAnalise),
     [registrosParaAnalise],
   );
-  const agingPendentes = useMemo(
+  const agingPendentesTodas = useMemo(
     () => calcularAgingPendentes(registrosParaAnalise),
     [registrosParaAnalise],
+  );
+  const agingPendentes = useMemo(
+    () =>
+      agingFiltro === "sla"
+        ? agingPendentesTodas.filter((x) => x.estouroSla)
+        : agingPendentesTodas,
+    [agingPendentesTodas, agingFiltro],
   );
   const itensCronicos = useMemo(
     () => calcularItensCronicos(registrosParaAnalise).slice(0, 10),
@@ -357,17 +365,39 @@ function NaoConformidadesPage() {
           <>
             {/* Aging — pendentes mais antigas */}
             <section className="mb-8">
-              <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-bold">Aging — pendentes mais antigas</h2>
-                {agingPendentes.length > 15 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setStatusFiltro("pendente")}
-                  >
-                    Ver todas as {agingPendentes.length}
-                  </Button>
-                )}
+                <div className="flex items-center gap-2">
+                  <div className="inline-flex rounded-md border border-border bg-card p-0.5">
+                    <Button
+                      size="sm"
+                      variant={agingFiltro === "todas" ? "default" : "ghost"}
+                      className="h-8"
+                      onClick={() => setAgingFiltro("todas")}
+                    >
+                      Todas ({agingPendentesTodas.length})
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={agingFiltro === "sla" ? "default" : "ghost"}
+                      className="h-8"
+                      onClick={() => setAgingFiltro("sla")}
+                    >
+                      <AlertOctagon className="mr-1 h-3.5 w-3.5" />
+                      SLA estourado (
+                      {agingPendentesTodas.filter((x) => x.estouroSla).length})
+                    </Button>
+                  </div>
+                  {agingPendentes.length > 15 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setStatusFiltro("pendente")}
+                    >
+                      Ver todas na lista
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="rounded-xl border border-border bg-card shadow-sm">
                 <Table>
@@ -386,7 +416,9 @@ function NaoConformidadesPage() {
                     {agingPendentes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                          Nenhuma pendência. 🎉
+                          {agingFiltro === "sla"
+                            ? "Nenhuma pendência acima do SLA. ✅"
+                            : "Nenhuma pendência. 🎉"}
                         </TableCell>
                       </TableRow>
                     )}
