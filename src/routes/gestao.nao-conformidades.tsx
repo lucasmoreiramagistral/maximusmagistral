@@ -416,7 +416,9 @@ function NaoConformidadesPage() {
                     {agingPendentes.length === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                          Nenhuma pendência. 🎉
+                          {agingFiltro === "sla"
+                            ? "Nenhuma pendência acima do SLA. ✅"
+                            : "Nenhuma pendência. 🎉"}
                         </TableCell>
                       </TableRow>
                     )}
