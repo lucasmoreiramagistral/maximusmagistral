@@ -1,8 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   ClipboardCheck,
-  AlertTriangle,
   History,
   Play,
   CheckCircle2,
@@ -12,15 +11,6 @@ import {
   ClipboardList,
   Droplets,
 } from "lucide-react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -62,7 +52,7 @@ function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
   const rascunho = useRascunho();
   const checklistsRemote = useChecklists();
-  const [sigmaAvisoAberto, setSigmaAvisoAberto] = useState(false);
+  
 
   const equipe = usuario?.equipePadrao ?? null;
   const turno = usuario?.turnoPadrao ?? null;
@@ -340,17 +330,18 @@ function OperadorHome() {
             badge={checklistOk ? "Concluído" : undefined}
           />
           <BotaoAcao
-            onClick={() => setSigmaAvisoAberto(true)}
-            icon={<AlertTriangle className="h-8 w-8" />}
-            titulo="Anomalias de manutenção"
-            descricao="Registre no aplicativo SIGMA"
-          />
-          <BotaoAcao
             to="/operador/verso/ptp"
             icon={<ClipboardList className="h-8 w-8" />}
             titulo="PTP Enchedora L3"
             descricao="Monitoramento por janelas de horário"
             badge={ptpOk ? "Concluído" : undefined}
+          />
+          <BotaoAcao
+            to="/operador/verso/limpeza"
+            icon={<Droplets className="h-8 w-8" />}
+            titulo="Checklist limpeza sala envase L3"
+            descricao="Checklist operacional de limpeza"
+            badge={limpezaOk ? "Concluído" : undefined}
           />
           <BotaoAcao
             to="/operador/verso/limpeza"
@@ -385,21 +376,6 @@ function OperadorHome() {
           </div>
         </div>
       </main>
-
-      <AlertDialog open={sigmaAvisoAberto} onOpenChange={setSigmaAvisoAberto}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Anomalias de manutenção</AlertDialogTitle>
-            <AlertDialogDescription>
-              Para registrar anomalias de manutenção, saia deste aplicativo e
-              entre no aplicativo SIGMA.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction>Entendi</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

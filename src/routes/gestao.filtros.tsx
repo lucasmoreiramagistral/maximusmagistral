@@ -18,21 +18,18 @@ import { getFiltros, setFiltros } from "@/lib/checklist/filtros";
 import type { EstadoVersoFiltro, Filtros } from "@/lib/checklist/filtros";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type {
-  CategoriaAnomalia,
-  CriticidadeAnomalia,
   Equipe,
   MomentoChecklist,
-  StatusAnomalia,
   Turno,
 } from "@/lib/checklist/types";
 
-type Origem = "anomalias" | "checklists" | "gestao";
+type Origem = "checklists" | "gestao";
 
 export const Route = createFileRoute("/gestao/filtros")({
   head: () => ({ meta: [{ title: "Filtros — Gestão Industrial" }] }),
   validateSearch: (search: Record<string, unknown>): { origem?: Origem } => {
     const o = search.origem;
-    if (o === "anomalias" || o === "checklists" || o === "gestao") return { origem: o };
+    if (o === "checklists" || o === "gestao") return { origem: o };
     return {};
   },
   component: FiltrosPage,
@@ -40,18 +37,6 @@ export const Route = createFileRoute("/gestao/filtros")({
 
 const TURNOS: Turno[] = ["12x36 Dia", "12x36 Noite", "3º Turno"];
 const EQUIPES: Equipe[] = ["Karolainny", "Valderlan", "Nilson", "Bruno"];
-const STATUS: StatusAnomalia[] = ["Aberta", "Em andamento", "Resolvida"];
-const CRITICIDADES: CriticidadeAnomalia[] = ["Baixa", "Média", "Alta", "Crítica"];
-const CATEGORIAS: CategoriaAnomalia[] = [
-  "Mecânica",
-  "Elétrica",
-  "Automação",
-  "Processo",
-  "Segurança",
-  "Limpeza / 5S",
-  "Outro",
-];
-const EQUIPAMENTOS_AFETADOS = ["Enchedora 3", "Unimix 3", "Trocador de Calor 3", "Outro"];
 
 // Manaus = UTC-4 (sem horário de verão)
 function hojeManausYMD(offsetDias = 0): string {
@@ -157,7 +142,7 @@ function FiltrosPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader titulo="Filtros" subtitulo="Filtre checklists e anomalias" voltarPara="/gestao" />
+      <AppHeader titulo="Filtros" subtitulo="Filtre checklists e folhas do dia" voltarPara="/gestao" />
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-7">
           <Section titulo="Período">
@@ -275,100 +260,6 @@ function FiltrosPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-base">Status da anomalia</Label>
-                <Select
-                  value={f.statusAnomalia ?? ""}
-                  onValueChange={(v) =>
-                    atualizar({
-                      ...f,
-                      statusAnomalia: v === "_todos" ? undefined : (v as StatusAnomalia),
-                    })
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 h-12 w-full text-base">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_todos">Todos</SelectItem>
-                    {STATUS.map((s) => (
-                      <SelectItem key={s} value={s}>
-                        {s}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-base">Criticidade</Label>
-                <Select
-                  value={f.criticidadeAnomalia ?? ""}
-                  onValueChange={(v) =>
-                    atualizar({
-                      ...f,
-                      criticidadeAnomalia:
-                        v === "_todas" ? undefined : (v as CriticidadeAnomalia),
-                    })
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 h-12 w-full text-base">
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_todas">Todas</SelectItem>
-                    {CRITICIDADES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-base">Categoria da anomalia</Label>
-                <Select
-                  value={f.categoriaAnomalia ?? ""}
-                  onValueChange={(v) =>
-                    atualizar({
-                      ...f,
-                      categoriaAnomalia: v === "_todas" ? undefined : (v as CategoriaAnomalia),
-                    })
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 h-12 w-full text-base">
-                    <SelectValue placeholder="Todas" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_todas">Todas</SelectItem>
-                    {CATEGORIAS.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-base">Equipamento afetado</Label>
-                <Select
-                  value={f.equipamentoAfetado ?? ""}
-                  onValueChange={(v) =>
-                    atualizar({ ...f, equipamentoAfetado: v === "_todos" ? undefined : v })
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 h-12 w-full text-base">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_todos">Todos</SelectItem>
-                    {EQUIPAMENTOS_AFETADOS.map((e) => (
-                      <SelectItem key={e} value={e}>
-                        {e}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
                 <Label className="text-base">Estado do verso (Linha 3)</Label>
                 <Select
                   value={f.estadoVerso ?? ""}
@@ -430,14 +321,14 @@ function FiltrosPage() {
                     Ver checklists filtrados
                   </Button>
                 )}
-                {(origem === "anomalias" || origem === "gestao" || !origem) && (
+                {(origem === "gestao" || !origem) && (
                   <Button
                     size="lg"
-                    variant={origem === "anomalias" ? "default" : "outline"}
+                    variant="outline"
                     className="h-12 flex-1 text-base font-semibold"
-                    onClick={() => navigate({ to: "/gestao/anomalias" })}
+                    onClick={() => navigate({ to: "/gestao/nao-conformidades" })}
                   >
-                    Ver anomalias filtradas
+                    Ver não conformidades
                   </Button>
                 )}
               </div>

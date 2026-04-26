@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ClipboardList, AlertTriangle } from "lucide-react";
+import { ClipboardList } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
-import { useChecklists, useAnomalias } from "@/hooks/use-storage";
+import { useChecklists } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
-import { StatusAnomaliaBadge, CriticidadeBadge } from "@/components/badges";
 
 export const Route = createFileRoute("/operador/historico")({
   head: () => ({ meta: [{ title: "Histórico local — Operador" }] }),
@@ -15,7 +14,6 @@ export const Route = createFileRoute("/operador/historico")({
 function HistoricoPage() {
   const { usuario, loading } = useGuard("operador");
   const checklists = useChecklists();
-  const anomalias = useAnomalias();
 
   if (loading || !usuario) return <TelaCarregando />;
 
@@ -23,7 +21,7 @@ function HistoricoPage() {
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="Histórico local"
-        subtitulo="Checklists e anomalias salvos neste dispositivo"
+        subtitulo="Checklists salvos neste dispositivo"
         voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1300px] px-4 py-6 md:px-8 md:py-10">
@@ -66,38 +64,6 @@ function HistoricoPage() {
                   </li>
                 );
               })}
-            </ul>
-          )}
-        </section>
-
-        <section>
-          <h2 className="mb-3 flex items-center gap-2 text-lg font-bold text-foreground md:text-xl">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
-            Anomalias registradas
-          </h2>
-          {anomalias.length === 0 ? (
-            <EstadoVazio mensagem="Nenhuma anomalia registrada" />
-          ) : (
-            <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-              {anomalias.map((a) => (
-                <li key={a.id}>
-                  <Link
-                    to="/operador/visualizar/anomalia/$id"
-                    params={{ id: a.id }}
-                    className="block rounded-xl border border-border bg-card p-4 shadow-sm transition-all hover:border-primary/40 hover:shadow-md md:p-5"
-                  >
-                    <div className="mb-2 flex items-center gap-2">
-                      <StatusAnomaliaBadge status={a.status} />
-                      <CriticidadeBadge criticidade={a.criticidade} />
-                    </div>
-                    <p className="font-semibold text-foreground">{a.categoria}</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{a.descricao}</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {formatarDataHora(a.criadoEm)} · {a.equipe}
-                    </p>
-                  </Link>
-                </li>
-              ))}
             </ul>
           )}
         </section>

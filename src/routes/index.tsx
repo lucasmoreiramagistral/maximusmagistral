@@ -194,7 +194,7 @@ function LoginPage() {
                 <PerfilCard
                   icon={<HardHat className="h-7 w-7" />}
                   titulo="Operador"
-                  descricao="Realizar checklists e registrar anomalias"
+                  descricao="Realizar checklists e registrar não conformidades"
                   ativo={perfilSel === "operador"}
                   onClick={() => setPerfilSel("operador")}
                   disabled={loading || redirecting}
@@ -202,7 +202,7 @@ function LoginPage() {
                 <PerfilCard
                   icon={<Factory className="h-7 w-7" />}
                   titulo="Gestão Industrial"
-                  descricao="Consultar checklists e anomalias"
+                  descricao="Consultar checklists, NC e indicadores"
                   ativo={perfilSel === "gestao"}
                   onClick={() => setPerfilSel("gestao")}
                   disabled={loading || redirecting}

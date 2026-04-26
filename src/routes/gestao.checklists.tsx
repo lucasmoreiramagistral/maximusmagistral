@@ -214,14 +214,14 @@ function ListaChecklists() {
                   <th className="px-4 py-3">Equipe</th>
                   <th className="px-4 py-3">Momento</th>
                   <th className="px-4 py-3 text-center">NC</th>
-                  <th className="px-4 py-3 text-center">Anomalias</th>
+                  <th className="px-4 py-3 text-center">NA</th>
                   <th className="px-4 py-3 text-right">Concluído</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {lista.map((c) => {
                   const nc = c.respostas.filter((r) => r?.resposta === "Não conforme").length;
-                  const anom = c.respostas.filter((r) => !!r?.anomaliaId).length;
+                  const na = c.respostas.filter((r) => r?.resposta === "Não aplicável").length;
                   return (
                     <tr key={c.id} className="hover:bg-accent/40">
                       <td className="px-4 py-3 font-medium text-foreground">
@@ -246,9 +246,9 @@ function ListaChecklists() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-center">
-                        {anom > 0 ? (
-                          <span className="inline-flex items-center rounded-md bg-warning/15 px-2 py-0.5 text-xs font-bold text-warning-foreground">
-                            {anom}
+                        {na > 0 ? (
+                          <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-bold text-muted-foreground">
+                            {na}
                           </span>
                         ) : (
                           <span className="text-muted-foreground">0</span>
