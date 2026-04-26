@@ -9,6 +9,7 @@ import {
   UserPlus,
   AlertOctagon,
   ArrowRight,
+  LayoutDashboard,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { useChecklistsRemote } from "@/hooks/use-storage";
@@ -122,6 +123,12 @@ function GestaoHome() {
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <BotaoLink
+            to="/gestao/dashboard"
+            icon={<LayoutDashboard className="h-8 w-8" />}
+            titulo="Dashboard"
+            descricao="Visão executiva em tempo real · KPIs, aging, alertas"
+          />
           <BotaoLink
             to="/gestao/checklists"
             icon={<ClipboardList className="h-8 w-8" />}
