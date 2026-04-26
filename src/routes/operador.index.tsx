@@ -52,7 +52,7 @@ function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
   const rascunho = useRascunho();
   const checklistsRemote = useChecklists();
-  const [sigmaAvisoAberto, setSigmaAvisoAberto] = useState(false);
+  
 
   const equipe = usuario?.equipePadrao ?? null;
   const turno = usuario?.turnoPadrao ?? null;
@@ -376,21 +376,6 @@ function OperadorHome() {
           </div>
         </div>
       </main>
-
-      <AlertDialog open={sigmaAvisoAberto} onOpenChange={setSigmaAvisoAberto}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Anomalias de manutenção</AlertDialogTitle>
-            <AlertDialogDescription>
-              Para registrar anomalias de manutenção, saia deste aplicativo e
-              entre no aplicativo SIGMA.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction>Entendi</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
