@@ -26,6 +26,7 @@ import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-
 import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
 import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
+import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
 import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
 import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
@@ -125,6 +126,11 @@ const GestaoFiltrosRoute = GestaoFiltrosRouteImport.update({
   path: '/gestao/filtros',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GestaoDashboardRoute = GestaoDashboardRouteImport.update({
+  id: '/gestao/dashboard',
+  path: '/gestao/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GestaoChecklistsRoute = GestaoChecklistsRouteImport.update({
   id: '/gestao/checklists',
   path: '/gestao/checklists',
@@ -201,6 +207,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
+  '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
@@ -233,6 +240,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
+  '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
+  '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gestao/anomalias'
     | '/gestao/checklists'
+    | '/gestao/dashboard'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
@@ -332,6 +342,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gestao/anomalias'
     | '/gestao/checklists'
+    | '/gestao/dashboard'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
@@ -364,6 +375,7 @@ export interface FileRouteTypes {
     | '/'
     | '/gestao/anomalias'
     | '/gestao/checklists'
+    | '/gestao/dashboard'
     | '/gestao/filtros'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
@@ -397,6 +409,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GestaoAnomaliasRoute: typeof GestaoAnomaliasRoute
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
+  GestaoDashboardRoute: typeof GestaoDashboardRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
   GestaoItAnalyticsRoute: typeof GestaoItAnalyticsRoute
   GestaoItTreinamentosRoute: typeof GestaoItTreinamentosRoute
@@ -544,6 +557,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GestaoFiltrosRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gestao/dashboard': {
+      id: '/gestao/dashboard'
+      path: '/gestao/dashboard'
+      fullPath: '/gestao/dashboard'
+      preLoaderRoute: typeof GestaoDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gestao/checklists': {
       id: '/gestao/checklists'
       path: '/gestao/checklists'
@@ -667,6 +687,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GestaoAnomaliasRoute: GestaoAnomaliasRoute,
   GestaoChecklistsRoute: GestaoChecklistsRoute,
+  GestaoDashboardRoute: GestaoDashboardRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,
   GestaoItAnalyticsRoute: GestaoItAnalyticsRoute,
   GestaoItTreinamentosRoute: GestaoItTreinamentosRoute,
