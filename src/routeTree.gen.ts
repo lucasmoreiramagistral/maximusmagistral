@@ -28,12 +28,10 @@ import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analyt
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
 import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
-import { Route as GestaoAnomaliasRouteImport } from './routes/gestao.anomalias'
 import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
 import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
 import { Route as OperadorItAtaRouteImport } from './routes/operador.it.ata'
 import { Route as OperadorItDocRouteImport } from './routes/operador.it.$doc'
-import { Route as OperadorAnomaliaNovaRouteImport } from './routes/operador.anomalia.nova'
 import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
 import { Route as OperadorVisualizarAnomaliaIdRouteImport } from './routes/operador.visualizar.anomalia.$id'
 import { Route as OperadorVersoPtpJanelaCodigoRouteImport } from './routes/operador.verso.ptp.$janelaCodigo'
@@ -136,11 +134,6 @@ const GestaoChecklistsRoute = GestaoChecklistsRouteImport.update({
   path: '/gestao/checklists',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GestaoAnomaliasRoute = GestaoAnomaliasRouteImport.update({
-  id: '/gestao/anomalias',
-  path: '/gestao/anomalias',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OperadorVersoPtpRoute = OperadorVersoPtpRouteImport.update({
   id: '/operador/verso/ptp',
   path: '/operador/verso/ptp',
@@ -160,11 +153,6 @@ const OperadorItDocRoute = OperadorItDocRouteImport.update({
   id: '/$doc',
   path: '/$doc',
   getParentRoute: () => OperadorItRoute,
-} as any)
-const OperadorAnomaliaNovaRoute = OperadorAnomaliaNovaRouteImport.update({
-  id: '/operador/anomalia/nova',
-  path: '/operador/anomalia/nova',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorVisualizarChecklistIdRoute =
   OperadorVisualizarChecklistIdRouteImport.update({
@@ -205,7 +193,6 @@ const GestaoVisualizarAnomaliaIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -224,7 +211,6 @@ export interface FileRoutesByFullPath {
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
-  '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -238,7 +224,6 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -257,7 +242,6 @@ export interface FileRoutesByTo {
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao': typeof GestaoIndexRoute
   '/operador': typeof OperadorIndexRoute
-  '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -272,7 +256,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/gestao/anomalias': typeof GestaoAnomaliasRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -291,7 +274,6 @@ export interface FileRoutesById {
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
-  '/operador/anomalia/nova': typeof OperadorAnomaliaNovaRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -307,7 +289,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -326,7 +307,6 @@ export interface FileRouteTypes {
     | '/operador/validacao-lider'
     | '/gestao/'
     | '/operador/'
-    | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -340,7 +320,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -359,7 +338,6 @@ export interface FileRouteTypes {
     | '/operador/validacao-lider'
     | '/gestao'
     | '/operador'
-    | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -373,7 +351,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/gestao/anomalias'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -392,7 +369,6 @@ export interface FileRouteTypes {
     | '/operador/validacao-lider'
     | '/gestao/'
     | '/operador/'
-    | '/operador/anomalia/nova'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -407,7 +383,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  GestaoAnomaliasRoute: typeof GestaoAnomaliasRoute
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
   GestaoDashboardRoute: typeof GestaoDashboardRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
@@ -426,7 +401,6 @@ export interface RootRouteChildren {
   OperadorValidacaoLiderRoute: typeof OperadorValidacaoLiderRoute
   GestaoIndexRoute: typeof GestaoIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
-  OperadorAnomaliaNovaRoute: typeof OperadorAnomaliaNovaRoute
   OperadorVersoLimpezaRoute: typeof OperadorVersoLimpezaRoute
   OperadorVersoPtpRoute: typeof OperadorVersoPtpRouteWithChildren
   GestaoVisualizarAnomaliaIdRoute: typeof GestaoVisualizarAnomaliaIdRoute
@@ -571,13 +545,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GestaoChecklistsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/gestao/anomalias': {
-      id: '/gestao/anomalias'
-      path: '/gestao/anomalias'
-      fullPath: '/gestao/anomalias'
-      preLoaderRoute: typeof GestaoAnomaliasRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/operador/verso/ptp': {
       id: '/operador/verso/ptp'
       path: '/operador/verso/ptp'
@@ -605,13 +572,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/operador/it/$doc'
       preLoaderRoute: typeof OperadorItDocRouteImport
       parentRoute: typeof OperadorItRoute
-    }
-    '/operador/anomalia/nova': {
-      id: '/operador/anomalia/nova'
-      path: '/operador/anomalia/nova'
-      fullPath: '/operador/anomalia/nova'
-      preLoaderRoute: typeof OperadorAnomaliaNovaRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/operador/visualizar/checklist/$id': {
       id: '/operador/visualizar/checklist/$id'
@@ -685,7 +645,6 @@ const OperadorVersoPtpRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  GestaoAnomaliasRoute: GestaoAnomaliasRoute,
   GestaoChecklistsRoute: GestaoChecklistsRoute,
   GestaoDashboardRoute: GestaoDashboardRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,
@@ -704,7 +663,6 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorValidacaoLiderRoute: OperadorValidacaoLiderRoute,
   GestaoIndexRoute: GestaoIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,
-  OperadorAnomaliaNovaRoute: OperadorAnomaliaNovaRoute,
   OperadorVersoLimpezaRoute: OperadorVersoLimpezaRoute,
   OperadorVersoPtpRoute: OperadorVersoPtpRouteWithChildren,
   GestaoVisualizarAnomaliaIdRoute: GestaoVisualizarAnomaliaIdRoute,
