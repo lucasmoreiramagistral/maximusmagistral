@@ -330,17 +330,18 @@ function OperadorHome() {
             badge={checklistOk ? "Concluído" : undefined}
           />
           <BotaoAcao
-            onClick={() => setSigmaAvisoAberto(true)}
-            icon={<AlertTriangle className="h-8 w-8" />}
-            titulo="Anomalias de manutenção"
-            descricao="Registre no aplicativo SIGMA"
-          />
-          <BotaoAcao
             to="/operador/verso/ptp"
             icon={<ClipboardList className="h-8 w-8" />}
             titulo="PTP Enchedora L3"
             descricao="Monitoramento por janelas de horário"
             badge={ptpOk ? "Concluído" : undefined}
+          />
+          <BotaoAcao
+            to="/operador/verso/limpeza"
+            icon={<Droplets className="h-8 w-8" />}
+            titulo="Checklist limpeza sala envase L3"
+            descricao="Checklist operacional de limpeza"
+            badge={limpezaOk ? "Concluído" : undefined}
           />
           <BotaoAcao
             to="/operador/verso/limpeza"
