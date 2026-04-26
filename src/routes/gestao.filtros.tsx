@@ -259,6 +259,8 @@ function FiltrosPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label className="text-base">Estado do verso (Linha 3)</Label>
                 <Select
                   value={f.estadoVerso ?? ""}
                   onValueChange={(v) =>
