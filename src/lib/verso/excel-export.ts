@@ -565,7 +565,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 1, alturaFracao: 0.76, inicioYFracao: 0.24 },
+        { larguraFracao: 0.82, alturaFracao: 0.62, inicioXFracao: 0.09, inicioYFracao: 0.32 },
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
@@ -749,9 +749,10 @@ export async function gerarVersoWorksheet(
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
       await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 0.85,
-        alturaFracao: 0.78,
-        inicioYFracao: 0.02,
+        larguraFracao: 0.8,
+        alturaFracao: 0.62,
+        inicioXFracao: 0.1,
+        inicioYFracao: 0.14,
       });
     }
   }
@@ -782,7 +783,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 1, alturaFracao: 0.78, inicioYFracao: 0.2 },
+        { larguraFracao: 0.82, alturaFracao: 0.62, inicioXFracao: 0.09, inicioYFracao: 0.32 },
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
