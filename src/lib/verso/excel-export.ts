@@ -380,9 +380,9 @@ export async function gerarVersoWorksheet(
   ws.getColumn(1).width = 2; // A — espaço lateral, espelha o template
   const widthsBS = [
     8, 6, 6, 18, 6, 6, // B..G — descrições
-    13, 13, 13, 13,    // H..K — janelas 1°T (J01..J04)
-    13, 13, 13, 16,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O
-    16, 16, 13, 13,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q
+    18, 18, 18, 18,    // H..K — janelas 1°T (J01..J04) — alargado p/ assinaturas
+    18, 18, 18, 26,    // L..O — janelas 2°T (J05..J08) + assinatura limpeza O (larga)
+    26, 26, 18, 18,    // P..S — janelas 3°T (J09..J12) + assinatura limpeza P/Q (larga)
   ];
   widthsBS.forEach((w, i) => {
     ws.getColumn(i + 2).width = w;
