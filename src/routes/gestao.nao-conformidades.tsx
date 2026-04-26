@@ -39,6 +39,15 @@ import {
   type ResolucaoNcNr,
 } from "@/lib/nao-conformidades/resolucoes";
 import { NcResolverDialog } from "@/components/nc-resolver-dialog";
+import {
+  calcularAgingPendentes,
+  calcularItensCronicos,
+  calcularKpisTempo,
+  calcularPerformanceTurno,
+  formatarDias,
+  tomAging,
+  SLA_DIAS,
+} from "@/lib/nao-conformidades/aging";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/gestao/nao-conformidades")({
@@ -146,6 +155,32 @@ function NaoConformidadesPage() {
     arr.sort((a, b) => b.qtd - a.qtd);
     return arr.slice(0, 10);
   }, [ag.porItem]);
+
+  // Filtrados pelos mesmos filtros (origem/turno) — para análises industriais.
+  const registrosParaAnalise = useMemo(() => {
+    return registrosComStatus.filter(({ registro: r }) => {
+      if (origem !== "todos" && r.origem !== origem) return false;
+      if (turnoFiltro !== "todos" && r.turno !== turnoFiltro) return false;
+      return true;
+    });
+  }, [registrosComStatus, origem, turnoFiltro]);
+
+  const kpisTempo = useMemo(
+    () => calcularKpisTempo(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
+  const agingPendentes = useMemo(
+    () => calcularAgingPendentes(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
+  const itensCronicos = useMemo(
+    () => calcularItensCronicos(registrosParaAnalise).slice(0, 10),
+    [registrosParaAnalise],
+  );
+  const performanceTurno = useMemo(
+    () => calcularPerformanceTurno(registrosParaAnalise),
+    [registrosParaAnalise],
+  );
 
   const totalGeral = ag.totalNc + ag.totalNr;
   const totalResolvidas = registrosComStatus.filter((x) => x.resolucao).length;
@@ -266,12 +301,52 @@ function NaoConformidadesPage() {
         </div>
 
         {/* KPIs */}
-        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
           <KpiCard titulo="NC do checklist" valor={ag.totalNc} tom="destructive" />
           <KpiCard titulo="NR da limpeza" valor={ag.totalNr} tom="warning" />
           <KpiCard titulo="Pendentes" valor={totalPendentes} tom="destructive" />
           <KpiCard titulo="Resolvidas" valor={totalResolvidas} tom="success" />
           <KpiCard titulo="Total no período" valor={totalGeral} tom="muted" />
+        </div>
+
+        {/* KPIs de tempo / SLA */}
+        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+          <KpiCard
+            titulo="Tempo médio resolução"
+            valor={formatarDias(kpisTempo.tempoMedioResolucao)}
+            tom="muted"
+            legenda="das resolvidas no período"
+          />
+          <KpiCard
+            titulo="Tempo médio em aberto"
+            valor={formatarDias(kpisTempo.tempoMedioEmAberto)}
+            tom={
+              (kpisTempo.tempoMedioEmAberto ?? 0) > SLA_DIAS ? "destructive" : "warning"
+            }
+            legenda="pendentes hoje"
+          />
+          <KpiCard
+            titulo="Mais antiga em aberto"
+            valor={formatarDias(kpisTempo.maisAntigaDias)}
+            tom={(kpisTempo.maisAntigaDias ?? 0) > SLA_DIAS ? "destructive" : "warning"}
+            legenda={kpisTempo.maisAntigaItem ?? "—"}
+          />
+          <KpiCard
+            titulo="Resolvidas em 24h"
+            valor={
+              kpisTempo.percentualEm24h === null
+                ? "—"
+                : `${Math.round(kpisTempo.percentualEm24h)}%`
+            }
+            tom="success"
+            legenda="agilidade da gestão"
+          />
+          <KpiCard
+            titulo={`SLA estourado (>${SLA_DIAS}d)`}
+            valor={kpisTempo.slaEstourado}
+            tom={kpisTempo.slaEstourado > 0 ? "destructive" : "success"}
+            legenda="pendentes acima do prazo"
+          />
         </div>
 
         {l1 || l2 ? (
@@ -280,6 +355,155 @@ function NaoConformidadesPage() {
           </div>
         ) : (
           <>
+            {/* Aging — pendentes mais antigas */}
+            <section className="mb-8">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold">Aging — pendentes mais antigas</h2>
+                {agingPendentes.length > 15 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStatusFiltro("pendente")}
+                  >
+                    Ver todas as {agingPendentes.length}
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Aberta em</TableHead>
+                      <TableHead className="text-right">Em aberto</TableHead>
+                      <TableHead>Turno</TableHead>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Operador</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {agingPendentes.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                          Nenhuma pendência. 🎉
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {agingPendentes.slice(0, 15).map(({ registro: r, diasEmAberto }) => {
+                      const tom = tomAging(diasEmAberto);
+                      const cls =
+                        tom === "destructive"
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/20"
+                          : tom === "warning"
+                            ? "bg-warning/20 text-warning-foreground hover:bg-warning/30"
+                            : "bg-success/15 text-success hover:bg-success/25";
+                      return (
+                        <TableRow key={`aging-${r.origem}-${r.origemId}-${r.itemNumero}`}>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="font-medium">{formatarDataBR(r.data)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatarHora(r.dataHora)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge className={cls}>{formatarDias(diasEmAberto)}</Badge>
+                          </TableCell>
+                          <TableCell>{r.turno}</TableCell>
+                          <TableCell>
+                            <BadgeOrigem origem={r.origem} />
+                          </TableCell>
+                          <TableCell className="max-w-[320px]">
+                            <div className="font-semibold">
+                              #{r.itemNumero} — {r.itemDescricao}
+                            </div>
+                            <div className="line-clamp-2 text-xs text-muted-foreground">
+                              {r.observacao}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{r.operador}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => setRegistroAbrindo(r)}
+                            >
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              Resolver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
+            {/* Itens crônicos / reincidência */}
+            <section className="mb-8">
+              <h2 className="mb-1 text-lg font-bold">Itens crônicos e reincidências</h2>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Itens que mais se repetem, com pendências em aberto ou que voltam após
+                já terem sido resolvidos. Foco para análise de causa raiz.
+              </p>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-right">Ocorrências</TableHead>
+                      <TableHead className="text-right">Pendentes</TableHead>
+                      <TableHead className="text-right">Reincidências</TableHead>
+                      <TableHead className="text-right">Tempo médio resolução</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {itensCronicos.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          Nada no período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {itensCronicos.map((it) => (
+                      <TableRow key={`cron-${it.chave}`}>
+                        <TableCell>
+                          <BadgeOrigem origem={it.origem} />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          #{it.itemNumero} — {it.descricao}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {it.ocorrencias}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {it.pendentes > 0 ? (
+                            <Badge variant="destructive">{it.pendentes}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {it.reincidencias > 0 ? (
+                            <Badge className="bg-warning/20 text-warning-foreground hover:bg-warning/30">
+                              {it.reincidencias}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatarDias(it.tempoMedioResolucao)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
             {/* Top itens recorrentes */}
             <section className="mb-8">
               <h2 className="mb-3 text-lg font-bold">Itens mais recorrentes</h2>
@@ -320,37 +544,61 @@ function NaoConformidadesPage() {
               </div>
             </section>
 
-            {/* Distribuição por turno */}
+            {/* Performance por turno */}
             <section className="mb-8">
-              <h2 className="mb-3 text-lg font-bold">Por turno</h2>
+              <h2 className="mb-3 text-lg font-bold">Performance por turno</h2>
               <div className="rounded-xl border border-border bg-card shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Turno</TableHead>
-                      <TableHead className="text-right">NC checklist</TableHead>
-                      <TableHead className="text-right">NR limpeza</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Resolvidas</TableHead>
+                      <TableHead className="text-right">Pendentes</TableHead>
+                      <TableHead className="text-right">% resolvido</TableHead>
+                      <TableHead className="text-right">Tempo médio</TableHead>
+                      <TableHead className="text-right">Acima do SLA</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ag.porTurno.size === 0 && (
+                    {performanceTurno.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                           Nada no período.
                         </TableCell>
                       </TableRow>
                     )}
-                    {Array.from(ag.porTurno.entries())
-                      .sort((a, b) => b[1].total - a[1].total)
-                      .map(([turno, v]) => (
-                        <TableRow key={turno}>
-                          <TableCell className="font-medium">{turno}</TableCell>
-                          <TableCell className="text-right">{v.nc}</TableCell>
-                          <TableCell className="text-right">{v.nr}</TableCell>
-                          <TableCell className="text-right font-bold">{v.total}</TableCell>
-                        </TableRow>
-                      ))}
+                    {performanceTurno.map((p) => (
+                      <TableRow key={`perf-${p.turno}`}>
+                        <TableCell className="font-medium">{p.turno}</TableCell>
+                        <TableCell className="text-right">{p.total}</TableCell>
+                        <TableCell className="text-right text-success">
+                          {p.resolvidas}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.pendentes > 0 ? (
+                            <span className="font-semibold text-destructive">
+                              {p.pendentes}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {Math.round(p.percentualResolvido)}%
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatarDias(p.tempoMedioResolucao)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.pendentesAcimaSla > 0 ? (
+                            <Badge variant="destructive">{p.pendentesAcimaSla}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
@@ -492,10 +740,12 @@ function KpiCard({
   titulo,
   valor,
   tom,
+  legenda,
 }: {
   titulo: string;
-  valor: number;
+  valor: number | string;
   tom: "destructive" | "warning" | "muted" | "success";
+  legenda?: string;
 }) {
   const cls =
     tom === "destructive"
@@ -511,6 +761,10 @@ function KpiCard({
     ) : tom === "success" ? (
       <CheckCircle2 className="h-5 w-5 text-success" />
     ) : null;
+  const valorClass =
+    typeof valor === "string" && valor.length > 6
+      ? "mt-1 text-2xl font-bold"
+      : "mt-1 text-4xl font-bold";
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2">
@@ -519,7 +773,10 @@ function KpiCard({
           {titulo}
         </p>
       </div>
-      <p className={`mt-1 text-4xl font-bold ${cls}`}>{valor}</p>
+      <p className={`${valorClass} ${cls}`}>{valor}</p>
+      {legenda && (
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{legenda}</p>
+      )}
     </div>
   );
 }

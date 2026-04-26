@@ -1,96 +1,69 @@
-# Resoluções de NC/NR + remover Manutenção do login
+## Análise de aging (envelhecimento) de NCs/NRs
 
-## Parte 1 — Marcar NC/NR como resolvida em `/gestao/nao-conformidades`
+Adicionar uma seção de **gestão industrial** na tela `/gestao/nao-conformidades` mostrando o que está há mais tempo sem ser resolvido — tipo o que se vê em sistema de TPM / 5S / qualidade de chão de fábrica.
 
-### Como vai funcionar (fluxo)
+### O que vai aparecer na tela
 
-1. Operador registra NC no checklist ou NR na limpeza (já existe).
-2. A linha aparece em `/gestao/nao-conformidades` com novo status **Pendente**.
-3. A gestão resolve na linha física e clica em **"Marcar como resolvida"**.
-4. Abre um diálogo pedindo:
-   - **O que foi feito** (texto, obrigatório)
-   - **Quando foi resolvido** (data/hora, padrão = agora)
-5. Ao confirmar, a linha vira badge verde **Resolvida** com autor, data e descrição. Aparece botão **"Reabrir"** em caso de engano.
-6. Novo filtro **Status** no topo: Todas / Pendentes / Resolvidas (padrão: Pendentes).
-7. Novos KPIs **Pendentes** e **Resolvidas no período** ao lado dos cards já existentes.
+**1. KPIs de tempo de resposta** (linha nova de cards, acima dos atuais)
+- **Tempo médio de resolução** (das que já foram resolvidas no período) — ex.: "2,4 dias"
+- **Tempo médio em aberto** (das pendentes, contando até hoje) — ex.: "5,1 dias"
+- **Mais antiga em aberto** — ex.: "12 dias" + qual item
+- **% resolvidas em até 24h** — indicador de agilidade da gestão
+- **SLA estourado** (pendentes > 7 dias) — contador destacado em vermelho
 
-### Onde os dados moram
+**2. Tabela "Aging — pendentes mais antigas"** (nova seção, logo abaixo dos KPIs)
+Lista as **NCs/NRs ainda em aberto**, ordenadas da mais antiga pra mais nova, com:
+- Data de abertura
+- Dias em aberto (com badge colorido: verde ≤2d, amarelo 3-7d, vermelho >7d)
+- Turno · Origem (NC/NR)
+- Item + observação resumida
+- Operador que registrou
+- Botão "Resolver" (igual ao da lista detalhada)
 
-Como NCs e NRs são derivados dos JSONs em `checklists.respostas` e `limpeza_turnos.itens`, criamos uma tabela só para a "resolução", referenciando o registro de origem por chave composta.
+Mostra as **15 mais antigas** com botão "ver todas" que filtra a lista detalhada de baixo.
 
-Nova tabela `nao_conformidade_resolucoes`:
-- `id` uuid pk
-- `origem` text (`checklist` | `limpeza`)
-- `origem_id` text — id do checklist ou do limpeza_turno
-- `item_numero` text
-- `data_operacao` date
-- `turno` text
-- `resolvido_em` timestamptz
-- `o_que_foi_feito` text not null
-- `resolvido_por_user_id` uuid (auth.users)
-- `resolvido_por_login` text
-- `resolvido_por_nome` text
-- `criado_em` timestamptz default now()
-- Unique (`origem`, `origem_id`, `item_numero`)
+**3. Tabela "Itens crônicos"** (substitui ou complementa a "Itens mais recorrentes" atual)
+Pra cada item recorrente, mostra:
+- Descrição do item
+- Quantas vezes apareceu no período
+- **Quantas ainda estão pendentes**
+- **Tempo médio de resolução** desse item específico
+- **Reincidência**: quantas vezes voltou após ter sido resolvido (mesmo item, mesmo turno, em datas diferentes)
 
-RLS:
-- SELECT: usuário autenticado.
-- INSERT/UPDATE/DELETE: apenas perfil `gestao` (mesmo mecanismo que as outras telas de gestão usam — checagem via `profiles.perfil`).
+**4. Tabela "Performance por turno"** (enriquece a "Por turno" atual)
+Adiciona colunas:
+- % resolvido
+- Tempo médio de resolução do turno
+- Pendentes > 7d
 
-Índices em (`origem`, `origem_id`) e (`data_operacao`).
+### Como o tempo é calculado
 
-### Mudanças no front
+- **Abertura** = `dataHora` do registro (já existe em `RegistroNcNr`)
+- **Fechamento** = `resolvidoEm` da resolução correspondente (já existe em `ResolucaoNcNr`)
+- **Tempo de resolução** = fechamento − abertura
+- **Tempo em aberto** = agora − abertura (pra pendentes)
+- **Reincidência** = mesmo `item_numero` + `origem`, mesmo turno, em registros com `data` diferentes, sendo que houve uma resolução no meio
 
-Arquivos novos:
-- `src/lib/nao-conformidades/resolucoes.ts` — `listarResolucoes`, `marcarResolvida`, `reabrir`, tipos e helper `chaveRegistro(r)` = `${origem}::${origemId}::${itemNumero}`.
-- `src/hooks/use-nc-resolucoes.ts` — fetch + realtime na tabela.
-- `src/components/nc-resolver-dialog.tsx` — diálogo com "o que foi feito" e "quando".
+Tudo calculado em memória no front, **sem mudar schema e sem SQL novo**. Os dados já estão disponíveis nos hooks atuais (`ag.registros` + `resolucoes`).
 
-Arquivos editados:
-- `src/lib/checklist/nao-conformidades.ts` — `RegistroNcNr` ganha `origemId: string` para fechar a chave composta.
-- `src/routes/gestao.nao-conformidades.tsx` — merge das resoluções nos registros, filtro de status, novos KPIs e nova coluna **Status / Ação** com botão Marcar como resolvida / Reabrir.
+### Arquivos
 
-Sem qualquer integração com a manutenção.
+- **Novo** `src/lib/nao-conformidades/aging.ts` — funções puras de cálculo (média, aging, reincidência, percentis). Testáveis isoladamente.
+- **Editado** `src/routes/gestao.nao-conformidades.tsx` — adiciona as 4 novas seções usando o agregador acima, antes da lista detalhada existente. Mantém todos os filtros (período, turno, origem) afetando os cálculos.
+- **Reaproveitado** componente `KpiCard` e `BadgeOrigem` que já existem no arquivo.
 
-## Parte 2 — Remover "Manutenção" do app
+### Resumo visual da página depois da mudança
 
-Como vocês já usam o Sigma para manutenção, removemos o perfil do app:
+```text
+[ Filtros: Período | Origem | Turno | Status ]
 
-### Tela de login (`src/routes/index.tsx`)
-- Remover o `PerfilCard` de **Manutenção**.
-- Mudar o grid de perfis de `md:grid-cols-3` para `md:grid-cols-2`.
-- Remover o ramo `perfil === "manutencao" ? "/manutencao" : ...` dos dois `navigate({ to: ... })`.
-- Remover o ícone `Wrench` se não for mais usado.
+[ KPIs originais: NC | NR | Pendentes | Resolvidas | Total ]
+[ KPIs novos:    Tempo médio resolução | Tempo médio aberto | Mais antiga | % em 24h | SLA estourado ]
 
-### Roteamento e guard
-- `src/hooks/use-guard.ts` — remover o desvio para `/manutencao` no fallback de redirecionamento. Se um usuário com perfil `manutencao` ainda existir no banco e logar, fazer logout com mensagem **"Perfil de manutenção foi descontinuado. Use o Sigma."**.
+[ Aging — pendentes mais antigas (15) ]   ← nova
+[ Itens crônicos / reincidência ]         ← nova (substitui "mais recorrentes")
+[ Performance por turno ]                 ← turbinada
+[ Registros (lista detalhada existente) ]
+```
 
-### Rotas a apagar
-- `src/routes/manutencao.index.tsx`
-- `src/routes/manutencao.anomalias.tsx`
-- `src/routes/manutencao.anomalia.nova.tsx`
-- `src/routes/manutencao.filtros.tsx`
-- `src/routes/manutencao.visualizar.anomalia.$id.tsx`
-- `src/components/anomalia-detalhe-manutencao.tsx`
-
-`src/routeTree.gen.ts` é regenerado automaticamente pelo Vite plugin, não precisa editar manualmente.
-
-### Cadastro de usuários (`src/routes/gestao.usuarios.tsx`)
-- Remover a opção `<SelectItem value="manutencao">Manutenção</SelectItem>` do select de perfil ao criar/editar usuário.
-
-### O que NÃO vamos mexer
-- `Perfil` e `ModuloAcesso` em `src/lib/checklist/types.ts` continuam aceitando `"manutencao"` como valor legado, pra não quebrar dados antigos no banco (anomalias antigas têm `responsavel_manutencao`, etc.). Só não é mais um perfil selecionável/utilizado no app.
-- Telas de anomalia da gestão continuam funcionando normalmente — gestão segue tratando anomalias como hoje.
-
-## Critérios de aceite
-
-1. Login mostra só **Operador** e **Gestão Industrial**.
-2. Rotas `/manutencao/*` não existem mais e o build passa limpo.
-3. Cadastro de usuário não permite mais criar perfil "manutencao".
-4. Tabela `nao_conformidade_resolucoes` criada com RLS correta.
-5. Cada linha de NC/NR mostra **Pendente** ou **Resolvida**.
-6. Botão **Marcar como resolvida** abre diálogo, exige descrição, grava no banco e atualiza a linha sem reload.
-7. Botão **Reabrir** apaga a resolução.
-8. Filtro **Status** funciona com os filtros já existentes.
-9. KPIs **Pendentes** e **Resolvidas** refletem o período/filtros.
-10. Realtime: outra pessoa da gestão resolve → tela atualiza sozinha.
+Sem mudanças no banco, sem SQL pra rodar.
