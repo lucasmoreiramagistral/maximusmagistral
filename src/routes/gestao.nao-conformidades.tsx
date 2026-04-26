@@ -81,6 +81,7 @@ function NaoConformidadesPage() {
   const [origem, setOrigem] = useState<"todos" | OrigemNcNr>("todos");
   const [turnoFiltro, setTurnoFiltro] = useState<string>("todos");
   const [statusFiltro, setStatusFiltro] = useState<StatusFiltro>("pendente");
+  const [agingFiltro, setAgingFiltro] = useState<"todas" | "sla">("todas");
   const [registroAbrindo, setRegistroAbrindo] = useState<RegistroNcNr | null>(null);
 
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
