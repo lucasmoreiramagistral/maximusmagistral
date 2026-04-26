@@ -822,10 +822,10 @@ export async function gerarVersoWorksheet(
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
       await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 0.8,
-        alturaFracao: 0.62,
-        inicioXFracao: 0.1,
-        inicioYFracao: 0.14,
+        larguraFracao: 0.96,
+        alturaFracao: 0.78,
+        inicioXFracao: 0.02,
+        inicioYFracao: 0.18,
       });
     }
   }
