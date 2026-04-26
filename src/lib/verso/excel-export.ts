@@ -334,13 +334,28 @@ async function inserirImagem(
       usaHPx = caixaHPx;
       usaWPx = caixaHPx * ratioImg;
     }
+
+    if (opts.preservarAssinaturaGrande) {
+      const alturaMinimaAssinaturaPx = Math.min(caixaHPx, alturaDisponivelPx * 0.72);
+      if (usaHPx < alturaMinimaAssinaturaPx) {
+        usaHPx = alturaMinimaAssinaturaPx;
+        usaWPx = Math.min(caixaWPx, Math.max(usaWPx, alturaMinimaAssinaturaPx * ratioImg));
+      }
+    }
   }
 
   // Centraliza a imagem dentro da área (padX/padY definem onde a área começa)
   const sobraWPx = caixaWPx - usaWPx;
   const sobraHPx = caixaHPx - usaHPx;
   const offsetXPx = larguraDisponivelPx * padX + sobraWPx / 2;
-  const offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
+  let offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
+  if (opts.preservarAssinaturaGrande) {
+    const brIdealPx = alturaDisponivelPx * Math.min(0.92, Math.max(0.88, padY + af));
+    const brMaxPx = alturaDisponivelPx * 0.94;
+    offsetYPx = brIdealPx - usaHPx;
+    if (offsetYPx + usaHPx > brMaxPx) offsetYPx = brMaxPx - usaHPx;
+    offsetYPx = Math.max(0, offsetYPx);
+  }
 
   // Converte offset px → fração de col/row
   function pxParaColFrac(offset: number): number {
