@@ -339,7 +339,7 @@ async function inserirImagem(
     }
 
     if (opts.preservarAssinaturaGrande) {
-      const alturaMinimaAssinaturaPx = Math.min(caixaHPx, alturaDisponivelPx * 0.72);
+      const alturaMinimaAssinaturaPx = Math.min(caixaHPx, alturaDisponivelPx * 0.76);
       if (usaHPx < alturaMinimaAssinaturaPx) {
         usaHPx = alturaMinimaAssinaturaPx;
         usaWPx = Math.min(caixaWPx, Math.max(usaWPx, alturaMinimaAssinaturaPx * ratioImg));
