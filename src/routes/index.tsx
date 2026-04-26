@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Factory, HardHat, ClipboardCheck, Loader2, Wrench } from "lucide-react";
+import { Factory, HardHat, ClipboardCheck, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -69,13 +69,17 @@ function LoginPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!usuarioAtual) return;
+    if (usuarioAtual.perfil === "manutencao") {
+      void supabase.auth.signOut();
+      setRedirecting(false);
+      setErro(
+        "Perfil de manutenção foi descontinuado. Use o Sigma.",
+      );
+      return;
+    }
     setRedirecting(true);
     const destino =
-      usuarioAtual.perfil === "operador"
-        ? "/operador"
-        : usuarioAtual.perfil === "manutencao"
-          ? "/manutencao"
-          : "/gestao";
+      usuarioAtual.perfil === "operador" ? "/operador" : "/gestao";
     navigate({ to: destino });
   }, [authLoading, usuarioAtual, navigate]);
 
@@ -133,6 +137,12 @@ function LoginPage() {
         return;
       }
 
+      if (profile.perfil === "manutencao") {
+        await supabase.auth.signOut();
+        setErro("Perfil de manutenção foi descontinuado. Use o Sigma.");
+        return;
+      }
+
       if (profile.perfil !== perfilSel) {
         await supabase.auth.signOut();
         setErro(`Esta conta é do perfil "${profile.perfil}". Selecione o perfil correto.`);
@@ -141,12 +151,7 @@ function LoginPage() {
 
       sucesso = true;
       setRedirecting(true);
-      const destino =
-        perfilSel === "operador"
-          ? "/operador"
-          : perfilSel === "manutencao"
-            ? "/manutencao"
-            : "/gestao";
+      const destino = perfilSel === "operador" ? "/operador" : "/gestao";
       navigate({ to: destino });
     } catch (err) {
       console.error(err);
@@ -185,7 +190,7 @@ function LoginPage() {
           <form onSubmit={entrar} className="space-y-6">
             <div>
               <Label className="mb-3 block text-base font-semibold">Selecione o perfil</Label>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <PerfilCard
                   icon={<HardHat className="h-7 w-7" />}
                   titulo="Operador"
@@ -200,14 +205,6 @@ function LoginPage() {
                   descricao="Consultar checklists e anomalias"
                   ativo={perfilSel === "gestao"}
                   onClick={() => setPerfilSel("gestao")}
-                  disabled={loading || redirecting}
-                />
-                <PerfilCard
-                  icon={<Wrench className="h-7 w-7" />}
-                  titulo="Manutenção"
-                  descricao="Registrar e tratar anomalias"
-                  ativo={perfilSel === "manutencao"}
-                  onClick={() => setPerfilSel("manutencao")}
                   disabled={loading || redirecting}
                 />
               </div>

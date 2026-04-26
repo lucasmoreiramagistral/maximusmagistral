@@ -14,6 +14,9 @@ export type OrigemNcNr = "checklist" | "limpeza";
 
 export interface RegistroNcNr {
   origem: OrigemNcNr;
+  /** id do registro de origem (checklist.id ou limpeza_turno.id). Usado para
+   *  amarrar ações de gestão (ex.: marcar como resolvida) ao item exato. */
+  origemId: string;
   data: string; // YYYY-MM-DD (data operacional)
   dataHora: string; // ISO ordenável
   turno: string;
@@ -51,6 +54,7 @@ function extrairNcDoChecklist(c: Checklist): RegistroNcNr[] {
   );
   return naoConformes.map((r) => ({
     origem: "checklist" as const,
+    origemId: c.id,
     data: c.contexto.data,
     dataHora: r.horarioVerificacao || c.criadoEm,
     turno: c.contexto.turno,
@@ -69,6 +73,7 @@ function extrairNrDoTurno(t: LimpezaTurno): RegistroNcNr[] {
   );
   return nrs.map((i) => ({
     origem: "limpeza" as const,
+    origemId: t.id,
     data: t.dataOperacao,
     dataHora: t.operadorAssinouEm ?? t.updatedAt ?? t.createdAt ?? new Date().toISOString(),
     turno: t.turno,

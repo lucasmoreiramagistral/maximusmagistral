@@ -151,11 +151,7 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{nomeExibido}</p>
               <p className="text-xs text-muted-foreground">
-                {usuario.perfil === "operador"
-                  ? "Operador"
-                  : usuario.perfil === "manutencao"
-                    ? "Manutenção"
-                    : "Gestão Industrial"}
+                {usuario.perfil === "operador" ? "Operador" : "Gestão Industrial"}
               </p>
             </div>
             <Button
