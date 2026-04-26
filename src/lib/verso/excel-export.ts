@@ -149,14 +149,11 @@ async function recortarAssinaturaParaExcel(dataUrl: string): Promise<string> {
     }
     if (maxX < minX || maxY < minY) return normalizada;
 
-    const conteudoW = maxX - minX + 1;
-    const conteudoH = maxY - minY + 1;
-    const padX = Math.max(4, Math.min(24, Math.round(conteudoW * 0.04)));
-    const padY = Math.max(4, Math.min(16, Math.round(conteudoH * 0.08)));
-    const sx = Math.max(0, minX - padX);
-    const sy = Math.max(0, minY - padY);
-    const sw = Math.min(width - sx, conteudoW + padX * 2);
-    const sh = Math.min(height - sy, conteudoH + padY * 2);
+    const pad = Math.max(8, Math.round(Math.max(maxX - minX, maxY - minY) * 0.12));
+    const sx = Math.max(0, minX - pad);
+    const sy = Math.max(0, minY - pad);
+    const sw = Math.min(width - sx, maxX - minX + 1 + pad * 2);
+    const sh = Math.min(height - sy, maxY - minY + 1 + pad * 2);
     const out = document.createElement("canvas");
     out.width = sw;
     out.height = sh;
@@ -229,32 +226,32 @@ interface InserirImagemOpts {
   alturaFracao?: number;
   inicioXFracao?: number;
   inicioYFracao?: number;
-  preservarAssinaturaGrande?: boolean;
 }
 
+// Presets das assinaturas — mantêm a imagem dentro da área branca da célula
+// sem cruzar as bordas pretas (margem de segurança aplicada em inserirImagem).
 const ASSINATURA_PTP_VISTO_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.99,
-  alturaFracao: 0.82,
-  inicioXFracao: 0.005,
-  inicioYFracao: 0.08,
-  preservarAssinaturaGrande: true,
+  larguraFracao: 0.94,
+  alturaFracao: 0.68,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.14,
 };
-
 const ASSINATURA_LIMPEZA_LIDER_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.99,
-  alturaFracao: 0.84,
-  inicioXFracao: 0.005,
-  inicioYFracao: 0.06,
-  preservarAssinaturaGrande: true,
+  larguraFracao: 0.94,
+  alturaFracao: 0.72,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.08,
+};
+const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
+  larguraFracao: 0.94,
+  alturaFracao: 0.72,
+  inicioXFracao: 0.03,
+  inicioYFracao: 0.12,
 };
 
-const ASSINATURA_LIMPEZA_OPERADOR_PRESET: InserirImagemOpts = {
-  larguraFracao: 0.99,
-  alturaFracao: 0.84,
-  inicioXFracao: 0.005,
-  inicioYFracao: 0.08,
-  preservarAssinaturaGrande: true,
-};
+// Margem de segurança (em frações de coluna/linha) para não cruzar a borda preta.
+const SAFETY_COL = 0.04;
+const SAFETY_ROW = 0.08;
 
 /** Mede dimensões de imagem base64 PNG (largura/altura em px). */
 async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
@@ -337,28 +334,13 @@ async function inserirImagem(
       usaHPx = caixaHPx;
       usaWPx = caixaHPx * ratioImg;
     }
-
-    if (opts.preservarAssinaturaGrande) {
-      const alturaMinimaAssinaturaPx = Math.min(caixaHPx, alturaDisponivelPx * 0.76);
-      if (usaHPx < alturaMinimaAssinaturaPx) {
-        usaHPx = alturaMinimaAssinaturaPx;
-        usaWPx = Math.min(caixaWPx, Math.max(usaWPx, alturaMinimaAssinaturaPx * ratioImg));
-      }
-    }
   }
 
   // Centraliza a imagem dentro da área (padX/padY definem onde a área começa)
   const sobraWPx = caixaWPx - usaWPx;
   const sobraHPx = caixaHPx - usaHPx;
   const offsetXPx = larguraDisponivelPx * padX + sobraWPx / 2;
-  let offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
-  if (opts.preservarAssinaturaGrande) {
-    const brIdealPx = alturaDisponivelPx * Math.min(0.92, Math.max(0.88, padY + af));
-    const brMaxPx = alturaDisponivelPx * 0.94;
-    offsetYPx = brIdealPx - usaHPx;
-    if (offsetYPx + usaHPx > brMaxPx) offsetYPx = brMaxPx - usaHPx;
-    offsetYPx = Math.max(0, offsetYPx);
-  }
+  const offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
 
   // Converte offset px → fração de col/row
   function pxParaColFrac(offset: number): number {
@@ -393,9 +375,37 @@ async function inserirImagem(
   const brCol = pxParaColFrac(offsetXPx + usaWPx);
   const brRow = pxParaRowFrac(offsetYPx + usaHPx);
 
+  // ── Área segura: nunca cruzar borda direita/inferior da célula. ──
+  // Limites máximos absolutos (em fração de coluna/linha do ExcelJS,
+  // que é 0-indexada: célula r vai de r-1 a r).
+  const limiteColMax = c2 - SAFETY_COL;
+  const limiteRowMax = r2 - SAFETY_ROW;
+  const limiteColMin = c1 - 1; // topo da célula c1
+  const limiteRowMin = r1 - 1; // topo da célula r1
+
+  // Largura/altura atuais da imagem em frações de col/row.
+  const larguraImgFrac = brCol - tlCol;
+  const alturaImgFrac = brRow - tlRow;
+
+  // Eixo X — empurra para a esquerda se ultrapassar à direita.
+  let brColFinal = Math.min(brCol, limiteColMax);
+  let tlColFinal = brColFinal - larguraImgFrac;
+  if (tlColFinal < limiteColMin) {
+    tlColFinal = limiteColMin;
+    brColFinal = Math.min(tlColFinal + larguraImgFrac, limiteColMax);
+  }
+
+  // Eixo Y — empurra para cima se ultrapassar embaixo, com trava de topo.
+  let brRowFinal = Math.min(brRow, limiteRowMax);
+  let tlRowFinal = brRowFinal - alturaImgFrac;
+  if (tlRowFinal < limiteRowMin) {
+    tlRowFinal = limiteRowMin;
+    brRowFinal = Math.min(tlRowFinal + alturaImgFrac, limiteRowMax);
+  }
+
   ws.addImage(id, {
-    tl: { col: tlCol, row: tlRow },
-    br: { col: brCol, row: brRow },
+    tl: { col: tlColFinal, row: tlRowFinal },
+    br: { col: brColFinal, row: brRowFinal },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
   void totalCols;
