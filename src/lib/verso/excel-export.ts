@@ -874,12 +874,13 @@ export async function gerarVersoWorksheet(
     }
     cell.border = BORDA_FINA;
     if (lt?.assinaturaLider?.dataUrl) {
-      await inserirImagem(wb, ws, `${colA}${row}:${colB}${row}`, lt.assinaturaLider.dataUrl, {
-        larguraFracao: 1.0,
-        alturaFracao: 0.78,
-        inicioXFracao: 0.0,
-        inicioYFracao: 0.18,
-      });
+      await inserirImagem(
+        wb,
+        ws,
+        `${colA}${row}:${colB}${row}`,
+        lt.assinaturaLider.dataUrl,
+        ASSINATURA_LIMPEZA_LIDER_PRESET,
+      );
     }
   }
 
