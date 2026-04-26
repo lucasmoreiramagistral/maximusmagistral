@@ -544,37 +544,61 @@ function NaoConformidadesPage() {
               </div>
             </section>
 
-            {/* Distribuição por turno */}
+            {/* Performance por turno */}
             <section className="mb-8">
-              <h2 className="mb-3 text-lg font-bold">Por turno</h2>
+              <h2 className="mb-3 text-lg font-bold">Performance por turno</h2>
               <div className="rounded-xl border border-border bg-card shadow-sm">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Turno</TableHead>
-                      <TableHead className="text-right">NC checklist</TableHead>
-                      <TableHead className="text-right">NR limpeza</TableHead>
                       <TableHead className="text-right">Total</TableHead>
+                      <TableHead className="text-right">Resolvidas</TableHead>
+                      <TableHead className="text-right">Pendentes</TableHead>
+                      <TableHead className="text-right">% resolvido</TableHead>
+                      <TableHead className="text-right">Tempo médio</TableHead>
+                      <TableHead className="text-right">Acima do SLA</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ag.porTurno.size === 0 && (
+                    {performanceTurno.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                           Nada no período.
                         </TableCell>
                       </TableRow>
                     )}
-                    {Array.from(ag.porTurno.entries())
-                      .sort((a, b) => b[1].total - a[1].total)
-                      .map(([turno, v]) => (
-                        <TableRow key={turno}>
-                          <TableCell className="font-medium">{turno}</TableCell>
-                          <TableCell className="text-right">{v.nc}</TableCell>
-                          <TableCell className="text-right">{v.nr}</TableCell>
-                          <TableCell className="text-right font-bold">{v.total}</TableCell>
-                        </TableRow>
-                      ))}
+                    {performanceTurno.map((p) => (
+                      <TableRow key={`perf-${p.turno}`}>
+                        <TableCell className="font-medium">{p.turno}</TableCell>
+                        <TableCell className="text-right">{p.total}</TableCell>
+                        <TableCell className="text-right text-success">
+                          {p.resolvidas}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.pendentes > 0 ? (
+                            <span className="font-semibold text-destructive">
+                              {p.pendentes}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">
+                          {Math.round(p.percentualResolvido)}%
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatarDias(p.tempoMedioResolucao)}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {p.pendentesAcimaSla > 0 ? (
+                            <Badge variant="destructive">{p.pendentesAcimaSla}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                 </Table>
               </div>
