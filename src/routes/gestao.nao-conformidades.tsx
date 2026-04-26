@@ -740,10 +740,12 @@ function KpiCard({
   titulo,
   valor,
   tom,
+  legenda,
 }: {
   titulo: string;
-  valor: number;
+  valor: number | string;
   tom: "destructive" | "warning" | "muted" | "success";
+  legenda?: string;
 }) {
   const cls =
     tom === "destructive"
@@ -759,6 +761,10 @@ function KpiCard({
     ) : tom === "success" ? (
       <CheckCircle2 className="h-5 w-5 text-success" />
     ) : null;
+  const valorClass =
+    typeof valor === "string" && valor.length > 6
+      ? "mt-1 text-2xl font-bold"
+      : "mt-1 text-4xl font-bold";
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex items-center gap-2">
@@ -767,7 +773,10 @@ function KpiCard({
           {titulo}
         </p>
       </div>
-      <p className={`mt-1 text-4xl font-bold ${cls}`}>{valor}</p>
+      <p className={`${valorClass} ${cls}`}>{valor}</p>
+      {legenda && (
+        <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{legenda}</p>
+      )}
     </div>
   );
 }
