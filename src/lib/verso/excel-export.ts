@@ -691,7 +691,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_VISTO}:${colLetra}${LINHA_VISTO}`,
         janela.assinaturaOperador.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.72, inicioXFracao: 0.0, inicioYFracao: 0.26 },
+        ASSINATURA_PTP_VISTO_PRESET,
       );
     } else {
       cell.value = nome ? `Visto..: ${nome}` : "Visto..:";
