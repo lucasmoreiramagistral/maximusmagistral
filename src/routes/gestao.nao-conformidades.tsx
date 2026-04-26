@@ -301,12 +301,52 @@ function NaoConformidadesPage() {
         </div>
 
         {/* KPIs */}
-        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+        <div className="mb-4 grid grid-cols-2 gap-4 md:grid-cols-5">
           <KpiCard titulo="NC do checklist" valor={ag.totalNc} tom="destructive" />
           <KpiCard titulo="NR da limpeza" valor={ag.totalNr} tom="warning" />
           <KpiCard titulo="Pendentes" valor={totalPendentes} tom="destructive" />
           <KpiCard titulo="Resolvidas" valor={totalResolvidas} tom="success" />
           <KpiCard titulo="Total no período" valor={totalGeral} tom="muted" />
+        </div>
+
+        {/* KPIs de tempo / SLA */}
+        <div className="mb-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+          <KpiCard
+            titulo="Tempo médio resolução"
+            valor={formatarDias(kpisTempo.tempoMedioResolucao)}
+            tom="muted"
+            legenda="das resolvidas no período"
+          />
+          <KpiCard
+            titulo="Tempo médio em aberto"
+            valor={formatarDias(kpisTempo.tempoMedioEmAberto)}
+            tom={
+              (kpisTempo.tempoMedioEmAberto ?? 0) > SLA_DIAS ? "destructive" : "warning"
+            }
+            legenda="pendentes hoje"
+          />
+          <KpiCard
+            titulo="Mais antiga em aberto"
+            valor={formatarDias(kpisTempo.maisAntigaDias)}
+            tom={(kpisTempo.maisAntigaDias ?? 0) > SLA_DIAS ? "destructive" : "warning"}
+            legenda={kpisTempo.maisAntigaItem ?? "—"}
+          />
+          <KpiCard
+            titulo="Resolvidas em 24h"
+            valor={
+              kpisTempo.percentualEm24h === null
+                ? "—"
+                : `${Math.round(kpisTempo.percentualEm24h)}%`
+            }
+            tom="success"
+            legenda="agilidade da gestão"
+          />
+          <KpiCard
+            titulo={`SLA estourado (>${SLA_DIAS}d)`}
+            valor={kpisTempo.slaEstourado}
+            tom={kpisTempo.slaEstourado > 0 ? "destructive" : "success"}
+            legenda="pendentes acima do prazo"
+          />
         </div>
 
         {l1 || l2 ? (
