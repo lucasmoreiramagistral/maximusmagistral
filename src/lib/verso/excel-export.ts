@@ -910,7 +910,7 @@ export async function gerarVersoWorksheet(
         ws,
         `${colLetra}${LINHA_ASSIN_OP}:${colLetra}${LINHA_ASSIN_OP}`,
         lt.assinaturaOperador!.dataUrl,
-        { larguraFracao: 1.0, alturaFracao: 0.78, inicioXFracao: 0.0, inicioYFracao: 0.20 },
+        ASSINATURA_LIMPEZA_OPERADOR_PRESET,
       );
     } else {
       cell.value = nome ? `Assin. Oper. →\n${nome}` : "Assin. Oper. →";
