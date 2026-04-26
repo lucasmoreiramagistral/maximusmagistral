@@ -228,6 +228,34 @@ interface InserirImagemOpts {
   inicioYFracao?: number;
 }
 
+/** Mede dimensões de imagem base64 PNG (largura/altura em px). */
+async function medirImagem(dataUrl: string): Promise<{ w: number; h: number } | null> {
+  if (typeof Image === "undefined") return null;
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+    return { w: img.naturalWidth || img.width, h: img.naturalHeight || img.height };
+  } catch {
+    return null;
+  }
+}
+
+/** Largura aproximada de coluna em px (Excel: ~7px por unidade de width). */
+function colWidthPx(ws: ExcelJS.Worksheet, col: number): number {
+  const w = ws.getColumn(col).width ?? 8.43;
+  return Math.round(w * 7);
+}
+
+/** Altura aproximada de linha em px (pt → px: *96/72). */
+function rowHeightPx(ws: ExcelJS.Worksheet, row: number): number {
+  const h = ws.getRow(row).height ?? 15;
+  return Math.round((h * 96) / 72);
+}
+
 async function inserirImagem(
   wb: ExcelJS.Workbook,
   ws: ExcelJS.Worksheet,
@@ -241,8 +269,6 @@ async function inserirImagem(
     console.warn("[verso/excel] assinatura sem base64 válido — pulando.");
     return;
   }
-  // Usar `base64` com o data URL completo é o caminho nativo do ExcelJS no
-  // browser; evita imagem vazia causada por ArrayBuffer/Buffer em alguns builds.
   const id = wb.addImage({ base64: imagem, extension: "png" });
   const [a, b = a] = rangeAddress.split(":");
   const m1 = /^([A-Z]+)(\d+)$/.exec(a);
@@ -259,15 +285,78 @@ async function inserirImagem(
   const af = opts.alturaFracao ?? 0.9;
   const padX = opts.inicioXFracao ?? (1 - lf) / 2;
   const padY = opts.inicioYFracao ?? (1 - af) / 2;
-  const tlCol = c1 - 1 + totalCols * padX;
-  const brCol = c1 - 1 + totalCols * Math.min(padX + lf, 1);
-  const tlRow = r1 - 1 + totalRows * padY;
-  const brRow = r1 - 1 + totalRows * Math.min(padY + af, 1);
+
+  // Caixa máxima disponível em px (mantém aspect ratio da assinatura)
+  let larguraDisponivelPx = 0;
+  for (let c = c1; c <= c2; c++) larguraDisponivelPx += colWidthPx(ws, c);
+  let alturaDisponivelPx = 0;
+  for (let r = r1; r <= r2; r++) alturaDisponivelPx += rowHeightPx(ws, r);
+  const caixaWPx = larguraDisponivelPx * lf;
+  const caixaHPx = alturaDisponivelPx * af;
+
+  const dim = await medirImagem(imagem);
+  let usaWPx = caixaWPx;
+  let usaHPx = caixaHPx;
+  if (dim && dim.w > 0 && dim.h > 0) {
+    const ratioImg = dim.w / dim.h;
+    const ratioCaixa = caixaWPx / caixaHPx;
+    if (ratioImg > ratioCaixa) {
+      // assinatura mais larga: limita pela largura
+      usaWPx = caixaWPx;
+      usaHPx = caixaWPx / ratioImg;
+    } else {
+      // assinatura mais alta: limita pela altura
+      usaHPx = caixaHPx;
+      usaWPx = caixaHPx * ratioImg;
+    }
+  }
+
+  // Centraliza a imagem dentro da área (padX/padY definem onde a área começa)
+  const sobraWPx = caixaWPx - usaWPx;
+  const sobraHPx = caixaHPx - usaHPx;
+  const offsetXPx = larguraDisponivelPx * padX + sobraWPx / 2;
+  const offsetYPx = alturaDisponivelPx * padY + sobraHPx / 2;
+
+  // Converte offset px → fração de col/row
+  function pxParaColFrac(offset: number): number {
+    let acc = 0;
+    let col = c1;
+    while (col <= c2) {
+      const w = colWidthPx(ws, col);
+      if (acc + w >= offset) {
+        return col - 1 + (offset - acc) / w;
+      }
+      acc += w;
+      col += 1;
+    }
+    return c2;
+  }
+  function pxParaRowFrac(offset: number): number {
+    let acc = 0;
+    let row = r1;
+    while (row <= r2) {
+      const h = rowHeightPx(ws, row);
+      if (acc + h >= offset) {
+        return row - 1 + (offset - acc) / h;
+      }
+      acc += h;
+      row += 1;
+    }
+    return r2;
+  }
+
+  const tlCol = pxParaColFrac(offsetXPx);
+  const tlRow = pxParaRowFrac(offsetYPx);
+  const brCol = pxParaColFrac(offsetXPx + usaWPx);
+  const brRow = pxParaRowFrac(offsetYPx + usaHPx);
+
   ws.addImage(id, {
     tl: { col: tlCol, row: tlRow },
     br: { col: brCol, row: brRow },
     editAs: "oneCell",
   } as unknown as Parameters<typeof ws.addImage>[1]);
+  void totalCols;
+  void totalRows;
 }
 
 interface GerarVersoOpts {
