@@ -172,19 +172,6 @@ function dataUrlParaBase64(dataUrl: string): string | null {
   }
 }
 
-function base64ParaArrayBuffer(base64: string): ArrayBuffer | null {
-  try {
-    const limpo = base64.replace(/\s/g, "");
-    const bin = atob(limpo);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return bytes.buffer;
-  } catch (e) {
-    console.error("[checklist/excel] base64ParaArrayBuffer falhou:", e);
-    return null;
-  }
-}
-
 /** Insere uma imagem de assinatura sobre uma célula (formato cellAddress).
  *  Usa range tl/br para a imagem ocupar a célula inteira. */
 function inserirAssinaturaImagem(
@@ -195,10 +182,8 @@ function inserirAssinaturaImagem(
 ): void {
   const base64 = dataUrlParaBase64(dataUrl);
   if (!base64) return;
-  const buffer = base64ParaArrayBuffer(base64);
-  if (!buffer) return;
   const imageId = wb.addImage({
-    buffer: buffer as unknown as ExcelJS.Buffer,
+    base64: dataUrl.startsWith("data:image/") ? dataUrl : `data:image/png;base64,${base64}`,
     extension: "png",
   });
   const [startAddress, endAddress = startAddress] = rangeAddress.split(":");
