@@ -355,6 +355,155 @@ function NaoConformidadesPage() {
           </div>
         ) : (
           <>
+            {/* Aging — pendentes mais antigas */}
+            <section className="mb-8">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <h2 className="text-lg font-bold">Aging — pendentes mais antigas</h2>
+                {agingPendentes.length > 15 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setStatusFiltro("pendente")}
+                  >
+                    Ver todas as {agingPendentes.length}
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Aberta em</TableHead>
+                      <TableHead className="text-right">Em aberto</TableHead>
+                      <TableHead>Turno</TableHead>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead>Operador</TableHead>
+                      <TableHead className="text-right">Ação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {agingPendentes.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                          Nenhuma pendência. 🎉
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {agingPendentes.slice(0, 15).map(({ registro: r, diasEmAberto }) => {
+                      const tom = tomAging(diasEmAberto);
+                      const cls =
+                        tom === "destructive"
+                          ? "bg-destructive/15 text-destructive hover:bg-destructive/20"
+                          : tom === "warning"
+                            ? "bg-warning/20 text-warning-foreground hover:bg-warning/30"
+                            : "bg-success/15 text-success hover:bg-success/25";
+                      return (
+                        <TableRow key={`aging-${r.origem}-${r.origemId}-${r.itemNumero}`}>
+                          <TableCell className="whitespace-nowrap">
+                            <div className="font-medium">{formatarDataBR(r.data)}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {formatarHora(r.dataHora)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Badge className={cls}>{formatarDias(diasEmAberto)}</Badge>
+                          </TableCell>
+                          <TableCell>{r.turno}</TableCell>
+                          <TableCell>
+                            <BadgeOrigem origem={r.origem} />
+                          </TableCell>
+                          <TableCell className="max-w-[320px]">
+                            <div className="font-semibold">
+                              #{r.itemNumero} — {r.itemDescricao}
+                            </div>
+                            <div className="line-clamp-2 text-xs text-muted-foreground">
+                              {r.observacao}
+                            </div>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">{r.operador}</TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              onClick={() => setRegistroAbrindo(r)}
+                            >
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              Resolver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
+            {/* Itens crônicos / reincidência */}
+            <section className="mb-8">
+              <h2 className="mb-1 text-lg font-bold">Itens crônicos e reincidências</h2>
+              <p className="mb-3 text-sm text-muted-foreground">
+                Itens que mais se repetem, com pendências em aberto ou que voltam após
+                já terem sido resolvidos. Foco para análise de causa raiz.
+              </p>
+              <div className="rounded-xl border border-border bg-card shadow-sm">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Origem</TableHead>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="text-right">Ocorrências</TableHead>
+                      <TableHead className="text-right">Pendentes</TableHead>
+                      <TableHead className="text-right">Reincidências</TableHead>
+                      <TableHead className="text-right">Tempo médio resolução</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {itensCronicos.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
+                          Nada no período.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {itensCronicos.map((it) => (
+                      <TableRow key={`cron-${it.chave}`}>
+                        <TableCell>
+                          <BadgeOrigem origem={it.origem} />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          #{it.itemNumero} — {it.descricao}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">
+                          {it.ocorrencias}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {it.pendentes > 0 ? (
+                            <Badge variant="destructive">{it.pendentes}</Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {it.reincidencias > 0 ? (
+                            <Badge className="bg-warning/20 text-warning-foreground hover:bg-warning/30">
+                              {it.reincidencias}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground">0</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right text-muted-foreground">
+                          {formatarDias(it.tempoMedioResolucao)}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </section>
+
             {/* Top itens recorrentes */}
             <section className="mb-8">
               <h2 className="mb-3 text-lg font-bold">Itens mais recorrentes</h2>
