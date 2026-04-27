@@ -237,15 +237,57 @@ function TutorialSigmaPage() {
               src={srcEfetivo}
               alt={`Passo ${passo.step}: ${passo.title}`}
               className={cn(
-                "block h-auto w-full",
+                "block h-auto w-full cursor-zoom-in",
                 imgStatus !== "ready" && "opacity-0",
               )}
+              onClick={() => imgStatus === "ready" && setZoomAberto(true)}
               onLoad={() => setImgStatus("ready")}
               onError={() => setImgStatus("error")}
               loading="eager"
               decoding="async"
             />
+            {imgStatus === "ready" && (
+              <button
+                type="button"
+                onClick={() => setZoomAberto(true)}
+                aria-label="Ampliar imagem"
+                className="absolute bottom-3 right-3 z-20 flex min-h-[52px] min-w-[52px] items-center justify-center gap-2 rounded-xl bg-foreground/85 px-4 text-background shadow-lg backdrop-blur transition-all active:scale-[0.95] active:bg-foreground"
+              >
+                <ZoomIn className="h-5 w-5" />
+                <span className="text-sm font-semibold">Ampliar</span>
+              </button>
+            )}
           </div>
+
+          {/* Dialog de zoom em tela cheia */}
+          <Dialog open={zoomAberto} onOpenChange={setZoomAberto}>
+            <DialogContent
+              className="h-[100dvh] max-h-[100dvh] w-screen max-w-none gap-0 border-0 bg-black/95 p-0 sm:rounded-none [&>button]:hidden"
+            >
+              <button
+                type="button"
+                onClick={() => setZoomAberto(false)}
+                aria-label="Fechar zoom"
+                className="absolute right-4 top-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-background/90 text-foreground shadow-lg transition-all active:scale-[0.95]"
+              >
+                <X className="h-6 w-6" />
+              </button>
+              <div
+                className="h-full w-full overflow-auto overscroll-contain"
+                style={{ touchAction: "pinch-zoom" }}
+              >
+                <img
+                  src={srcEfetivo}
+                  alt={`Passo ${passo.step}: ${passo.title} (ampliado)`}
+                  className="mx-auto block h-auto w-full max-w-none select-none"
+                  draggable={false}
+                />
+              </div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur">
+                Use dois dedos para dar zoom · arraste para mover
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Bloco final no último passo */}
           {ehUltimo && (
