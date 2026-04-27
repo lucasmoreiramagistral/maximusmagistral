@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as OperadorIndexRouteImport } from './routes/operador.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
+import { Route as OperadorTutorialSigmaRouteImport } from './routes/operador.tutorial-sigma'
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
 import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
 import { Route as OperadorItRouteImport } from './routes/operador.it'
@@ -55,6 +56,11 @@ const GestaoIndexRoute = GestaoIndexRouteImport.update({
 const OperadorValidacaoLiderRoute = OperadorValidacaoLiderRouteImport.update({
   id: '/operador/validacao-lider',
   path: '/operador/validacao-lider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorTutorialSigmaRoute = OperadorTutorialSigmaRouteImport.update({
+  id: '/operador/tutorial-sigma',
+  path: '/operador/tutorial-sigma',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorResumoRoute = OperadorResumoRouteImport.update({
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
@@ -223,6 +230,7 @@ export interface FileRoutesByTo {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao': typeof GestaoIndexRoute
   '/operador': typeof OperadorIndexRoute
@@ -253,6 +261,7 @@ export interface FileRoutesById {
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
+  '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
   '/operador/': typeof OperadorIndexRoute
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao/'
     | '/operador/'
@@ -313,6 +323,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao'
     | '/operador'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
+    | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao/'
     | '/operador/'
@@ -372,6 +384,7 @@ export interface RootRouteChildren {
   OperadorItRoute: typeof OperadorItRouteWithChildren
   OperadorMomentoRoute: typeof OperadorMomentoRoute
   OperadorResumoRoute: typeof OperadorResumoRoute
+  OperadorTutorialSigmaRoute: typeof OperadorTutorialSigmaRoute
   OperadorValidacaoLiderRoute: typeof OperadorValidacaoLiderRoute
   GestaoIndexRoute: typeof GestaoIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
@@ -410,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/operador/validacao-lider'
       fullPath: '/operador/validacao-lider'
       preLoaderRoute: typeof OperadorValidacaoLiderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/tutorial-sigma': {
+      id: '/operador/tutorial-sigma'
+      path: '/operador/tutorial-sigma'
+      fullPath: '/operador/tutorial-sigma'
+      preLoaderRoute: typeof OperadorTutorialSigmaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/resumo': {
@@ -618,6 +638,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorItRoute: OperadorItRouteWithChildren,
   OperadorMomentoRoute: OperadorMomentoRoute,
   OperadorResumoRoute: OperadorResumoRoute,
+  OperadorTutorialSigmaRoute: OperadorTutorialSigmaRoute,
   OperadorValidacaoLiderRoute: OperadorValidacaoLiderRoute,
   GestaoIndexRoute: GestaoIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,

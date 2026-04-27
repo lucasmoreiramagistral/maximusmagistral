@@ -10,6 +10,7 @@ import {
   Pencil,
   ClipboardList,
   Droplets,
+  Wrench,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -342,6 +343,12 @@ function OperadorHome() {
             titulo="Checklist limpeza sala envase L3"
             descricao="Checklist operacional de limpeza"
             badge={limpezaOk ? "Concluído" : undefined}
+          />
+          <BotaoAcao
+            to="/operador/tutorial-sigma"
+            icon={<Wrench className="h-8 w-8" />}
+            titulo="Registrar Anomalia (SIGMA)"
+            descricao="Tutorial: como abrir e fechar OS no SIGMA"
           />
           <BotaoAcao
             to="/operador/it"
