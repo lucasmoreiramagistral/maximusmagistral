@@ -345,6 +345,12 @@ function OperadorHome() {
             badge={limpezaOk ? "Concluído" : undefined}
           />
           <BotaoAcao
+            to="/operador/tutorial-sigma"
+            icon={<Wrench className="h-8 w-8" />}
+            titulo="Registrar Anomalia (SIGMA)"
+            descricao="Tutorial: como abrir e fechar OS no SIGMA"
+          />
+          <BotaoAcao
             to="/operador/it"
             icon={<BookOpen className="h-8 w-8" />}
             titulo="Instruções de Trabalho"
