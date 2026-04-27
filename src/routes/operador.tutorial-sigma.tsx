@@ -269,21 +269,32 @@ function TutorialSigmaPage() {
             <DialogContent
               className="h-[100dvh] max-h-[100dvh] w-screen max-w-none gap-0 border-0 bg-black/95 p-0 sm:rounded-none [&>button]:hidden"
             >
+              {/* Botão "Voltar ao tutorial" — canto superior esquerdo */}
+              <button
+                type="button"
+                onClick={() => setZoomAberto(false)}
+                aria-label="Voltar ao tutorial"
+                className="absolute left-4 top-4 z-50 flex h-14 min-w-[180px] items-center justify-center gap-2 rounded-full bg-primary px-5 font-semibold text-primary-foreground shadow-xl transition-all hover:bg-primary/90 active:scale-[0.95]"
+              >
+                <ChevronsLeft className="h-6 w-6" />
+                <span className="text-base">Voltar ao tutorial</span>
+              </button>
+
+              {/* Botão "Fechar" — canto superior direito (alternativa) */}
               <button
                 type="button"
                 onClick={() => setZoomAberto(false)}
                 aria-label="Fechar zoom"
-                className="absolute right-4 top-4 z-50 flex h-14 min-w-[120px] items-center justify-center gap-2 rounded-full bg-background px-5 font-semibold text-foreground shadow-xl transition-all hover:bg-background/90 active:scale-[0.95]"
+                className="absolute right-4 top-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-background text-foreground shadow-xl transition-all hover:bg-background/90 active:scale-[0.95]"
               >
-                <X className="h-5 w-5" />
-                <span className="text-base">Fechar</span>
+                <X className="h-6 w-6" />
               </button>
 
-              {/* Dica de uso (canto inferior esquerdo) */}
+              {/* Dica de uso (canto inferior esquerdo, só desktop) */}
               <div className="pointer-events-none absolute bottom-4 left-4 z-40 hidden max-w-xs rounded-lg bg-background/85 px-3 py-2 text-xs text-foreground shadow-lg backdrop-blur md:block">
                 <p className="font-semibold">Como usar:</p>
                 <p className="text-muted-foreground">
-                  Scroll do mouse ou botões + / − para zoom · arraste para mover · ESC ou "Fechar" para sair
+                  Scroll do mouse ou botões + / − para zoom · arraste para mover · ESC ou "Voltar" para sair
                 </p>
               </div>
               <div className="relative h-full w-full">
