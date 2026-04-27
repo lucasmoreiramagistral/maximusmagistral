@@ -344,13 +344,6 @@ function OperadorHome() {
             badge={limpezaOk ? "Concluído" : undefined}
           />
           <BotaoAcao
-            to="/operador/verso/limpeza"
-            icon={<Droplets className="h-8 w-8" />}
-            titulo="Checklist limpeza sala envase L3"
-            descricao="Checklist operacional de limpeza"
-            badge={limpezaOk ? "Concluído" : undefined}
-          />
-          <BotaoAcao
             to="/operador/it"
             icon={<BookOpen className="h-8 w-8" />}
             titulo="Instruções de Trabalho"
