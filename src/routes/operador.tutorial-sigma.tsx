@@ -272,10 +272,19 @@ function TutorialSigmaPage() {
                 type="button"
                 onClick={() => setZoomAberto(false)}
                 aria-label="Fechar zoom"
-                className="absolute right-4 top-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-background/90 text-foreground shadow-lg transition-all active:scale-[0.95]"
+                className="absolute right-4 top-4 z-50 flex h-14 min-w-[120px] items-center justify-center gap-2 rounded-full bg-background px-5 font-semibold text-foreground shadow-xl transition-all hover:bg-background/90 active:scale-[0.95]"
               >
-                <X className="h-6 w-6" />
+                <X className="h-5 w-5" />
+                <span className="text-base">Fechar</span>
               </button>
+
+              {/* Dica de uso (canto inferior esquerdo) */}
+              <div className="pointer-events-none absolute bottom-4 left-4 z-40 hidden max-w-xs rounded-lg bg-background/85 px-3 py-2 text-xs text-foreground shadow-lg backdrop-blur md:block">
+                <p className="font-semibold">Como usar:</p>
+                <p className="text-muted-foreground">
+                  Scroll do mouse ou botões + / − para zoom · arraste para mover · ESC ou "Fechar" para sair
+                </p>
+              </div>
               <div className="relative h-full w-full">
                 <TransformWrapper
                   initialScale={1}
