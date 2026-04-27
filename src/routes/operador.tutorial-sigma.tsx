@@ -10,7 +10,11 @@ import {
   Wrench,
   ZoomIn,
   X,
+  Plus,
+  Minus,
+  RotateCcw,
 } from "lucide-react";
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { Button } from "@/components/ui/button";
