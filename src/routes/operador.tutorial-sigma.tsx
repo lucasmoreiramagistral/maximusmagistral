@@ -263,7 +263,7 @@ function TutorialSigmaPage() {
             )}
           </div>
 
-          {/* Dialog de zoom em tela cheia */}
+          {/* Dialog de zoom em tela cheia (mesmo padrão das IT) */}
           <Dialog open={zoomAberto} onOpenChange={setZoomAberto}>
             <DialogContent
               className="h-[100dvh] max-h-[100dvh] w-screen max-w-none gap-0 border-0 bg-black/95 p-0 sm:rounded-none [&>button]:hidden"
@@ -276,19 +276,66 @@ function TutorialSigmaPage() {
               >
                 <X className="h-6 w-6" />
               </button>
-              <div
-                className="h-full w-full overflow-auto overscroll-contain"
-                style={{ touchAction: "pinch-zoom" }}
-              >
-                <img
-                  src={srcEfetivo}
-                  alt={`Passo ${passo.step}: ${passo.title} (ampliado)`}
-                  className="mx-auto block h-auto w-full max-w-none select-none"
-                  draggable={false}
-                />
-              </div>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-4 py-2 text-xs font-medium text-foreground shadow-lg backdrop-blur">
-                Use dois dedos para dar zoom · arraste para mover
+              <div className="relative h-full w-full">
+                <TransformWrapper
+                  initialScale={1}
+                  minScale={0.8}
+                  maxScale={5}
+                  doubleClick={{ mode: "toggle", step: 2.5 }}
+                  wheel={{ step: 0.15 }}
+                  pinch={{ step: 5 }}
+                  panning={{ velocityDisabled: true }}
+                  centerOnInit
+                >
+                  {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                      <TransformComponent
+                        wrapperClass="!h-full !w-full"
+                        contentClass="!h-full !w-full flex items-center justify-center"
+                      >
+                        <img
+                          src={srcEfetivo}
+                          alt={`Passo ${passo.step}: ${passo.title} (ampliado)`}
+                          className="max-h-full max-w-full select-none object-contain"
+                          draggable={false}
+                        />
+                      </TransformComponent>
+
+                      <div className="pointer-events-none absolute bottom-4 right-4 z-40 flex flex-col gap-2">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          onClick={() => zoomIn()}
+                          aria-label="Aumentar zoom"
+                          className="pointer-events-auto h-14 w-14 shadow-lg active:scale-[0.95]"
+                        >
+                          <Plus className="h-6 w-6" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          onClick={() => zoomOut()}
+                          aria-label="Diminuir zoom"
+                          className="pointer-events-auto h-14 w-14 shadow-lg active:scale-[0.95]"
+                        >
+                          <Minus className="h-6 w-6" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="secondary"
+                          onClick={() => resetTransform()}
+                          aria-label="Resetar zoom"
+                          className="pointer-events-auto h-14 w-14 shadow-lg active:scale-[0.95]"
+                        >
+                          <RotateCcw className="h-6 w-6" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </TransformWrapper>
               </div>
             </DialogContent>
           </Dialog>
