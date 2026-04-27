@@ -43,6 +43,7 @@ function TutorialSigmaPage() {
     "loading",
   );
   const [imgRetry, setImgRetry] = useState(0);
+  const [zoomAberto, setZoomAberto] = useState(false);
 
   // Sempre começa no passo 1 ao entrar
   useEffect(() => {
