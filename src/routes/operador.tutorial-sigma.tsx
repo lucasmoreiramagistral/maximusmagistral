@@ -186,7 +186,7 @@ function TutorialSigmaPage() {
       </div>
 
       {/* Conteúdo do passo */}
-      <main className="flex-1 bg-muted/30">
+      <main className="flex-1 bg-muted/30 pb-28 md:pb-32">
         <div className="mx-auto w-full max-w-[1000px] px-4 py-6 md:px-8 md:py-8">
           {/* Título e descrição */}
           <div className="mb-6">
@@ -270,24 +270,33 @@ function TutorialSigmaPage() {
         <div className="mx-auto flex w-full max-w-[1000px] items-center justify-between gap-2 px-4 py-3 md:px-8 md:py-4">
           <Button
             variant="outline"
+            size="lg"
             onClick={anterior}
             disabled={ehPrimeiro}
-            className="min-h-[48px] flex-1"
+            className="min-h-[60px] flex-1 text-base font-semibold transition-all active:scale-[0.97] active:bg-muted active:shadow-inner"
           >
-            <ChevronLeft className="mr-1 h-4 w-4" />
+            <ChevronLeft className="mr-1 h-5 w-5" />
             Anterior
           </Button>
           {ehUltimo ? (
-            <Button asChild className="min-h-[48px] flex-1">
+            <Button
+              asChild
+              size="lg"
+              className="min-h-[60px] flex-1 text-base font-semibold transition-all active:scale-[0.97] active:shadow-inner"
+            >
               <Link to="/operador">
-                <CheckCircle2 className="mr-1 h-4 w-4" />
+                <CheckCircle2 className="mr-1 h-5 w-5" />
                 Concluir
               </Link>
             </Button>
           ) : (
-            <Button onClick={proximo} className="min-h-[48px] flex-1">
+            <Button
+              onClick={proximo}
+              size="lg"
+              className="min-h-[60px] flex-1 text-base font-semibold transition-all active:scale-[0.97] active:shadow-inner"
+            >
               Próximo
-              <ChevronRight className="ml-1 h-4 w-4" />
+              <ChevronRight className="ml-1 h-5 w-5" />
             </Button>
           )}
         </div>
