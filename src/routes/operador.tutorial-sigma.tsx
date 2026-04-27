@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
   Loader2,
   RefreshCw,
   WifiOff,
