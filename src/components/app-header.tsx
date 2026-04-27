@@ -101,53 +101,79 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
         </div>
         {usuario && (
           <div className="flex items-center gap-3">
-            <div
-              title={isOnline ? "Online" : "Offline"}
-              aria-live="polite"
-            >
-              {/* Mobile: bolinha + texto curto + pendências compactas */}
-              <span className="flex items-center gap-1 md:hidden">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    isOnline ? "bg-success" : "bg-destructive"
-                  }`}
-                />
-                <span
-                  className={`text-xs font-semibold ${
-                    isOnline ? "text-success" : "text-destructive"
-                  }`}
+            {(() => {
+              const ehOperador = usuario.perfil === "operador";
+              // Operador: NUNCA mostra contador. Indicador "Offline" só aparece
+              // quando há fila represada (erro real ao salvar) E está offline.
+              // Gestão: mantém comportamento completo (status + contador).
+              const mostrarOfflineOperador =
+                ehOperador && !isOnline && pendingCount > 0;
+              const mostrarStatusGestao = !ehOperador;
+
+              if (!mostrarOfflineOperador && !mostrarStatusGestao) return null;
+
+              return (
+                <div
+                  title={isOnline ? "Online" : "Offline"}
+                  aria-live="polite"
                 >
-                  {isOnline ? "On" : "Off"}
-                </span>
-                {pendingCount > 0 && (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {sincronizando ? `↑${pendingCount}` : `${pendingCount} pend.`}
-                  </span>
-                )}
-              </span>
-              {/* Desktop: bolinha + texto completo */}
-              <span className="hidden items-center gap-1.5 md:flex">
-                <span
-                  className={`inline-block h-2 w-2 rounded-full ${
-                    isOnline ? "bg-success" : "bg-destructive"
-                  }`}
-                />
-                <span
-                  className={`text-xs font-semibold ${
-                    isOnline ? "text-success" : "text-destructive"
-                  }`}
-                >
-                  {isOnline ? "Online" : "Offline"}
-                </span>
-                {pendingCount > 0 && (
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {sincronizando
-                      ? `Enviando ${pendingCount}...`
-                      : `${pendingCount} pend.`}
-                  </span>
-                )}
-              </span>
-            </div>
+                  {ehOperador ? (
+                    // Operador: badge discreto SÓ quando há problema real
+                    <span className="flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1">
+                      <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
+                      <span className="text-xs font-semibold text-destructive">
+                        Sem conexão
+                      </span>
+                    </span>
+                  ) : (
+                    <>
+                      {/* Gestão Mobile: bolinha + texto curto + pendências compactas */}
+                      <span className="flex items-center gap-1 md:hidden">
+                        <span
+                          className={`inline-block h-2 w-2 rounded-full ${
+                            isOnline ? "bg-success" : "bg-destructive"
+                          }`}
+                        />
+                        <span
+                          className={`text-xs font-semibold ${
+                            isOnline ? "text-success" : "text-destructive"
+                          }`}
+                        >
+                          {isOnline ? "On" : "Off"}
+                        </span>
+                        {pendingCount > 0 && (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {sincronizando ? `↑${pendingCount}` : `${pendingCount} pend.`}
+                          </span>
+                        )}
+                      </span>
+                      {/* Gestão Desktop: bolinha + texto completo */}
+                      <span className="hidden items-center gap-1.5 md:flex">
+                        <span
+                          className={`inline-block h-2 w-2 rounded-full ${
+                            isOnline ? "bg-success" : "bg-destructive"
+                          }`}
+                        />
+                        <span
+                          className={`text-xs font-semibold ${
+                            isOnline ? "text-success" : "text-destructive"
+                          }`}
+                        >
+                          {isOnline ? "Online" : "Offline"}
+                        </span>
+                        {pendingCount > 0 && (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {sincronizando
+                              ? `Enviando ${pendingCount}...`
+                              : `${pendingCount} pend.`}
+                          </span>
+                        )}
+                      </span>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{nomeExibido}</p>
               <p className="text-xs text-muted-foreground">
