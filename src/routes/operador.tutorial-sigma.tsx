@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   Wrench,
   ZoomIn,
-  X,
   Plus,
   Minus,
   RotateCcw,
