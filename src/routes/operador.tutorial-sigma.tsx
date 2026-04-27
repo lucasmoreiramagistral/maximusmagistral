@@ -305,16 +305,6 @@ function TutorialSigmaPage() {
                         <span className="text-base">Voltar ao tutorial</span>
                       </button>
 
-                      {/* Botão "Fechar" — canto superior direito (alternativa) */}
-                      <button
-                        type="button"
-                        onClick={() => setZoomAberto(false)}
-                        aria-label="Fechar zoom"
-                        className="absolute right-4 top-4 z-[60] flex h-14 w-14 items-center justify-center rounded-full bg-background text-foreground shadow-xl transition-all hover:bg-background/90 active:scale-[0.95]"
-                      >
-                        <X className="h-6 w-6" />
-                      </button>
-
                       {/* Botões de zoom — canto inferior direito */}
                       <div className="pointer-events-none absolute bottom-4 right-4 z-[60] flex flex-col gap-2">
                         <Button
