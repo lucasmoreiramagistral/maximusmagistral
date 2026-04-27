@@ -8,10 +8,13 @@ import {
   WifiOff,
   CheckCircle2,
   Wrench,
+  ZoomIn,
+  X,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useGuard } from "@/hooks/use-guard";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { useTutorialSigma } from "@/hooks/use-tutorial-sigma";
