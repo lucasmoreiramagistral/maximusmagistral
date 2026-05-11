@@ -191,10 +191,22 @@ function OperadorHome() {
     <div className="min-h-screen bg-background">
       <AppHeader titulo="Checklist Operacional" subtitulo="Linha 3 — Enchedora 3" />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
-        <div className="mb-8">
+        <div className="mb-6">
           <p className="text-sm text-muted-foreground md:text-base">Bem-vindo,</p>
           <h2 className="text-2xl font-bold text-foreground md:text-3xl">Operador</h2>
         </div>
+
+        <TurnoAtivoPicker
+          usuario={usuario}
+          ativo={turnoAtivo}
+          registrosNoTurnoAtual={
+            ptp.janelas.filter(
+              (j) =>
+                j.statusJanela !== "pendente" && j.statusJanela !== "rascunho",
+            ).length +
+            (limpeza.turnos.find((t) => t.turno === turnoAtivo.turno) ? 1 : 0)
+          }
+        />
 
         {tudoConcluido && turnoLogado && (
           <div className="mb-6 rounded-2xl border-2 border-success/40 bg-success/10 p-5 shadow-sm md:p-6">
