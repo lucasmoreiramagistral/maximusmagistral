@@ -79,7 +79,7 @@ export function setTurnoAtivoDoDia(
 ): void {
   const key = keyDoUsuario(usuario?.userId);
   if (!key || typeof window === "undefined") return;
-  if (!escalaPorTurnoEquipe(payload.turno, payload.equipe)) return;
+  if (!comboValidoExato(payload.turno, payload.equipe)) return;
   const salvo: TurnoAtivoSalvo = {
     turno: payload.turno,
     equipe: payload.equipe,
