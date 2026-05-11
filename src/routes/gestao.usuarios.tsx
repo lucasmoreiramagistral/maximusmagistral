@@ -673,16 +673,14 @@ function UsuarioFormDialog({
       setErro("Informe o nome completo");
       return;
     }
-    if (!isEdit) {
-      const loginNorm = normalizarLogin(login);
-      if (loginNorm.length < 2) {
-        setErro("Login inválido");
-        return;
-      }
-      if (senha.length < 6) {
-        setErro("Senha precisa ter pelo menos 6 caracteres");
-        return;
-      }
+    const loginNorm = normalizarLogin(login);
+    if (loginNorm.length < 2) {
+      setErro("Login inválido");
+      return;
+    }
+    if (!isEdit && senha.length < 6) {
+      setErro("Senha precisa ter pelo menos 6 caracteres");
+      return;
     }
     if (modulos.length === 0) {
       setErro("Selecione ao menos um módulo de acesso");
@@ -700,6 +698,7 @@ function UsuarioFormDialog({
           data: {
             id: editando.id,
             nome: nome.trim(),
+            usuario: loginNorm,
             perfil,
             hierarquia,
             modulosAcesso: modulos,
@@ -712,7 +711,11 @@ function UsuarioFormDialog({
           setErro(res.erro);
           return;
         }
-        toast.success("Usuário atualizado");
+        toast.success(
+          "loginAlterado" in res && res.loginAlterado
+            ? "Usuário atualizado. O novo login deve ser usado no próximo acesso."
+            : "Usuário atualizado",
+        );
       } else {
         const res = await criarUsuario({
           data: {
