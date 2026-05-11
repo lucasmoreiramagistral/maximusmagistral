@@ -58,7 +58,7 @@ function lerCru(userId: string | null | undefined): TurnoAtivoSalvo | null {
     const parsed = JSON.parse(raw) as TurnoAtivoSalvo;
     if (!parsed?.turno || !parsed?.equipe || !parsed?.dataOperacional) return null;
     // combo precisa ser escala válida
-    if (!escalaPorTurnoEquipe(parsed.turno, parsed.equipe)) return null;
+    if (!comboValidoExato(parsed.turno, parsed.equipe)) return null;
     // expira quando a data operacional virou
     const dataAtual = calcularDataOperacional(parsed.equipe, parsed.turno);
     if (dataAtual !== parsed.dataOperacional) return null;
