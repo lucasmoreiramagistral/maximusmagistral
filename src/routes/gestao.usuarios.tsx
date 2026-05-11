@@ -714,8 +714,12 @@ function UsuarioFormDialog({
     setSalvando(true);
     try {
       const matriculaTrim = matricula.trim() || null;
-      const equipeTrim = equipePadrao.trim() || null;
-      const turnoTrim = turnoPadrao.trim() || null;
+      // Deriva equipe/turno padrão da escala selecionada (única fonte de verdade).
+      const escalaSel = escalaIdSel
+        ? ESCALAS.find((e) => e.id === escalaIdSel) ?? null
+        : null;
+      const equipeTrim = escalaSel ? escalaSel.equipe : null;
+      const turnoTrim = escalaSel ? escalaSel.turno : null;
 
       if (isEdit && editando) {
         const res = await editarUsuario({
