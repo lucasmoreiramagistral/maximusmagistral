@@ -123,6 +123,7 @@ const criarUsuarioSchema = z.object({
 const editarUsuarioSchema = z.object({
   id: z.string().uuid(),
   nome: z.string().min(2).max(120),
+  usuario: z.string().min(2).max(60),
   perfil: z.enum(PERFIS),
   hierarquia: z.enum(HIERARQUIAS),
   modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
@@ -258,6 +259,24 @@ export const editarUsuario = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
 
+    // Carrega login/email atuais para decidir se precisa mexer no auth.
+    const { data: alvo, error: lookupErr } = await supabaseAdmin
+      .from("profiles")
+      .select("usuario, email_interno" as string)
+      .eq("id", data.id)
+      .maybeSingle<{ usuario: string; email_interno: string }>();
+
+    if (lookupErr || !alvo) {
+      return { ok: false as const, erro: "Usuário não encontrado" };
+    }
+
+    const novoLogin = normalizarLogin(data.usuario);
+    if (novoLogin.length < 2) {
+      return { ok: false as const, erro: "Login inválido após normalização" };
+    }
+    const loginMudou = novoLogin !== alvo.usuario;
+    const novoEmail = loginParaEmail(novoLogin);
+
     if (data.matricula) {
       const { data: dup } = await supabaseAdmin
         .from("profiles")
@@ -270,12 +289,49 @@ export const editarUsuario = createServerFn({ method: "POST" })
       }
     }
 
+    if (loginMudou) {
+      // Checa duplicidade de login (em usuario E email_interno).
+      const { data: dupLogin } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("usuario", novoLogin)
+        .neq("id", data.id)
+        .maybeSingle();
+      if (dupLogin) {
+        return { ok: false as const, erro: "Outro usuário já usa este login" };
+      }
+      const { data: dupEmail } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("email_interno", novoEmail)
+        .neq("id", data.id)
+        .maybeSingle();
+      if (dupEmail) {
+        return { ok: false as const, erro: "Outro usuário já usa este login" };
+      }
+
+      // Atualiza o e-mail no Supabase Auth ANTES de tocar no profile.
+      const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
+        email: novoEmail,
+        email_confirm: true,
+      });
+      if (authErr) {
+        console.error("[editarUsuario] auth update falhou:", authErr);
+        return {
+          ok: false as const,
+          erro: authErr.message ?? "Falha ao atualizar login no auth",
+        };
+      }
+    }
+
     const somenteLeitura = data.hierarquia === "externo";
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabaseAdmin.from("profiles") as any)
       .update({
         nome: data.nome,
+        usuario: novoLogin,
+        email_interno: novoEmail,
         perfil: data.perfil,
         hierarquia: data.hierarquia,
         modulos_acesso: data.modulosAcesso,
@@ -288,10 +344,16 @@ export const editarUsuario = createServerFn({ method: "POST" })
 
     if (error) {
       console.error("[editarUsuario] erro:", error);
+      // Rollback do auth se o login havia sido alterado.
+      if (loginMudou) {
+        await supabaseAdmin.auth.admin.updateUserById(data.id, {
+          email: alvo.email_interno,
+        });
+      }
       return { ok: false as const, erro: error.message ?? "Falha ao editar usuário" };
     }
 
-    return { ok: true as const };
+    return { ok: true as const, loginAlterado: loginMudou };
   });
 
 export const alterarStatusUsuario = createServerFn({ method: "POST" })

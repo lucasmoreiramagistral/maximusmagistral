@@ -673,16 +673,14 @@ function UsuarioFormDialog({
       setErro("Informe o nome completo");
       return;
     }
-    if (!isEdit) {
-      const loginNorm = normalizarLogin(login);
-      if (loginNorm.length < 2) {
-        setErro("Login inválido");
-        return;
-      }
-      if (senha.length < 6) {
-        setErro("Senha precisa ter pelo menos 6 caracteres");
-        return;
-      }
+    const loginNorm = normalizarLogin(login);
+    if (loginNorm.length < 2) {
+      setErro("Login inválido");
+      return;
+    }
+    if (!isEdit && senha.length < 6) {
+      setErro("Senha precisa ter pelo menos 6 caracteres");
+      return;
     }
     if (modulos.length === 0) {
       setErro("Selecione ao menos um módulo de acesso");
@@ -700,6 +698,7 @@ function UsuarioFormDialog({
           data: {
             id: editando.id,
             nome: nome.trim(),
+            usuario: loginNorm,
             perfil,
             hierarquia,
             modulosAcesso: modulos,
@@ -712,7 +711,11 @@ function UsuarioFormDialog({
           setErro(res.erro);
           return;
         }
-        toast.success("Usuário atualizado");
+        toast.success(
+          "loginAlterado" in res && res.loginAlterado
+            ? "Usuário atualizado. O novo login deve ser usado no próximo acesso."
+            : "Usuário atualizado",
+        );
       } else {
         const res = await criarUsuario({
           data: {
@@ -755,12 +758,18 @@ function UsuarioFormDialog({
           <DialogTitle>{isEdit ? "Editar usuário" : "Novo usuário"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Altere os dados do usuário. Senha e login não são alterados aqui."
+              ? "Altere os dados do usuário. A senha é alterada em outro botão."
               : "Cadastre um novo usuário do Maximus Magistral."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={submit} className="space-y-4">
+          {isEdit && (
+            <p className="rounded-md border border-warning/40 bg-warning-soft px-3 py-2 text-xs text-warning-foreground">
+              Se você alterar o login, o usuário precisará usar o novo login no próximo
+              acesso. A sessão atual dele continua válida até ele sair.
+            </p>
+          )}
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <Label htmlFor="nome">Nome completo *</Label>
@@ -796,14 +805,14 @@ function UsuarioFormDialog({
                   setLoginEditado(true);
                 }}
                 placeholder="ex.: joao.silva"
-                disabled={isEdit || salvando}
+                disabled={salvando}
                 required
               />
-              {!isEdit && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Sugerido a partir do nome. Será normalizado para minúsculas e sem acentos.
-                </p>
-              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {login && normalizarLogin(login) !== login
+                  ? <>Será salvo como <span className="font-mono font-semibold">{normalizarLogin(login) || "—"}</span></>
+                  : "Minúsculas, sem acento e sem espaço."}
+              </p>
             </div>
             {!isEdit && (
               <div>
