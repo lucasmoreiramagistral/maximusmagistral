@@ -110,29 +110,71 @@ async function assertAdminHierarquia(userId: string): Promise<void> {
 
 // ───────────────────── Schemas ─────────────────────
 
-const criarUsuarioSchema = z.object({
-  nome: z.string().min(2).max(120),
-  usuario: z.string().min(2).max(60),
-  senha: z.string().min(6).max(72),
-  perfil: z.enum(PERFIS),
-  hierarquia: z.enum(HIERARQUIAS),
-  modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
-  matricula: z.string().min(1).max(40).optional().nullable(),
-  equipePadrao: z.string().max(40).optional().nullable(),
-  turnoPadrao: z.string().max(40).optional().nullable(),
-});
+// Refine: equipe e turno padrão devem vir AMBOS preenchidos OU AMBOS nulos.
+// Combos parciais nunca formam escala válida.
+const escalaPadraoRefine = (val: {
+  equipePadrao?: string | null;
+  turnoPadrao?: string | null;
+}): boolean => {
+  const eq = val.equipePadrao ?? null;
+  const tn = val.turnoPadrao ?? null;
+  return (eq === null && tn === null) || (eq !== null && tn !== null);
+};
 
-const editarUsuarioSchema = z.object({
-  id: z.string().uuid(),
-  nome: z.string().min(2).max(120),
-  usuario: z.string().min(2).max(60),
-  perfil: z.enum(PERFIS),
-  hierarquia: z.enum(HIERARQUIAS),
-  modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
-  matricula: z.string().min(1).max(40).optional().nullable(),
-  equipePadrao: z.string().max(40).optional().nullable(),
-  turnoPadrao: z.string().max(40).optional().nullable(),
-});
+const criarUsuarioSchema = z
+  .object({
+    nome: z.string().min(2).max(120),
+    usuario: z.string().min(2).max(60),
+    senha: z.string().min(6).max(72),
+    perfil: z.enum(PERFIS),
+    hierarquia: z.enum(HIERARQUIAS),
+    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
+    matricula: z.string().min(1).max(40).optional().nullable(),
+    equipePadrao: z.string().max(40).optional().nullable(),
+    turnoPadrao: z.string().max(40).optional().nullable(),
+  })
+  .refine(escalaPadraoRefine, {
+    message: "Equipe padrão e turno padrão devem ser definidos juntos",
+    path: ["equipePadrao"],
+  });
+
+const editarUsuarioSchema = z
+  .object({
+    id: z.string().uuid(),
+    nome: z.string().min(2).max(120),
+    usuario: z.string().min(2).max(60),
+    perfil: z.enum(PERFIS),
+    hierarquia: z.enum(HIERARQUIAS),
+    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
+    matricula: z.string().min(1).max(40).optional().nullable(),
+    equipePadrao: z.string().max(40).optional().nullable(),
+    turnoPadrao: z.string().max(40).optional().nullable(),
+  })
+  .refine(escalaPadraoRefine, {
+    message: "Equipe padrão e turno padrão devem ser definidos juntos",
+    path: ["equipePadrao"],
+  });
+
+/**
+ * Garante que (equipePadrao, turnoPadrao) — quando preenchidos — formam uma das
+ * 8 escalas oficiais. Retorna null quando OK, ou string de erro caso inválido.
+ */
+function validarEscalaPadrao(
+  equipePadrao: string | null | undefined,
+  turnoPadrao: string | null | undefined,
+): string | null {
+  const eq = equipePadrao ?? null;
+  const tn = turnoPadrao ?? null;
+  if (eq === null && tn === null) return null;
+  if (eq === null || tn === null) {
+    return "Equipe padrão e turno padrão devem ser definidos juntos";
+  }
+  const escala = escalaExataPorTurnoEquipe(tn as Turno, eq as Equipe);
+  if (!escala) {
+    return `Combinação inválida: "${eq} · ${tn}" não é uma das escalas oficiais`;
+  }
+  return null;
+}
 
 const alterarStatusSchema = z.object({
   id: z.string().uuid(),
