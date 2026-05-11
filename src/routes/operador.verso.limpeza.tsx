@@ -144,7 +144,7 @@ function LimpezaPage() {
           })}
           {!turnoLogado && (
             <div className="col-span-full rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              Seu usuário não tem turno definido. Fale com o administrador.
+              Defina seu turno do dia na tela inicial para preencher a limpeza.
             </div>
           )}
         </div>
