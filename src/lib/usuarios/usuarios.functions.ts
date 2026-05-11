@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-client-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { escalaExataPorTurnoEquipe } from "@/lib/operacao/escalas";
+import type { Equipe, Turno } from "@/lib/checklist/types";
 
 /**
  * DÉBITO TÉCNICO (Etapa 1):
