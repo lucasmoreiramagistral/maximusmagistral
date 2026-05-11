@@ -124,7 +124,17 @@ function ContextoPage() {
               <Select
                 value={turno}
                 onValueChange={(v) => {
-                  setTurno(v as Turno);
+                  const novoTurno = v as Turno;
+                  setTurno(novoTurno);
+                  // Se equipe atual não pertence à nova lista de escalas, reseta.
+                  const novasEquipes = ESCALAS.filter(
+                    (e) => e.turno === novoTurno,
+                  ).map((e) => e.equipe) as Equipe[];
+                  if (equipe && !novasEquipes.includes(equipe)) {
+                    setEquipe(novasEquipes[0] ?? "");
+                  } else if (!equipe && novasEquipes.length === 1) {
+                    setEquipe(novasEquipes[0]);
+                  }
                   if (erro) setErro("");
                 }}
               >
@@ -132,7 +142,7 @@ function ContextoPage() {
                   <SelectValue placeholder="Selecione o turno" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TODOS_OS_TURNOS.map((t) => (
+                  {TURNOS_UNICOS.map((t) => (
                     <SelectItem key={t} value={t} className="text-base">
                       {t}
                     </SelectItem>
@@ -151,12 +161,13 @@ function ContextoPage() {
                   setEquipe(v as Equipe);
                   if (erro) setErro("");
                 }}
+                disabled={!turno}
               >
                 <SelectTrigger id="equipe-select" className="mt-1.5 h-12 text-base font-semibold">
-                  <SelectValue placeholder="Selecione a equipe" />
+                  <SelectValue placeholder={turno ? "Selecione a equipe" : "Escolha o turno antes"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TODAS_AS_EQUIPES.map((e) => (
+                  {equipesValidas.map((e) => (
                     <SelectItem key={e} value={e} className="text-base">
                       {e}
                     </SelectItem>
