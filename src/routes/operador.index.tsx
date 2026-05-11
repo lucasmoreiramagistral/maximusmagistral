@@ -28,7 +28,6 @@ import type { Checklist, ContextoChecklist } from "@/lib/checklist/types";
 import { checklistEmEdicao, limparModoEdicao } from "@/lib/checklist/edicao";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import {
