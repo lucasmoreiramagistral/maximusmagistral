@@ -52,13 +52,13 @@ export function usePtpJanelas(
 
   const mergeWithDefaults = useCallback(
     (remotos: PtpJanela[]): PtpJanela[] => {
-      const defaults = createPtpJanelasPadrao(folhaDiaKey, dataOperacao);
+      const defaults = createPtpJanelasPadrao(folhaDiaKey, dataOperacao, operadorUserId);
       return defaults.map((d) => {
         const found = remotos.find((r) => r.janelaCodigo === d.janelaCodigo);
         return found ?? d;
       });
     },
-    [folhaDiaKey, dataOperacao],
+    [folhaDiaKey, dataOperacao, operadorUserId],
   );
 
   const refetch = useCallback(async () => {
