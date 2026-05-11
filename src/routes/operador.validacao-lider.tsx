@@ -62,7 +62,7 @@ function ValidacaoLiderPage() {
     VERSO_CONTEXTO_FIXO.maquina,
   );
 
-  const limpeza = useLimpezaTurnos(folhaDiaKey, data);
+  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null);
 
   // ── Localizar checklist Pós-setup do dia ──
   const posSetup: Checklist | null = useMemo(() => {

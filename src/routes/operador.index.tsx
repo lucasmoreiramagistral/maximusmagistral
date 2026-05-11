@@ -65,8 +65,8 @@ function OperadorHome() {
     VERSO_CONTEXTO_FIXO.maquina,
   );
 
-  const ptp = usePtpJanelas(folhaDiaKey, data);
-  const limpeza = useLimpezaTurnos(folhaDiaKey, data);
+  const ptp = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
+  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null);
 
   const turnoLogado = (turno ?? null) as TurnoAtivo | null;
 
