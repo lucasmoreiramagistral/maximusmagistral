@@ -38,9 +38,9 @@ export const Route = createFileRoute("/operador/verso/limpeza")({
 
 function LimpezaPage() {
   const { usuario, loading } = useGuard("operador");
-  const equipe = usuario?.equipePadrao ?? null;
-  const turnoLogado = usuario?.turnoPadrao ?? null;
-  const data = calcularDataOperacional(equipe, turnoLogado);
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+  const turnoLogado = turnoAtivo.turno;
+  const data = turnoAtivo.data;
   const folhaDiaKey = buildFolhaDiaKey(
     data,
     VERSO_CONTEXTO_FIXO.linha,
@@ -53,7 +53,7 @@ function LimpezaPage() {
 
   const [turnoSelecionado, setTurnoSelecionado] = useState<Turno | null>(null);
 
-  // Proteção: se de algum jeito for setado um turno diferente do logado,
+  // Proteção: se de algum jeito for setado um turno diferente do ativo,
   // limpa a seleção. (Defesa em profundidade — os botões já bloqueiam.)
   useEffect(() => {
     if (turnoSelecionado && turnoLogado && turnoSelecionado !== turnoLogado) {
