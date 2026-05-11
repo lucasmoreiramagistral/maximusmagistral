@@ -54,11 +54,11 @@ function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
   const rascunho = useRascunho();
   const checklistsRemote = useChecklists();
-  
 
-  const equipe = usuario?.equipePadrao ?? null;
-  const turno = usuario?.turnoPadrao ?? null;
-  const data = calcularDataOperacional(equipe, turno);
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+  const equipe = turnoAtivo.equipe;
+  const turno = turnoAtivo.turno;
+  const data = turnoAtivo.data;
   const folhaDiaKey = buildFolhaDiaKey(
     data,
     VERSO_CONTEXTO_FIXO.linha,
