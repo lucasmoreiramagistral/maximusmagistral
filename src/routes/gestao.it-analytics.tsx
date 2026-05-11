@@ -736,9 +736,18 @@ function ItAnalytics() {
                           >
                             <span className="truncate">{op.nome}</span>
                             <span className="shrink-0 text-[11px] text-muted-foreground">
-                              {[op.equipe_padrao, op.turno_padrao]
-                                .filter(Boolean)
-                                .join(" · ") || "—"}
+                              {(() => {
+                                const eq = op.equipe_padrao as Equipe | null;
+                                const tn = op.turno_padrao as Turno | null;
+                                if (!eq && !tn) return "—";
+                                const escala = escalaExataPorTurnoEquipe(tn, eq);
+                                if (escala) return escala.label;
+                                return (
+                                  <span className="text-warning-foreground">
+                                    inválido
+                                  </span>
+                                );
+                              })()}
                             </span>
                           </li>
                         ))}
