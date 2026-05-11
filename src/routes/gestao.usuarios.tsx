@@ -615,8 +615,13 @@ function UsuarioFormDialog({
   const [perfil, setPerfil] = useState<Perfil>("operador");
   const [hierarquia, setHierarquia] = useState<Hierarquia>("operador");
   const [modulos, setModulos] = useState<ModuloAcesso[]>(["operador"]);
-  const [equipePadrao, setEquipePadrao] = useState<string>("");
-  const [turnoPadrao, setTurnoPadrao] = useState<string>("");
+  // Escala padrão estruturada (id de ESCALAS) — "" significa "sem escala fixa".
+  const [escalaIdSel, setEscalaIdSel] = useState<string>("");
+  // Quando edição traz combo padrão que NÃO bate com nenhuma escala oficial.
+  const [padraoInvalido, setPadraoInvalido] = useState<{
+    equipe: string | null;
+    turno: string | null;
+  } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -632,8 +637,24 @@ function UsuarioFormDialog({
       setPerfil(editando.perfil);
       setHierarquia(editando.hierarquia);
       setModulos(editando.modulos_acesso);
-      setEquipePadrao(editando.equipe_padrao ?? "");
-      setTurnoPadrao(editando.turno_padrao ?? "");
+      const eq = editando.equipe_padrao;
+      const tn = editando.turno_padrao;
+      if (eq && tn) {
+        const escala = ESCALAS.find((e) => e.equipe === eq && e.turno === tn);
+        if (escala) {
+          setEscalaIdSel(escala.id);
+          setPadraoInvalido(null);
+        } else {
+          setEscalaIdSel("");
+          setPadraoInvalido({ equipe: eq, turno: tn });
+        }
+      } else if (eq || tn) {
+        setEscalaIdSel("");
+        setPadraoInvalido({ equipe: eq, turno: tn });
+      } else {
+        setEscalaIdSel("");
+        setPadraoInvalido(null);
+      }
     } else {
       setNome("");
       setLogin("");
@@ -643,8 +664,8 @@ function UsuarioFormDialog({
       setPerfil("operador");
       setHierarquia("operador");
       setModulos(["operador"]);
-      setEquipePadrao("");
-      setTurnoPadrao("");
+      setEscalaIdSel("");
+      setPadraoInvalido(null);
     }
     setErro(null);
   }, [aberto, editando]);
