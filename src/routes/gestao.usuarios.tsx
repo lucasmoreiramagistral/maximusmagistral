@@ -928,27 +928,54 @@ function UsuarioFormDialog({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <Label htmlFor="equipe">Equipe padrão</Label>
-              <Input
-                id="equipe"
-                value={equipePadrao}
-                onChange={(e) => setEquipePadrao(e.target.value)}
-                placeholder="Ex.: Karolainny"
-                disabled={salvando}
-              />
-            </div>
-            <div>
-              <Label htmlFor="turno">Turno padrão</Label>
-              <Input
-                id="turno"
-                value={turnoPadrao}
-                onChange={(e) => setTurnoPadrao(e.target.value)}
-                placeholder="Ex.: 12x36 Dia"
-                disabled={salvando}
-              />
-            </div>
+          <div>
+            <Label htmlFor="escala-padrao">Escala padrão</Label>
+            <Select
+              value={escalaIdSel === "" ? "__sem__" : escalaIdSel}
+              onValueChange={(v) => setEscalaIdSel(v === "__sem__" ? "" : v)}
+              disabled={salvando}
+            >
+              <SelectTrigger id="escala-padrao">
+                <SelectValue placeholder="Selecione a escala padrão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__sem__">
+                  Sem escala fixa (extra/cobertura)
+                </SelectItem>
+                {ESCALAS_AGRUPADAS.map((grupo) => (
+                  <SelectGroup key={grupo.grupo}>
+                    <SelectLabel>{grupo.grupo}</SelectLabel>
+                    {grupo.escalas.map((esc) => (
+                      <SelectItem key={esc.id} value={esc.id}>
+                        {esc.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            {padraoInvalido && (
+              <p className="mt-1 rounded-md border border-warning/40 bg-warning-soft px-2.5 py-1.5 text-xs text-warning-foreground">
+                O padrão atual no banco (
+                <span className="font-mono font-semibold">
+                  {padraoInvalido.equipe ?? "—"} · {padraoInvalido.turno ?? "—"}
+                </span>
+                ) não é uma escala oficial. Selecione uma escala válida ou
+                deixe como “Sem escala fixa”.
+              </p>
+            )}
+            {!padraoInvalido && perfil === "operador" && escalaIdSel === "" && (
+              <p className="mt-1 rounded-md border border-warning/40 bg-warning-soft px-2.5 py-1.5 text-xs text-warning-foreground">
+                Operadores sem escala fixa precisarão definir o turno do dia
+                manualmente na tela inicial — senão o checklist de limpeza e
+                PTP não aparecem.
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Define o turno e a equipe que o operador trabalha por padrão.
+              O operador ainda pode marcar um “turno do dia” diferente quando
+              cobrir extra.
+            </p>
           </div>
 
           {erro && (
