@@ -12,9 +12,9 @@ import { useGuard } from "@/hooks/use-guard";
 import { useLimpezaTurnos } from "@/hooks/use-limpeza-turnos";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   LABEL_LIMPEZA_ITEM_STATUS,
   LABEL_LIMPEZA_STATUS,
