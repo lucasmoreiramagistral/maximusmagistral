@@ -128,6 +128,8 @@ export function useItTelemetria(
 
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
+  // Usa o Turno Ativo do dia (cobre extra/cobertura), não o padrão do cadastro.
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
 
   const sessaoRef = useRef<SessaoIt | null>(null);
   const paginaAtualRef = useRef<number | null>(null);
