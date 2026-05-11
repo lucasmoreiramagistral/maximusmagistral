@@ -15,8 +15,14 @@
 
 import { useSyncExternalStore } from "react";
 import type { Equipe, Turno, Usuario } from "@/lib/checklist/types";
-import { escalaPorTurnoEquipe } from "./escalas";
+import { ESCALAS } from "./escalas";
 import { calcularDataOperacional } from "./data-operacional";
+
+/** Match EXATO turno+equipe — sem fallback de legado.
+ *  Usado no Turno Ativo para impedir combos inválidos como Bruno+1ºTurno. */
+function comboValidoExato(turno: Turno, equipe: Equipe): boolean {
+  return ESCALAS.some((e) => e.turno === turno && e.equipe === equipe);
+}
 
 const KEY_PREFIX = "fm-turno-ativo:";
 export const TURNO_ATIVO_EVENT = "fm-turno-ativo-update";
@@ -52,7 +58,7 @@ function lerCru(userId: string | null | undefined): TurnoAtivoSalvo | null {
     const parsed = JSON.parse(raw) as TurnoAtivoSalvo;
     if (!parsed?.turno || !parsed?.equipe || !parsed?.dataOperacional) return null;
     // combo precisa ser escala válida
-    if (!escalaPorTurnoEquipe(parsed.turno, parsed.equipe)) return null;
+    if (!comboValidoExato(parsed.turno, parsed.equipe)) return null;
     // expira quando a data operacional virou
     const dataAtual = calcularDataOperacional(parsed.equipe, parsed.turno);
     if (dataAtual !== parsed.dataOperacional) return null;
@@ -73,7 +79,7 @@ export function setTurnoAtivoDoDia(
 ): void {
   const key = keyDoUsuario(usuario?.userId);
   if (!key || typeof window === "undefined") return;
-  if (!escalaPorTurnoEquipe(payload.turno, payload.equipe)) return;
+  if (!comboValidoExato(payload.turno, payload.equipe)) return;
   const salvo: TurnoAtivoSalvo = {
     turno: payload.turno,
     equipe: payload.equipe,
