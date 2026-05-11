@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { useGuard } from "@/hooks/use-guard";
 import { storage } from "@/lib/checklist/storage";
 import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
-import { ESCALAS, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { ESCALAS, escalaExataPorTurnoEquipe, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
 import { setTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 
 const calcularDataFolha = calcularDataOperacional;
@@ -42,13 +42,22 @@ function ContextoPage() {
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
-  // Pré-seleção a partir do cadastro (se houver), mas operador pode trocar.
-  const [turno, setTurno] = useState<Turno | "">(
-    (usuario?.turnoPadrao as Turno | undefined) ?? "",
-  );
-  const [equipe, setEquipe] = useState<Equipe | "">(
-    (usuario?.equipePadrao as Equipe | undefined) ?? "",
-  );
+  // Pré-seleção defensiva: só herda padrão do cadastro se ele formar uma
+  // escala oficial (match exato turno+equipe). Combos legados/inválidos
+  // ficam vazios para o operador escolher manualmente.
+  const [turno, setTurno] = useState<Turno | "">("");
+  const [equipe, setEquipe] = useState<Equipe | "">("");
+
+  useEffect(() => {
+    if (!usuario) return;
+    const t = (usuario.turnoPadrao as Turno | null | undefined) ?? null;
+    const e = (usuario.equipePadrao as Equipe | null | undefined) ?? null;
+    const escala = escalaExataPorTurnoEquipe(t, e);
+    if (!escala) return;
+    // Só preenche se ainda estiver vazio — não sobrescreve escolha do operador.
+    setTurno((atual) => (atual === "" ? escala.turno : atual));
+    setEquipe((atual) => (atual === "" ? escala.equipe : atual));
+  }, [usuario]);
 
   // Selects restritos a combos válidos das ESCALAS (sem turno x equipe inválido).
   const TURNOS_UNICOS = Array.from(new Set(ESCALAS.map((e) => e.turno))) as Turno[];

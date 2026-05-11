@@ -39,10 +39,13 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ESCALAS, ESCALAS_AGRUPADAS } from "@/lib/operacao/escalas";
 import {
   Table,
   TableBody,
@@ -612,8 +615,13 @@ function UsuarioFormDialog({
   const [perfil, setPerfil] = useState<Perfil>("operador");
   const [hierarquia, setHierarquia] = useState<Hierarquia>("operador");
   const [modulos, setModulos] = useState<ModuloAcesso[]>(["operador"]);
-  const [equipePadrao, setEquipePadrao] = useState<string>("");
-  const [turnoPadrao, setTurnoPadrao] = useState<string>("");
+  // Escala padrão estruturada (id de ESCALAS) — "" significa "sem escala fixa".
+  const [escalaIdSel, setEscalaIdSel] = useState<string>("");
+  // Quando edição traz combo padrão que NÃO bate com nenhuma escala oficial.
+  const [padraoInvalido, setPadraoInvalido] = useState<{
+    equipe: string | null;
+    turno: string | null;
+  } | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -629,8 +637,24 @@ function UsuarioFormDialog({
       setPerfil(editando.perfil);
       setHierarquia(editando.hierarquia);
       setModulos(editando.modulos_acesso);
-      setEquipePadrao(editando.equipe_padrao ?? "");
-      setTurnoPadrao(editando.turno_padrao ?? "");
+      const eq = editando.equipe_padrao;
+      const tn = editando.turno_padrao;
+      if (eq && tn) {
+        const escala = ESCALAS.find((e) => e.equipe === eq && e.turno === tn);
+        if (escala) {
+          setEscalaIdSel(escala.id);
+          setPadraoInvalido(null);
+        } else {
+          setEscalaIdSel("");
+          setPadraoInvalido({ equipe: eq, turno: tn });
+        }
+      } else if (eq || tn) {
+        setEscalaIdSel("");
+        setPadraoInvalido({ equipe: eq, turno: tn });
+      } else {
+        setEscalaIdSel("");
+        setPadraoInvalido(null);
+      }
     } else {
       setNome("");
       setLogin("");
@@ -640,8 +664,8 @@ function UsuarioFormDialog({
       setPerfil("operador");
       setHierarquia("operador");
       setModulos(["operador"]);
-      setEquipePadrao("");
-      setTurnoPadrao("");
+      setEscalaIdSel("");
+      setPadraoInvalido(null);
     }
     setErro(null);
   }, [aberto, editando]);
@@ -690,8 +714,12 @@ function UsuarioFormDialog({
     setSalvando(true);
     try {
       const matriculaTrim = matricula.trim() || null;
-      const equipeTrim = equipePadrao.trim() || null;
-      const turnoTrim = turnoPadrao.trim() || null;
+      // Deriva equipe/turno padrão da escala selecionada (única fonte de verdade).
+      const escalaSel = escalaIdSel
+        ? ESCALAS.find((e) => e.id === escalaIdSel) ?? null
+        : null;
+      const equipeTrim = escalaSel ? escalaSel.equipe : null;
+      const turnoTrim = escalaSel ? escalaSel.turno : null;
 
       if (isEdit && editando) {
         const res = await editarUsuario({
@@ -900,27 +928,54 @@ function UsuarioFormDialog({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <Label htmlFor="equipe">Equipe padrão</Label>
-              <Input
-                id="equipe"
-                value={equipePadrao}
-                onChange={(e) => setEquipePadrao(e.target.value)}
-                placeholder="Ex.: Karolainny"
-                disabled={salvando}
-              />
-            </div>
-            <div>
-              <Label htmlFor="turno">Turno padrão</Label>
-              <Input
-                id="turno"
-                value={turnoPadrao}
-                onChange={(e) => setTurnoPadrao(e.target.value)}
-                placeholder="Ex.: 12x36 Dia"
-                disabled={salvando}
-              />
-            </div>
+          <div>
+            <Label htmlFor="escala-padrao">Escala padrão</Label>
+            <Select
+              value={escalaIdSel === "" ? "__sem__" : escalaIdSel}
+              onValueChange={(v) => setEscalaIdSel(v === "__sem__" ? "" : v)}
+              disabled={salvando}
+            >
+              <SelectTrigger id="escala-padrao">
+                <SelectValue placeholder="Selecione a escala padrão" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__sem__">
+                  Sem escala fixa (extra/cobertura)
+                </SelectItem>
+                {ESCALAS_AGRUPADAS.map((grupo) => (
+                  <SelectGroup key={grupo.grupo}>
+                    <SelectLabel>{grupo.grupo}</SelectLabel>
+                    {grupo.escalas.map((esc) => (
+                      <SelectItem key={esc.id} value={esc.id}>
+                        {esc.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            {padraoInvalido && (
+              <p className="mt-1 rounded-md border border-warning/40 bg-warning-soft px-2.5 py-1.5 text-xs text-warning-foreground">
+                O padrão atual no banco (
+                <span className="font-mono font-semibold">
+                  {padraoInvalido.equipe ?? "—"} · {padraoInvalido.turno ?? "—"}
+                </span>
+                ) não é uma escala oficial. Selecione uma escala válida ou
+                deixe como “Sem escala fixa”.
+              </p>
+            )}
+            {!padraoInvalido && perfil === "operador" && escalaIdSel === "" && (
+              <p className="mt-1 rounded-md border border-warning/40 bg-warning-soft px-2.5 py-1.5 text-xs text-warning-foreground">
+                Operadores sem escala fixa precisarão definir o turno do dia
+                manualmente na tela inicial — senão o checklist de limpeza e
+                PTP não aparecem.
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Define o turno e a equipe que o operador trabalha por padrão.
+              O operador ainda pode marcar um “turno do dia” diferente quando
+              cobrir extra.
+            </p>
           </div>
 
           {erro && (

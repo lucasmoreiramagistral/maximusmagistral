@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   insertItEvento,
   insertItSessao,
@@ -127,6 +128,8 @@ export function useItTelemetria(
 
   const usuario = useUsuario();
   const { enfileirar } = useOfflineQueue();
+  // Usa o Turno Ativo do dia (cobre extra/cobertura), não o padrão do cadastro.
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
 
   const sessaoRef = useRef<SessaoIt | null>(null);
   const paginaAtualRef = useRef<number | null>(null);
@@ -152,21 +155,21 @@ export function useItTelemetria(
     data_operacional: null,
   });
 
-  // Contexto = sempre derivado do usuário autenticado.
-  // Não há mais nome digitado nem confirmação manual.
+  // Contexto = derivado do usuário autenticado + Turno Ativo do dia.
+  // Reflete o que o operador está EXECUTANDO (cobre extra), não o cadastro.
   useEffect(() => {
     contextoRef.current = {
       user_id: usuario?.userId ?? null,
       operador_nome: usuario?.nome ?? null,
       perfil: usuario?.perfil ?? null,
-      equipe: usuario?.equipePadrao ?? null,
-      turno: usuario?.turnoPadrao ?? null,
+      equipe: turnoAtivo.equipe ?? null,
+      turno: turnoAtivo.turno ?? null,
       data_operacional:
-        usuario?.equipePadrao && usuario?.turnoPadrao
-          ? calcularDataOperacional(usuario.equipePadrao, usuario.turnoPadrao)
+        turnoAtivo.equipe && turnoAtivo.turno
+          ? calcularDataOperacional(turnoAtivo.equipe, turnoAtivo.turno)
           : null,
     };
-  }, [usuario]);
+  }, [usuario, turnoAtivo]);
 
   const registrarEvento = useCallback(
     (tipo: TipoEventoIt, extras?: Partial<EventoIt>) => {

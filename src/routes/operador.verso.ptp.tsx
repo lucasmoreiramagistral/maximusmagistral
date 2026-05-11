@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { Clock, AlertCircle, CheckCircle2, MinusCircle } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -57,13 +58,16 @@ function PtpListaPage() {
           voltarPara="/operador"
         />
         <main className="mx-auto w-full max-w-[800px] px-4 py-10 md:py-16">
-          <div className="rounded-2xl border-2 border-warning/40 bg-warning/10 p-6 text-center">
+          <div className="rounded-2xl border-2 border-warning/40 bg-warning/10 p-6 text-center md:p-8">
             <p className="text-base font-bold text-foreground md:text-lg">
-              Defina seu turno do dia na tela inicial.
+              Defina seu turno do dia para abrir o PTP
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               Sem turno definido, não é possível listar as janelas PTP.
             </p>
+            <Button asChild className="mt-4 h-12 px-6 text-base font-semibold">
+              <Link to="/operador">Definir turno do dia agora</Link>
+            </Button>
           </div>
         </main>
       </div>

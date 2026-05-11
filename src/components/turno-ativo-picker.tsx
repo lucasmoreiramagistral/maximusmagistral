@@ -40,6 +40,8 @@ interface TurnoAtivoPickerProps {
   ativo: TurnoAtivoResolved;
   /** Quantos registros existem no turno corrente (PTP + limpeza). */
   registrosNoTurnoAtual: number;
+  /** Quando true, o picker já abre em modo edição automaticamente. */
+  autoEditar?: boolean;
 }
 
 const TURNOS_UNICOS: Turno[] = Array.from(
@@ -55,8 +57,9 @@ export function TurnoAtivoPicker({
   usuario,
   ativo,
   registrosNoTurnoAtual,
+  autoEditar = false,
 }: TurnoAtivoPickerProps) {
-  const [editando, setEditando] = useState(false);
+  const [editando, setEditando] = useState(autoEditar);
   const [turnoSel, setTurnoSel] = useState<Turno | null>(ativo.turno);
   const [equipeSel, setEquipeSel] = useState<Equipe | null>(ativo.equipe);
   const [pendente, setPendente] = useState<

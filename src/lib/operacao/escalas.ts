@@ -158,6 +158,19 @@ export const ESCALAS_AGRUPADAS: ReadonlyArray<{
 // ---------- HELPERS ----------
 
 /**
+ * Match EXATO turno+equipe — sem fallback de legado.
+ * Use quando precisar GARANTIR que a combinação é uma das 8 escalas oficiais
+ * (cadastro de operador, validação de turno ativo, etc).
+ */
+export function escalaExataPorTurnoEquipe(
+  turno: Turno | null | undefined,
+  equipe: Equipe | null | undefined,
+): Escala | null {
+  if (!turno || !equipe) return null;
+  return ESCALAS.find((e) => e.turno === turno && e.equipe === equipe) ?? null;
+}
+
+/**
  * Localiza a escala pela combinação turno+equipe.
  *
  * Tem FALLBACK de legado: para registros antigos com equipe "A"/"B"/etc

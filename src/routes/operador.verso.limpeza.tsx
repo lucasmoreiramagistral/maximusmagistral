@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clock } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
@@ -143,8 +143,16 @@ function LimpezaPage() {
             );
           })}
           {!turnoLogado && (
-            <div className="col-span-full rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              Defina seu turno do dia na tela inicial para preencher a limpeza.
+            <div className="col-span-full rounded-2xl border-2 border-warning/40 bg-warning/10 p-5 text-center md:p-6">
+              <p className="text-base font-bold text-foreground md:text-lg">
+                Defina seu turno do dia para preencher a limpeza
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Sem turno definido, não dá para abrir o checklist de limpeza.
+              </p>
+              <Button asChild className="mt-4 h-12 px-6 text-base font-semibold">
+                <Link to="/operador">Definir turno do dia agora</Link>
+              </Button>
             </div>
           )}
         </div>

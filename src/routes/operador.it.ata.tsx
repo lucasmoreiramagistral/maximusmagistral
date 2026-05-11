@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ClipboardCheck, Droplets, Loader2, Settings2 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { SignaturePad } from "@/components/signature-pad";
 import { useGuard } from "@/hooks/use-guard";
 import { useUsuario } from "@/hooks/use-storage";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import { toast } from "sonner";
 import {
   REGEX_NOME_COMPLETO,
@@ -63,13 +64,22 @@ function AtaTreinamentoPage() {
   const { usuario, loading } = useGuard("operador");
   const navigate = useNavigate();
 
+  // Turno ATIVO do dia (cobre extra/cobertura), não o padrão do cadastro.
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+
   const [doc, setDoc] = useState<AtaDocumento | null>(null);
   const [nome, setNome] = useState("");
-  const [turno, setTurno] = useState<string>(usuario?.turnoPadrao ?? "");
+  const [turno, setTurno] = useState<string>(turnoAtivo.turno ?? "");
   const [instrutor, setInstrutor] = useState("");
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [tocou, setTocou] = useState({ nome: false, instrutor: false });
+
+  // Sincroniza turno com o Turno Ativo do dia (cobre quando o operador
+  // define/altera o turno após esta tela ter montado).
+  useEffect(() => {
+    if (!turno && turnoAtivo.turno) setTurno(turnoAtivo.turno);
+  }, [turnoAtivo.turno, turno]);
 
   const nomeLimpo = useMemo(
     () => nome.trim().replace(/\s+/g, " "),
@@ -149,7 +159,7 @@ function AtaTreinamentoPage() {
         operadorNome: nomeLimpo,
         operadorUserId: usuario?.userId ?? null,
         turno,
-        equipe: usuario?.equipePadrao ?? null,
+        equipe: turnoAtivo.equipe ?? null,
         instrutorNome: instrutorLimpo,
         instrutorAssinatura: assinatura!,
         deviceId,

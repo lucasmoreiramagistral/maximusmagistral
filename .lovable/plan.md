@@ -1,71 +1,66 @@
-## Versão final — fechada para implementação
+## Plano final — cadastro de operador × checklists (zero divergência)
 
-Reli o plano contra todos os fluxos: SSR, offline, conflito de versão, mappers, eventos de storage, hidratação, troca de turno meio do dia, virada de data operacional, tablet compartilhado. Abaixo está o que muda, o que **não** muda, as 3 sutilezas extras que descobri nesta passada e a checklist de verificação.
+### Problemas identificados (5)
 
-### O que está sólido e fica intocado
+| # | Onde | Problema |
+|---|---|---|
+| 1 | `gestao.usuarios.tsx` (905–923) | `Input` texto livre em Equipe/Turno padrão — gestor digita "Manhã"/"Carol" e salva combo inválido |
+| 2 | `usuarios.functions.ts` | Schema `z.string()` aceita qualquer coisa no servidor |
+| 3 | `operador.contexto.tsx` (47/50) | Pré-seleciona padrão sem validar combo |
+| 4 | `operador.it.ata.tsx` + `use-it-telemetria.ts` | Leem padrão direto, ignoram Turno Ativo (operador em extra abre com turno errado) |
+| 5 | `gestao.it-analytics.tsx` (737) | Mostra `equipe_padrao · turno_padrao` cru, mascara cadastros corrompidos |
 
-- ID determinístico (`ptp-${data}-${codigo}` e `limp-${data}-${turno}`): uma row por janela/turno do dia para todos os operadores. Sem duplicação.
-- `folhaDiaKey` fixa (Linha 3 / Enchedora 3): folha do dia única.
-- `ConflitoVersaoError` via `expectedUpdatedAt`: bloqueia sobrescrita silenciosa quando outro login alterou a mesma janela.
-- `janelasPtpDaEscala` cobre os 6 regimes corretamente (janela parcial conta).
-- `calcularDataOperacional` com folga de 10 min para turnos atravessando meia-noite.
-- Auditoria em `ptp_janelas_edicoes` / `limpeza_turnos_edicoes`.
-- Fila offline em `usePtpJanelas`/`useLimpezaTurnos`: o payload já carrega o `id` final, então mudar o turno depois não corrompe a fila.
+### Solução
 
-### Bug raiz (confirmado em 5 telas)
+**A. Cadastro com Select estruturado** (`gestao.usuarios.tsx`)
+- Trocar 2 `Input` por **um único** `Select` "Escala padrão" usando `ESCALAS_AGRUPADAS` (12x36 / Administrativo / Turno fixo).
+- Item: `value=id`, label "Karolainny · 12x36 Dia".
+- Primeira opção: **"Sem escala fixa (extra/cobertura)"**.
+- Edição com padrão inválido: pré-seleciona "Sem escala fixa" + aviso amarelo "Padrão atual (X·Y) não é uma escala oficial".
+- `perfil=operador` + sem escala fixa: aviso "operadores sem escala fixa precisam definir o turno todo dia".
+- Submit: deriva `equipePadrao/turnoPadrao` do `id` via `ESCALAS.find(...)`.
 
-Todas resolvem turno/equipe direto de `usuario.equipePadrao`/`usuario.turnoPadrao`, ignorando extra/cobertura:
+**B. Validação no servidor** (`usuarios.functions.ts`)
+- `.refine(...)`: ambos nulos OU ambos preenchidos.
+- Handler: se preenchidos, `escalaPorTurnoEquipe` com match exato (sem fallback). Senão `{ ok:false, erro:"Combinação inválida" }`.
 
-| Tela | Sintoma quando o operador está em extra |
-|---|---|
-| `/operador` (home) | Badges "Concluído" e card "Turno concluído" calculados no turno errado |
-| `/operador/verso/ptp` (lista) | Vê janelas do turno errado; sem padrão cai no fallback que mostra **as 12** |
-| `/operador/verso/ptp/$janelaCodigo` | Grava na **data errada** (regra de madrugada do turno padrão) |
-| `/operador/verso/limpeza` | `useEffect` impede selecionar qualquer turno ≠ padrão → bloqueio total |
-| `/operador/validacao-lider` | Líder valida o turno errado e some pendência real |
+**C. UX de operador sem turno**
+- `operador.verso.limpeza.tsx` e `operador.verso.ptp.tsx`: trocar texto "Defina seu turno..." por card destaque com `<Link to="/operador">` e botão "Definir turno do dia agora".
+- `operador.index.tsx`: quando `!ativo.turno && !ativo.temPadrao`, abrir `TurnoAtivoPicker` em modo edição automaticamente.
 
-### Solução — Turno Ativo do Dia (single source of truth)
+**D. Pré-seleção defensiva** (`operador.contexto.tsx`)
+- Validar `escalaPorTurnoEquipe(turnoPadrao, equipePadrao)` antes do `useState`. Se null, iniciar selects vazios.
 
-**1) `src/lib/operacao/turno-ativo.ts` (novo)**
-- `localStorage` por usuário: `fm-turno-ativo:${userId}` = `{ turno, equipe, dataOperacional, gravadoEm }`.
-- Validação ao ler:
-  - Combo precisa formar escala válida (`escalaPorTurnoEquipe` retorna não-nulo).
-  - Recalcula `calcularDataOperacional(turno, equipe)`; se ≠ ao gravado, descarta (não arrasta extra de ontem).
-- Fallback: padrão do cadastro.
-- Evento `fm-turno-ativo-update` (custom event) + `storage` event para cross-tab.
-- Hook `useTurnoAtivoDoDia(usuario)` com `useSyncExternalStore` + `getServerSnapshot` retornando o padrão → SSR-safe, sem hydration mismatch.
-- Retorna `{ turno, equipe, data, ehExtra }`.
+**E. Telas que ainda usam padrão direto**
+- `operador.it.ata.tsx`: trocar `usuario?.turnoPadrao/equipePadrao` por `useTurnoAtivoDoDia(usuario)`.
+- `use-it-telemetria.ts`: idem — telemetria reflete o que executa.
+- `gestao.it-analytics.tsx`: usar `escalaPorTurnoEquipe(...)?.label`; senão badge `inválido`.
 
-**2) `src/components/turno-ativo-picker.tsx` (novo)**
-- Selects encadeados (turno → equipes válidas daquele turno) populados a partir de `ESCALAS`. Sem combos inválidos.
-- Botão "Voltar ao padrão" (limpa o ativo).
-- **Modal de confirmação** quando o turno corrente já tem janelas PTP ou limpeza preenchidas: "Você tem registros no turno atual. Trocar leva você para outra folha do dia. Confirmar?" — usa os dados que a home já carrega via `usePtpJanelas`/`useLimpezaTurnos`, sem query nova.
+**F. Auditoria pós-deploy** (sem código)
+```sql
+SELECT id, nome, perfil, equipe_padrao, turno_padrao FROM profiles
+WHERE (equipe_padrao IS NOT NULL OR turno_padrao IS NOT NULL) AND active = true;
+```
+Comparar com as 8 escalas e corrigir cadastros legados.
 
-**3) Substituições mínimas nas 5 telas**
-- `/operador`: usa o hook; renderiza o picker no topo; chip "EXTRA" no card de boas-vindas quando `ehExtra`.
-- `/operador/verso/ptp` (lista e detalhe): usa o hook; remove o fallback que mostra 12 janelas — sem turno/equipe resolvido, mostra card "Defina seu turno do dia na tela inicial". Chip "EXTRA" no `AppHeader` quando aplicável.
-- `/operador/verso/limpeza`: usa o hook; a proteção interna passa a comparar com o ativo, não com o padrão.
-- `/operador/validacao-lider`: usa o hook.
+### Arquivos afetados (9)
+- `src/routes/gestao.usuarios.tsx` (A)
+- `src/lib/usuarios/usuarios.functions.ts` (B)
+- `src/routes/operador.verso.limpeza.tsx` (C)
+- `src/routes/operador.verso.ptp.tsx` (C)
+- `src/routes/operador.index.tsx` (C)
+- `src/routes/operador.contexto.tsx` (D)
+- `src/routes/operador.it.ata.tsx` (E)
+- `src/hooks/use-it-telemetria.ts` (E)
+- `src/routes/gestao.it-analytics.tsx` (E)
 
-**4) `/operador/contexto` continua igual, com 1 linha a mais**
-- Ao clicar em "Continuar", além de gravar `STORAGE_CTX`, grava também o Turno Ativo. Operador que entra direto na frente alinha verso automaticamente.
+### O que NÃO muda
+Schema do banco, `useTurnoAtivoDoDia`, escalas, janelas PTP, ConflitoVersaoError, fila offline, login/useGuard.
 
-### 3 sutilezas extras descobertas nesta passada
-
-1. **`/operador/contexto` permite combos inválidos** (`TODAS_AS_EQUIPES × TODOS_OS_TURNOS`), enquanto o picker novo restringe a `ESCALAS`. Para alinhar, troco também os selects do contexto por escalas válidas. Sem isso, o operador pode gravar um checklist com Bruno+1ºTurno via contexto e o picker recusar a mesma combinação na home — divergência sutil. Custo: ~10 linhas.
-2. **Virada do dia operacional sem evento**: `useSyncExternalStore` não reavalia sozinho se nada dispara o subscribe. O ativo só "expira" quando o usuário recarrega ou troca de tela. Aceitável (já que reset acontece no próximo carregamento), e o botão "Voltar ao padrão" cobre o caso explícito. Não vou colocar timer/poll para evitar complexidade.
-3. **Telas que continuam com padrão (não impactam o bug central)**: `useItTelemetria`, `/operador/it/ata` (apenas defaultValue do select). Mantenho como follow-up — telemetria é informativa e a ata permite editar o turno.
-
-### Plano de verificação
-
-1. Bruno padrão Noite → home → picker "12x36 Dia · Karolainny" → home/PTP/limpeza/validação líder consistentes; chip "EXTRA" visível.
-2. Já com janelas preenchidas no turno corrente → picker dispara modal antes de trocar.
-3. Reload → escolha persiste. Trocar de login no mesmo tablet → ativo de cada login isolado.
-4. Login sem padrão e sem ativo → PTP e limpeza com card de bloqueio (não mostra 12 janelas).
-5. Frente da folha com turno diferente do padrão → grava no ativo; verso acompanha.
-6. Vira o dia operacional → próximo carregamento descarta o ativo automaticamente.
-7. Dois logins na mesma janela → continua coberto por `ConflitoVersaoError`.
-8. Offline: gravar janela em extra → fica na fila com `id` correto; sincroniza certo ao voltar online.
-9. APK Capacitor → 100% web, sem recompilação.
-
-Plano fechado. Pode aprovar para eu implementar.
+### Garantias
+1. Banco nunca mais aceita combo inválido (cliente + servidor).
+2. Operador fixo: limpeza/PTP funcionam sem clique extra.
+3. Operador extra: picker já aberto na home + CTA explícito nas telas internas.
+4. ATA e telemetria refletem turno real.
+5. Gestor enxerga cadastros corrompidos no analytics.
+6. (F) identifica cadastros legados para correção manual.
