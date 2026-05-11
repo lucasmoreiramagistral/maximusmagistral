@@ -39,10 +39,13 @@ import {
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ESCALAS, ESCALAS_AGRUPADAS } from "@/lib/operacao/escalas";
 import {
   Table,
   TableBody,
