@@ -15,7 +15,7 @@ import { useGuard } from "@/hooks/use-guard";
 import { storage } from "@/lib/checklist/storage";
 import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
-import { ESCALAS, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { ESCALAS, escalaExataPorTurnoEquipe, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
 import { setTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 
 const calcularDataFolha = calcularDataOperacional;
