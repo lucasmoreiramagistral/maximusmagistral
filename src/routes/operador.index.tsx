@@ -199,6 +199,7 @@ function OperadorHome() {
         <TurnoAtivoPicker
           usuario={usuario}
           ativo={turnoAtivo}
+          autoEditar={!turnoAtivo.turno}
           registrosNoTurnoAtual={
             ptp.janelas.filter(
               (j) =>
