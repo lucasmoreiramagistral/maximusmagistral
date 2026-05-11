@@ -19,6 +19,8 @@ import { useRascunho, useChecklists } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { usePtpJanelas } from "@/hooks/use-ptp-janelas";
 import { useLimpezaTurnos } from "@/hooks/use-limpeza-turnos";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
+import { TurnoAtivoPicker } from "@/components/turno-ativo-picker";
 import { storage, buildFolhaKey } from "@/lib/checklist/storage";
 import { formatarDataHora } from "@/lib/checklist/format";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
