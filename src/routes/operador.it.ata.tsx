@@ -16,6 +16,7 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { SignaturePad } from "@/components/signature-pad";
 import { useGuard } from "@/hooks/use-guard";
 import { useUsuario } from "@/hooks/use-storage";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import { toast } from "sonner";
 import {
   REGEX_NOME_COMPLETO,
