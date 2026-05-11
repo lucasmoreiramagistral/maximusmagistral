@@ -6,9 +6,9 @@ import { useGuard } from "@/hooks/use-guard";
 import { usePtpJanelas } from "@/hooks/use-ptp-janelas";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   LABEL_PTP_STATUS,
   janelasPtpDoTurno,
@@ -34,9 +34,10 @@ function PtpLayout() {
 
 function PtpListaPage() {
   const { usuario, loading } = useGuard("operador");
-  const equipe = usuario?.equipePadrao ?? null;
-  const turno = usuario?.turnoPadrao ?? null;
-  const data = calcularDataOperacional(equipe, turno);
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+  const equipe = turnoAtivo.equipe;
+  const turno = turnoAtivo.turno;
+  const data = turnoAtivo.data;
   const folhaDiaKey = buildFolhaDiaKey(
     data,
     VERSO_CONTEXTO_FIXO.linha,
@@ -46,17 +47,40 @@ function PtpListaPage() {
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
+  // Sem turno+equipe resolvidos, exigir definição na tela inicial.
+  if (!turno || !equipe) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader
+          titulo="PTP Garrafas"
+          subtitulo="Defina seu turno do dia"
+          voltarPara="/operador"
+        />
+        <main className="mx-auto w-full max-w-[800px] px-4 py-10 md:py-16">
+          <div className="rounded-2xl border-2 border-warning/40 bg-warning/10 p-6 text-center">
+            <p className="text-base font-bold text-foreground md:text-lg">
+              Defina seu turno do dia na tela inicial.
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Sem turno definido, não é possível listar as janelas PTP.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   // Filtra janelas pelo HORÁRIO REAL da escala (turno+equipe).
   const codigosDoTurno = janelasPtpDoTurno(turno, equipe as never);
-  const janelasVisiveis = codigosDoTurno.length
-    ? janelas.filter((j) => codigosDoTurno.includes(j.janelaCodigo))
-    : janelas;
+  const janelasVisiveis = janelas.filter((j) =>
+    codigosDoTurno.includes(j.janelaCodigo),
+  );
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="PTP Garrafas"
-        subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno ?? "—"}`}
+        subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno}${turnoAtivo.ehExtra ? " · EXTRA" : ""}`}
         voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">

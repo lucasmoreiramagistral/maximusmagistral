@@ -12,9 +12,9 @@ import { useGuard } from "@/hooks/use-guard";
 import { useLimpezaTurnos } from "@/hooks/use-limpeza-turnos";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   LABEL_LIMPEZA_ITEM_STATUS,
   LABEL_LIMPEZA_STATUS,
@@ -38,9 +38,9 @@ export const Route = createFileRoute("/operador/verso/limpeza")({
 
 function LimpezaPage() {
   const { usuario, loading } = useGuard("operador");
-  const equipe = usuario?.equipePadrao ?? null;
-  const turnoLogado = usuario?.turnoPadrao ?? null;
-  const data = calcularDataOperacional(equipe, turnoLogado);
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+  const turnoLogado = turnoAtivo.turno;
+  const data = turnoAtivo.data;
   const folhaDiaKey = buildFolhaDiaKey(
     data,
     VERSO_CONTEXTO_FIXO.linha,
@@ -53,7 +53,7 @@ function LimpezaPage() {
 
   const [turnoSelecionado, setTurnoSelecionado] = useState<Turno | null>(null);
 
-  // Proteção: se de algum jeito for setado um turno diferente do logado,
+  // Proteção: se de algum jeito for setado um turno diferente do ativo,
   // limpa a seleção. (Defesa em profundidade — os botões já bloqueiam.)
   useEffect(() => {
     if (turnoSelecionado && turnoLogado && turnoSelecionado !== turnoLogado) {
@@ -144,7 +144,7 @@ function LimpezaPage() {
           })}
           {!turnoLogado && (
             <div className="col-span-full rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-              Seu usuário não tem turno definido. Fale com o administrador.
+              Defina seu turno do dia na tela inicial para preencher a limpeza.
             </div>
           )}
         </div>

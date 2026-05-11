@@ -15,7 +15,8 @@ import { useGuard } from "@/hooks/use-guard";
 import { storage } from "@/lib/checklist/storage";
 import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
-import { TODAS_AS_EQUIPES, TODOS_OS_TURNOS } from "@/lib/operacao/listas";
+import { ESCALAS, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { setTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 
 const calcularDataFolha = calcularDataOperacional;
 
@@ -49,14 +50,27 @@ function ContextoPage() {
     (usuario?.equipePadrao as Equipe | undefined) ?? "",
   );
 
+  // Selects restritos a combos válidos das ESCALAS (sem turno x equipe inválido).
+  const TURNOS_UNICOS = Array.from(new Set(ESCALAS.map((e) => e.turno))) as Turno[];
+  const equipesValidas: Equipe[] = turno
+    ? (ESCALAS.filter((e) => e.turno === turno).map((e) => e.equipe) as Equipe[])
+    : [];
+
+  // Combo válido?
+  const comboValido = !!turno && !!equipe && !!escalaPorTurnoEquipe(turno, equipe);
+
   // Data calculada automaticamente a partir do turno/equipe selecionados.
-  const data = turno && equipe ? calcularDataFolha(equipe, turno) : "";
+  const data = comboValido ? calcularDataFolha(equipe, turno) : "";
 
   if (loading || !usuario) return <TelaCarregando />;
 
   const continuar = () => {
     if (!turno || !equipe) {
       setErro("Selecione turno e equipe para continuar.");
+      return;
+    }
+    if (!comboValido) {
+      setErro("Combinação de turno e equipe inválida. Escolha uma escala válida.");
       return;
     }
     const ctx: ContextoChecklist = {
@@ -81,6 +95,9 @@ function ContextoPage() {
         );
       }
     }
+    // Alinha o "Turno Ativo do Dia" com o contexto escolhido na frente —
+    // assim o verso (PTP/limpeza/validação) acompanha automaticamente.
+    setTurnoAtivoDoDia(usuario, { turno, equipe });
     storage.clearRascunho();
     navigate({ to: "/operador/momento" });
   };
@@ -107,7 +124,17 @@ function ContextoPage() {
               <Select
                 value={turno}
                 onValueChange={(v) => {
-                  setTurno(v as Turno);
+                  const novoTurno = v as Turno;
+                  setTurno(novoTurno);
+                  // Se equipe atual não pertence à nova lista de escalas, reseta.
+                  const novasEquipes = ESCALAS.filter(
+                    (e) => e.turno === novoTurno,
+                  ).map((e) => e.equipe) as Equipe[];
+                  if (equipe && !novasEquipes.includes(equipe)) {
+                    setEquipe(novasEquipes[0] ?? "");
+                  } else if (!equipe && novasEquipes.length === 1) {
+                    setEquipe(novasEquipes[0]);
+                  }
                   if (erro) setErro("");
                 }}
               >
@@ -115,7 +142,7 @@ function ContextoPage() {
                   <SelectValue placeholder="Selecione o turno" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TODOS_OS_TURNOS.map((t) => (
+                  {TURNOS_UNICOS.map((t) => (
                     <SelectItem key={t} value={t} className="text-base">
                       {t}
                     </SelectItem>
@@ -134,12 +161,13 @@ function ContextoPage() {
                   setEquipe(v as Equipe);
                   if (erro) setErro("");
                 }}
+                disabled={!turno}
               >
                 <SelectTrigger id="equipe-select" className="mt-1.5 h-12 text-base font-semibold">
-                  <SelectValue placeholder="Selecione a equipe" />
+                  <SelectValue placeholder={turno ? "Selecione a equipe" : "Escolha o turno antes"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TODAS_AS_EQUIPES.map((e) => (
+                  {equipesValidas.map((e) => (
                     <SelectItem key={e} value={e} className="text-base">
                       {e}
                     </SelectItem>
