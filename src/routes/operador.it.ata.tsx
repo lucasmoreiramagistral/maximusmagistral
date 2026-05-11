@@ -75,6 +75,12 @@ function AtaTreinamentoPage() {
   const [salvando, setSalvando] = useState(false);
   const [tocou, setTocou] = useState({ nome: false, instrutor: false });
 
+  // Sincroniza turno com o Turno Ativo do dia (cobre quando o operador
+  // define/altera o turno após esta tela ter montado).
+  useEffect(() => {
+    if (!turno && turnoAtivo.turno) setTurno(turnoAtivo.turno);
+  }, [turnoAtivo.turno, turno]);
+
   const nomeLimpo = useMemo(
     () => nome.trim().replace(/\s+/g, " "),
     [nome],
