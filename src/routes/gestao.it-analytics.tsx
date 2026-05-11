@@ -15,6 +15,8 @@ import {
   Users,
   ZoomIn,
 } from "lucide-react";
+import { escalaExataPorTurnoEquipe } from "@/lib/operacao/escalas";
+import type { Equipe, Turno } from "@/lib/checklist/types";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import {
