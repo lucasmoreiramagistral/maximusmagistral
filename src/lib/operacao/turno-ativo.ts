@@ -15,8 +15,14 @@
 
 import { useSyncExternalStore } from "react";
 import type { Equipe, Turno, Usuario } from "@/lib/checklist/types";
-import { escalaPorTurnoEquipe } from "./escalas";
+import { ESCALAS, escalaPorTurnoEquipe } from "./escalas";
 import { calcularDataOperacional } from "./data-operacional";
+
+/** Match EXATO turno+equipe — sem fallback de legado.
+ *  Usado no Turno Ativo para impedir combos inválidos como Bruno+1ºTurno. */
+function comboValidoExato(turno: Turno, equipe: Equipe): boolean {
+  return ESCALAS.some((e) => e.turno === turno && e.equipe === equipe);
+}
 
 const KEY_PREFIX = "fm-turno-ativo:";
 export const TURNO_ATIVO_EVENT = "fm-turno-ativo-update";
