@@ -308,6 +308,11 @@ export const editarUsuario = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
 
+    const erroEscala = validarEscalaPadrao(data.equipePadrao, data.turnoPadrao);
+    if (erroEscala) {
+      return { ok: false as const, erro: erroEscala };
+    }
+
     // Carrega login/email atuais para decidir se precisa mexer no auth.
     const { data: alvo, error: lookupErr } = await supabaseAdmin
       .from("profiles")
