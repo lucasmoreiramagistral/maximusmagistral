@@ -22,9 +22,9 @@ import { storage, buildFolhaKey } from "@/lib/checklist/storage";
 import { upsertChecklist } from "@/lib/checklist/supabase-storage";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import { formatarDataHora } from "@/lib/checklist/format";
 import type {
