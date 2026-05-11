@@ -36,6 +36,7 @@ interface UseLimpezaResult {
 export function useLimpezaTurnos(
   folhaDiaKey: string,
   dataOperacao: string,
+  operadorUserId?: string | null,
 ): UseLimpezaResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
@@ -57,7 +58,7 @@ export function useLimpezaTurnos(
       setTurnos(local);
 
       if (isOnline) {
-        const remotos = await fetchLimpezaTurnos(folhaDiaKey);
+        const remotos = await fetchLimpezaTurnos(folhaDiaKey, operadorUserId);
         setTurnos(remotos);
         versoStorage.bulkSetLimpezaTurnos(folhaDiaKey, remotos);
       }
@@ -67,7 +68,7 @@ export function useLimpezaTurnos(
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, isOnline]);
+  }, [folhaDiaKey, isOnline, operadorUserId]);
 
   useEffect(() => {
     void refetch();

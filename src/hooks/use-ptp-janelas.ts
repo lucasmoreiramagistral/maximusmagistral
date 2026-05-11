@@ -38,7 +38,11 @@ interface UsePtpResult {
  * - se offline: usa estado local
  * - salvar: tenta upsert online; se falhar, enfileira via fila offline
  */
-export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtpResult {
+export function usePtpJanelas(
+  folhaDiaKey: string,
+  dataOperacao: string,
+  operadorUserId?: string | null,
+): UsePtpResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
   const [janelas, setJanelas] = useState<PtpJanela[]>([]);
@@ -69,7 +73,7 @@ export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtp
         setJanelas(mergeWithDefaults([]));
       }
       if (isOnline) {
-        const remotos = await fetchPtpJanelas(folhaDiaKey);
+        const remotos = await fetchPtpJanelas(folhaDiaKey, operadorUserId);
         const merged = mergeWithDefaults(remotos);
         setJanelas(merged);
         versoStorage.bulkSetPtpJanelas(folhaDiaKey, remotos);
@@ -80,7 +84,7 @@ export function usePtpJanelas(folhaDiaKey: string, dataOperacao: string): UsePtp
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, isOnline, mergeWithDefaults]);
+  }, [folhaDiaKey, isOnline, mergeWithDefaults, operadorUserId]);
 
   useEffect(() => {
     void refetch();
