@@ -64,9 +64,12 @@ function AtaTreinamentoPage() {
   const { usuario, loading } = useGuard("operador");
   const navigate = useNavigate();
 
+  // Turno ATIVO do dia (cobre extra/cobertura), não o padrão do cadastro.
+  const turnoAtivo = useTurnoAtivoDoDia(usuario);
+
   const [doc, setDoc] = useState<AtaDocumento | null>(null);
   const [nome, setNome] = useState("");
-  const [turno, setTurno] = useState<string>(usuario?.turnoPadrao ?? "");
+  const [turno, setTurno] = useState<string>(turnoAtivo.turno ?? "");
   const [instrutor, setInstrutor] = useState("");
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
