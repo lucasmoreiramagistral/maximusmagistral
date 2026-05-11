@@ -1,4 +1,5 @@
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
+import { Button } from "@/components/ui/button";
 import { Clock, AlertCircle, CheckCircle2, MinusCircle } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
