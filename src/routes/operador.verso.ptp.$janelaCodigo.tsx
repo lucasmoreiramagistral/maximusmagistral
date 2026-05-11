@@ -13,9 +13,9 @@ import { useGuard } from "@/hooks/use-guard";
 import { usePtpJanelas } from "@/hooks/use-ptp-janelas";
 import {
   buildFolhaDiaKey,
-  calcularDataOperacional,
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   VERSO_CONTEXTO_FIXO,
   criarAnaliseAnguloVazia,
