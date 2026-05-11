@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useUsuario } from "@/hooks/use-storage";
 import { useOfflineQueue } from "@/hooks/use-connection-status";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
+import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import {
   insertItEvento,
   insertItSessao,
