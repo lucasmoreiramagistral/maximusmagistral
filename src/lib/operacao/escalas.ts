@@ -244,9 +244,9 @@ export const JANELAS_PTP: ReadonlyArray<JanelaPTP> = [
   { codigo: "J07", inicio: "18:00", fim: "20:00", atravessa: false },
   { codigo: "J08", inicio: "20:00", fim: "22:00", atravessa: false },
   { codigo: "J09", inicio: "22:00", fim: "00:00", atravessa: false },
-  { codigo: "J10", inicio: "00:00", fim: "02:00", atravessa: true },
-  { codigo: "J11", inicio: "02:00", fim: "04:00", atravessa: true },
-  { codigo: "J12", inicio: "04:00", fim: "06:00", atravessa: true },
+  { codigo: "J10", inicio: "00:00", fim: "02:00", atravessa: false },
+  { codigo: "J11", inicio: "02:00", fim: "04:00", atravessa: false },
+  { codigo: "J12", inicio: "04:00", fim: "06:00", atravessa: false },
 ];
 
 function hhmmParaMinutos(hhmm: string): number {
