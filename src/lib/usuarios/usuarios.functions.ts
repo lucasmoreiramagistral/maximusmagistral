@@ -218,6 +218,11 @@ export const criarUsuario = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     await assertAdminGestao(context.userId);
 
+    const erroEscala = validarEscalaPadrao(data.equipePadrao, data.turnoPadrao);
+    if (erroEscala) {
+      return { ok: false as const, erro: erroEscala };
+    }
+
     const usuarioNormalizado = normalizarLogin(data.usuario);
     if (!usuarioNormalizado) {
       return { ok: false as const, erro: "Login inválido após normalização" };
