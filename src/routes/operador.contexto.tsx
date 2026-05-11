@@ -50,14 +50,27 @@ function ContextoPage() {
     (usuario?.equipePadrao as Equipe | undefined) ?? "",
   );
 
+  // Selects restritos a combos válidos das ESCALAS (sem turno x equipe inválido).
+  const TURNOS_UNICOS = Array.from(new Set(ESCALAS.map((e) => e.turno))) as Turno[];
+  const equipesValidas: Equipe[] = turno
+    ? (ESCALAS.filter((e) => e.turno === turno).map((e) => e.equipe) as Equipe[])
+    : [];
+
+  // Combo válido?
+  const comboValido = !!turno && !!equipe && !!escalaPorTurnoEquipe(turno, equipe);
+
   // Data calculada automaticamente a partir do turno/equipe selecionados.
-  const data = turno && equipe ? calcularDataFolha(equipe, turno) : "";
+  const data = comboValido ? calcularDataFolha(equipe, turno) : "";
 
   if (loading || !usuario) return <TelaCarregando />;
 
   const continuar = () => {
     if (!turno || !equipe) {
       setErro("Selecione turno e equipe para continuar.");
+      return;
+    }
+    if (!comboValido) {
+      setErro("Combinação de turno e equipe inválida. Escolha uma escala válida.");
       return;
     }
     const ctx: ContextoChecklist = {
@@ -82,6 +95,9 @@ function ContextoPage() {
         );
       }
     }
+    // Alinha o "Turno Ativo do Dia" com o contexto escolhido na frente —
+    // assim o verso (PTP/limpeza/validação) acompanha automaticamente.
+    setTurnoAtivoDoDia(usuario, { turno, equipe });
     storage.clearRascunho();
     navigate({ to: "/operador/momento" });
   };
