@@ -15,7 +15,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { Equipe, Turno, Usuario } from "@/lib/checklist/types";
-import { ESCALAS, escalaPorTurnoEquipe } from "./escalas";
+import { ESCALAS } from "./escalas";
 import { calcularDataOperacional } from "./data-operacional";
 
 /** Match EXATO turno+equipe — sem fallback de legado.
