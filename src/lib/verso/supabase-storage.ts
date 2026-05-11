@@ -31,11 +31,30 @@ export class ConflitoVersaoError extends Error {
 }
 
 // ─── PTP ─────────────────────────────────────────────────────────────
-export async function fetchPtpJanelas(folhaDiaKey: string): Promise<PtpJanela[]> {
-  const { data, error } = await supabase
+/**
+ * Busca janelas PTP de uma folha do dia.
+ *
+ * - `operadorUserId` informado: filtra estritamente por operador (telas do
+ *   operador — Vitor não enxerga a folha do Valderlan e vice-versa).
+ * - `operadorUserId` ausente: retorna TODAS as janelas do dia/máquina (gestão,
+ *   relatórios, validação líder).
+ *
+ * Regra de negócio: 1 operador por turno. A chave folha_dia_key é compartilhada
+ * por operadores diferentes no mesmo dia/máquina (caso extra/cobertura), por
+ * isso o filtro por `operador_user_id` é obrigatório nas telas operador.
+ */
+export async function fetchPtpJanelas(
+  folhaDiaKey: string,
+  operadorUserId?: string | null,
+): Promise<PtpJanela[]> {
+  let query = supabase
     .from("ptp_janelas" as never)
     .select("*")
     .eq("folha_dia_key", folhaDiaKey);
+  if (operadorUserId) {
+    query = query.eq("operador_user_id", operadorUserId);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error("[fetchPtpJanelas] supabase error:", error);
     throw error;
@@ -94,11 +113,19 @@ export async function insertPtpEdicao(p: PtpEdicaoPayload): Promise<void> {
 }
 
 // ─── Limpeza ─────────────────────────────────────────────────────────
-export async function fetchLimpezaTurnos(folhaDiaKey: string): Promise<LimpezaTurno[]> {
-  const { data, error } = await supabase
+/** Mesma regra de fetchPtpJanelas: filtra por operador quando informado. */
+export async function fetchLimpezaTurnos(
+  folhaDiaKey: string,
+  operadorUserId?: string | null,
+): Promise<LimpezaTurno[]> {
+  let query = supabase
     .from("limpeza_turnos" as never)
     .select("*")
     .eq("folha_dia_key", folhaDiaKey);
+  if (operadorUserId) {
+    query = query.eq("operador_user_id", operadorUserId);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error("[fetchLimpezaTurnos] supabase error:", error);
     throw error;
