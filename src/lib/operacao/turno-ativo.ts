@@ -192,15 +192,19 @@ export function useTurnoAtivoDoDia(
   };
 
   const getServerSnapshot = (): TurnoAtivoResolved => {
+    const cached = snapshotCache.get(ref);
+    if (cached) return cached;
     const padraoTurno = (usuario?.turnoPadrao as Turno | null | undefined) ?? null;
     const padraoEquipe = (usuario?.equipePadrao as Equipe | null | undefined) ?? null;
-    return {
+    const fresh: TurnoAtivoResolved = {
       turno: padraoTurno,
       equipe: padraoEquipe,
       data: calcularDataOperacional(padraoEquipe, padraoTurno),
       ehExtra: false,
       temPadrao: Boolean(padraoTurno && padraoEquipe),
     };
+    snapshotCache.set(ref, fresh);
+    return fresh;
   };
 
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
