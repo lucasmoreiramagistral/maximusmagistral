@@ -159,7 +159,7 @@ function AtaTreinamentoPage() {
         operadorNome: nomeLimpo,
         operadorUserId: usuario?.userId ?? null,
         turno,
-        equipe: usuario?.equipePadrao ?? null,
+        equipe: turnoAtivo.equipe ?? null,
         instrutorNome: instrutorLimpo,
         instrutorAssinatura: assinatura!,
         deviceId,
