@@ -48,7 +48,7 @@ function PtpJanelaDetalhe() {
     VERSO_CONTEXTO_FIXO.maquina,
   );
 
-  const { janelas, salvarJanela } = usePtpJanelas(folhaDiaKey, data);
+  const { janelas, salvarJanela } = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
   const janelaBase = useMemo(
     () => janelas.find((j) => j.janelaCodigo === janelaCodigo),
     [janelas, janelaCodigo],

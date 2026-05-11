@@ -49,6 +49,7 @@ function LimpezaPage() {
   const { turnos, loading: l2, salvarTurno, conflito } = useLimpezaTurnos(
     folhaDiaKey,
     data,
+    usuario?.userId ?? null,
   );
 
   const [turnoSelecionado, setTurnoSelecionado] = useState<Turno | null>(null);
@@ -68,7 +69,7 @@ function LimpezaPage() {
     // cria um registro padrão local em memória para o operador editar.
     const t =
       turnos.find((x) => x.turno === turnoSelecionado) ??
-      createLimpezaTurnoPadrao(folhaDiaKey, data, turnoSelecionado);
+      createLimpezaTurnoPadrao(folhaDiaKey, data, turnoSelecionado, usuario.userId ?? null);
     return (
       <TurnoEditor
         turno={t}

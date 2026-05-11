@@ -31,11 +31,30 @@ export class ConflitoVersaoError extends Error {
 }
 
 // ─── PTP ─────────────────────────────────────────────────────────────
-export async function fetchPtpJanelas(folhaDiaKey: string): Promise<PtpJanela[]> {
-  const { data, error } = await supabase
+/**
+ * Busca janelas PTP de uma folha do dia.
+ *
+ * - `operadorUserId` informado: filtra estritamente por operador (telas do
+ *   operador — Vitor não enxerga a folha do Valderlan e vice-versa).
+ * - `operadorUserId` ausente: retorna TODAS as janelas do dia/máquina (gestão,
+ *   relatórios, validação líder).
+ *
+ * Regra de negócio: 1 operador por turno. A chave folha_dia_key é compartilhada
+ * por operadores diferentes no mesmo dia/máquina (caso extra/cobertura), por
+ * isso o filtro por `operador_user_id` é obrigatório nas telas operador.
+ */
+export async function fetchPtpJanelas(
+  folhaDiaKey: string,
+  operadorUserId?: string | null,
+): Promise<PtpJanela[]> {
+  let query = supabase
     .from("ptp_janelas" as never)
     .select("*")
     .eq("folha_dia_key", folhaDiaKey);
+  if (operadorUserId) {
+    query = query.eq("operador_user_id", operadorUserId);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error("[fetchPtpJanelas] supabase error:", error);
     throw error;
@@ -94,11 +113,19 @@ export async function insertPtpEdicao(p: PtpEdicaoPayload): Promise<void> {
 }
 
 // ─── Limpeza ─────────────────────────────────────────────────────────
-export async function fetchLimpezaTurnos(folhaDiaKey: string): Promise<LimpezaTurno[]> {
-  const { data, error } = await supabase
+/** Mesma regra de fetchPtpJanelas: filtra por operador quando informado. */
+export async function fetchLimpezaTurnos(
+  folhaDiaKey: string,
+  operadorUserId?: string | null,
+): Promise<LimpezaTurno[]> {
+  let query = supabase
     .from("limpeza_turnos" as never)
     .select("*")
     .eq("folha_dia_key", folhaDiaKey);
+  if (operadorUserId) {
+    query = query.eq("operador_user_id", operadorUserId);
+  }
+  const { data, error } = await query;
   if (error) {
     console.error("[fetchLimpezaTurnos] supabase error:", error);
     throw error;
@@ -156,9 +183,21 @@ export async function insertLimpezaEdicao(p: LimpezaEdicaoPayload): Promise<void
 }
 
 // ─── Fábricas (estado default no front) ─────────────────────────────
-export function createPtpJanelasPadrao(folhaDiaKey: string, dataOperacao: string): PtpJanela[] {
+/**
+ * Cria as 12 janelas PTP do dia para um operador específico.
+ *
+ * O `operadorUserId` é incluído no prefixo do `genVersoId` para garantir que
+ * dois operadores diferentes (caso extra/cobertura) gerem IDs distintos —
+ * sem isso, o `upsert(onConflict:"id")` sobrescreve a folha do colega.
+ */
+export function createPtpJanelasPadrao(
+  folhaDiaKey: string,
+  dataOperacao: string,
+  operadorUserId?: string | null,
+): PtpJanela[] {
+  const opSuffix = operadorUserId ? `-op:${operadorUserId}` : "";
   return PTP_JANELAS.map((def) => ({
-    id: genVersoId(`ptp-${dataOperacao}-${def.codigo}`),
+    id: genVersoId(`ptp-${dataOperacao}-${def.codigo}${opSuffix}`),
     folhaDiaKey,
     dataOperacao,
     linha: VERSO_CONTEXTO_FIXO.linha,
@@ -181,14 +220,20 @@ export function createPtpJanelasPadrao(folhaDiaKey: string, dataOperacao: string
  * para todos os turnos da lista fixa. Agora só existe registro de limpeza
  * para o turno em que o operador efetivamente abriu/preencheu — evitando
  * lixo operacional para turnos que não trabalharam naquele dia.
+ *
+ * Inclui `operadorUserId` no id determinístico para que cada operador tenha
+ * sua própria folha de limpeza no mesmo turno/dia (regra "1 operador por
+ * turno", mas blindando o caso extra/cobertura).
  */
 export function createLimpezaTurnoPadrao(
   folhaDiaKey: string,
   dataOperacao: string,
   turno: Turno,
+  operadorUserId?: string | null,
 ): LimpezaTurno {
+  const opSuffix = operadorUserId ? `-op:${operadorUserId}` : "";
   return {
-    id: genVersoId(`limp-${dataOperacao}-${turno.replace(/\s/g, "_")}`),
+    id: genVersoId(`limp-${dataOperacao}-${turno.replace(/\s/g, "_")}${opSuffix}`),
     folhaDiaKey,
     dataOperacao,
     linha: VERSO_CONTEXTO_FIXO.linha,

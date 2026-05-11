@@ -44,7 +44,7 @@ function PtpListaPage() {
     VERSO_CONTEXTO_FIXO.linha,
     VERSO_CONTEXTO_FIXO.maquina,
   );
-  const { janelas, loading: l2, conflito } = usePtpJanelas(folhaDiaKey, data);
+  const { janelas, loading: l2, conflito } = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
