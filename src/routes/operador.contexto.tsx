@@ -42,13 +42,22 @@ function ContextoPage() {
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
-  // Pré-seleção a partir do cadastro (se houver), mas operador pode trocar.
-  const [turno, setTurno] = useState<Turno | "">(
-    (usuario?.turnoPadrao as Turno | undefined) ?? "",
-  );
-  const [equipe, setEquipe] = useState<Equipe | "">(
-    (usuario?.equipePadrao as Equipe | undefined) ?? "",
-  );
+  // Pré-seleção defensiva: só herda padrão do cadastro se ele formar uma
+  // escala oficial (match exato turno+equipe). Combos legados/inválidos
+  // ficam vazios para o operador escolher manualmente.
+  const [turno, setTurno] = useState<Turno | "">("");
+  const [equipe, setEquipe] = useState<Equipe | "">("");
+
+  useEffect(() => {
+    if (!usuario) return;
+    const t = (usuario.turnoPadrao as Turno | null | undefined) ?? null;
+    const e = (usuario.equipePadrao as Equipe | null | undefined) ?? null;
+    const escala = escalaExataPorTurnoEquipe(t, e);
+    if (!escala) return;
+    // Só preenche se ainda estiver vazio — não sobrescreve escolha do operador.
+    setTurno((atual) => (atual === "" ? escala.turno : atual));
+    setEquipe((atual) => (atual === "" ? escala.equipe : atual));
+  }, [usuario]);
 
   // Selects restritos a combos válidos das ESCALAS (sem turno x equipe inválido).
   const TURNOS_UNICOS = Array.from(new Set(ESCALAS.map((e) => e.turno))) as Turno[];
