@@ -5,7 +5,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUsuario } from "@/hooks/use-storage";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { STORAGE_NOME_PREFIX, nomeStorageKey } from "@/routes/operador.contexto";
+
+const FILA_OFFLINE_KEY = "fm-checklist:fila-offline";
+
 
 interface AppHeaderProps {
   titulo: string;
@@ -25,6 +38,8 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
   const navigate = useNavigate();
   const { isOnline, pendingCount, sincronizando } = useConnectionStatus();
   const [nomeOperadorSalvo, setNomeOperadorSalvo] = useState<string>("");
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
+
 
   // Lê o nome do operador salvo no localStorage (por userId) e mantém sincronizado.
   useEffect(() => {
@@ -54,7 +69,7 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
     };
   }, [usuario?.userId]);
 
-  const sair = async () => {
+  const executarSaida = async (descartarFila: boolean) => {
     // Limpa TUDO que é específico do operador/usuário anterior para evitar
     // que o próximo login (em outro usuário) veja rascunhos/checklists/anomalias
     // de quem usou o dispositivo antes.
@@ -63,6 +78,8 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
       for (let i = 0; i < window.localStorage.length; i++) {
         const k = window.localStorage.key(i);
         if (!k) continue;
+        // 🛡️ NUNCA apagar a fila offline a menos que o usuário confirmou perder.
+        if (k === FILA_OFFLINE_KEY && !descartarFila) continue;
         // Nomes de operador digitados (prefixo fm-checklist:nome-operador:*)
         if (k.startsWith(STORAGE_NOME_PREFIX)) keysRemover.push(k);
         // Dados do checklist/anomalias atrelados ao usuário anterior
@@ -73,6 +90,17 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
     await supabase.auth.signOut();
     navigate({ to: "/" });
   };
+
+  const sair = () => {
+    // Bloqueia o logout se houver dados não enviados — protege contra
+    // destruição silenciosa da fila offline.
+    if (pendingCount > 0) {
+      setConfirmandoSaida(true);
+      return;
+    }
+    void executarSaida(false);
+  };
+
 
   // Para operador: mostrar SOMENTE o primeiro nome digitado em "Operador responsável".
   // Se ainda não digitou, deixa vazio (só aparece "Operador" abaixo).
