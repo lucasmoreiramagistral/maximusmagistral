@@ -238,79 +238,55 @@ function Chip({
 
 // ────────────────────────────── PTP grid ─────────────────────────────
 function PtpGrid({
+  codigosDoTurno,
   janelasPorCodigo,
+  turno,
 }: {
+  codigosDoTurno: string[];
   janelasPorCodigo: Map<string, PtpJanela>;
+  turno: Turno;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
       <h3 className="text-base font-bold text-foreground md:text-lg">
-        PTP Garrafas — 12 janelas
+        PTP Garrafas — {codigosDoTurno.length} janelas do turno
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Dia (J01–J06): 06:00 → 18:00 · Noite (J07–J12): 18:00 → 06:00
+        Janelas: {codigosDoTurno.join(", ") || "—"}
       </p>
 
-      <div className="mt-4 space-y-4">
-        {(() => {
-          // Modelo LAZY: derivar turnos com dado a partir das janelas reais.
-          const turnosComDado = Array.from(
-            new Set(
-              Array.from(janelasPorCodigo.values())
-                .map((j) => derivarEscalaDaJanela(j.janelaCodigo)?.turno)
-                .filter((t): t is Turno => Boolean(t)),
-            ),
-          );
-          // Fallback: se não souber inferir turno, mostra "12x36 Dia/Noite"
-          // (compat retroativa com folhas antigas).
-          const turnosRender: Turno[] = turnosComDado.length
-            ? turnosComDado
-            : (["12x36 Dia", "12x36 Noite"] as Turno[]);
-          return turnosRender.map((turno) => {
-            const codigos = Array.from(janelasPorCodigo.values())
-              .filter((j) => {
-                const t = derivarEscalaDaJanela(j.janelaCodigo)?.turno;
-                return t === turno || !t;
-              })
-              .map((j) => j.janelaCodigo);
-            const codigosUnicos = Array.from(new Set(codigos));
-            return (
-              <div key={turno}>
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  {turno}
-                </p>
-                <div className="overflow-hidden rounded-xl border border-border">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2">Janela</th>
-                        <th className="px-3 py-2">Horário</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
-                        <th className="px-3 py-2">Operador</th>
-                        <th className="px-3 py-2">Assinatura</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {codigosUnicos.map((cod: string) => {
-                        const def = PTP_JANELAS.find((d) => d.codigo === cod);
-                        const j = janelasPorCodigo.get(cod);
-                        return (
-                          <PtpRow
-                            key={cod}
-                            codigo={cod}
-                            rotulo={def?.rotulo ?? cod}
-                            janela={j}
-                          />
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          });
-        })()}
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          {turno}
+        </p>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Janela</th>
+                <th className="px-3 py-2">Horário</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
+                <th className="px-3 py-2">Operador</th>
+                <th className="px-3 py-2">Assinatura</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {codigosDoTurno.map((cod) => {
+                const def = PTP_JANELAS.find((d) => d.codigo === cod);
+                const j = janelasPorCodigo.get(cod);
+                return (
+                  <PtpRow
+                    key={cod}
+                    codigo={cod}
+                    rotulo={def?.rotulo ?? cod}
+                    janela={j}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
