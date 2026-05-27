@@ -29,7 +29,7 @@ import {
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
 import { calcularResumoVerso } from "@/lib/verso/resumo";
-import { derivarEscalaDaJanela } from "@/lib/verso/reporting";
+import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
 import {
   useEdicoesVerso,
   type EdicaoVersoLimpeza,
@@ -37,14 +37,16 @@ import {
 } from "@/hooks/use-edicoes-verso";
 import { formatarDataHora } from "@/lib/checklist/format";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
-import type { Turno } from "@/lib/checklist/types";
+import type { Equipe, Turno } from "@/lib/checklist/types";
 
 interface Props {
   folhaDiaKey: string;
   dataOperacao: string;
+  turno: Turno;
+  equipe: Equipe;
 }
 
-export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao }: Props) {
+export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Props) {
   const [janelas, setJanelas] = useState<PtpJanela[]>([]);
   const [turnos, setTurnos] = useState<LimpezaTurno[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,22 +79,42 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao }: Props) {
     };
   }, [folhaDiaKey]);
 
+  // Códigos de janela DESTE turno (ex.: J01..J06 no Dia, J07..J12 na Noite).
+  const codigosDoTurno = useMemo(
+    () => janelasPtpDoTurnoEquipe(turno, equipe),
+    [turno, equipe],
+  );
+
+  // Filtra registros para só este turno.
+  const janelasDoTurno = useMemo(() => {
+    const setCods = new Set(codigosDoTurno);
+    return janelas.filter((j) => setCods.has(j.janelaCodigo));
+  }, [janelas, codigosDoTurno]);
+  const turnosDoTurno = useMemo(
+    () => turnos.filter((t) => t.turno === turno),
+    [turnos, turno],
+  );
+
   const resumo = useMemo(
-    () => calcularResumoVerso({ janelas, turnos }),
-    [janelas, turnos],
+    () =>
+      calcularResumoVerso({
+        janelas: janelasDoTurno,
+        turnos: turnosDoTurno,
+        escopo: { turno, equipe },
+      }),
+    [janelasDoTurno, turnosDoTurno, turno, equipe],
   );
 
   const janelasPorCodigo = useMemo(() => {
     const map = new Map<string, PtpJanela>();
-    for (const j of janelas) map.set(j.janelaCodigo, j);
+    for (const j of janelasDoTurno) map.set(j.janelaCodigo, j);
     return map;
-  }, [janelas]);
+  }, [janelasDoTurno]);
 
-  const turnoPorCodigo = useMemo(() => {
-    const map = new Map<Turno, LimpezaTurno>();
-    for (const t of turnos) map.set(t.turno, t);
-    return map;
-  }, [turnos]);
+  const turnoDado = useMemo(
+    () => turnosDoTurno.find((t) => t.turno === turno),
+    [turnosDoTurno, turno],
+  );
 
   if (loading) {
     return (
