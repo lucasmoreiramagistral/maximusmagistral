@@ -145,6 +145,41 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
           );
         })}
 
+        {ptp.naoPreenchidas > 0 && ptp.registradas > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                className={`inline-flex cursor-help items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${tonClasses("vermelho")}`}
+              >
+                <AlertTriangle className="h-3.5 w-3.5" />
+                {ptp.naoPreenchidas} de {TOTAL_JANELAS} não preenchida
+                {ptp.naoPreenchidas > 1 ? "s" : ""}
+                <Info className="h-3 w-3 opacity-60" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              <p className="text-xs">
+                <strong>Janelas faltantes:</strong>{" "}
+                {ptp.codigosFaltantes.join(", ")}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Operador não chegou a preencher essas janelas. Verifique se
+                houve perda de dados (sem conexão, logout sem enviar).
+              </p>
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {ptp.comAssinaturaCorrupta > 0 && (
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${tonClasses("vermelho")}`}
+            title="Janelas concluídas sem assinatura — corrupção anterior aos CHECK do banco"
+          >
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {ptp.comAssinaturaCorrupta} sem assinatura
+          </span>
+        )}
+
         {limpeza.itensNaoRealizados > 0 && (
           <span
             className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${tonClasses("vermelho")}`}
@@ -156,6 +191,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
               : "itens não realizados"}
           </span>
         )}
+
       </div>
     </TooltipProvider>
   );
