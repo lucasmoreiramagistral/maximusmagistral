@@ -174,12 +174,23 @@ export function useLimpezaTurnos(
           setConflito(true);
           throw e;
         }
-        enfileirar("limpeza_turno", {
-          turno,
-          expectedUpdatedAt: expectedUpdatedAt ?? null,
-          edicao,
-        });
+        const msg = e instanceof Error ? e.message : String(e);
+        const isNetwork =
+          /failed to fetch|networkerror|fetch failed|load failed|timeout|aborted|err_network|err_internet/i.test(
+            msg,
+          );
+        if (isNetwork) {
+          enfileirar("limpeza_turno", {
+            turno,
+            expectedUpdatedAt: expectedUpdatedAt ?? null,
+            edicao,
+          });
+          return;
+        }
+        console.error("[useLimpezaTurnos] erro de aplicação:", e);
+        throw e;
       }
+
     },
     [enfileirar, isOnline],
   );

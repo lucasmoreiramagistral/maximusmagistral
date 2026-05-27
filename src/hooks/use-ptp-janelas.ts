@@ -178,13 +178,26 @@ export function usePtpJanelas(
           setConflito(true);
           throw e;
         }
-        // erro provável de rede → enfileira
-        enfileirar("ptp_janela", {
-          janela,
-          expectedUpdatedAt: expectedUpdatedAt ?? null,
-          edicao,
-        });
+        const msg = e instanceof Error ? e.message : String(e);
+        const isNetwork =
+          /failed to fetch|networkerror|fetch failed|load failed|timeout|aborted|err_network|err_internet/i.test(
+            msg,
+          );
+        if (isNetwork) {
+          // Rede caiu — fica na fila e o operador é avisado pelo badge.
+          enfileirar("ptp_janela", {
+            janela,
+            expectedUpdatedAt: expectedUpdatedAt ?? null,
+            edicao,
+          });
+          return;
+        }
+        // Erro de aplicação (RLS, CHECK do banco, validação) — NÃO enfileira.
+        // Relança para o handleConcluir/handleSalvarRascunho mostrar toast vermelho.
+        console.error("[usePtpJanelas] erro de aplicação:", e);
+        throw e;
       }
+
     },
     [enfileirar, isOnline],
   );
