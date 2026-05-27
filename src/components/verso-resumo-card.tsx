@@ -2,14 +2,9 @@ import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { VersoDiaResumoBadges } from "@/components/verso-dia-resumo-badges";
 import { formatarData } from "@/lib/checklist/format";
-import type { FolhaChecklistDia } from "@/lib/checklist/types";
-import {
-  LABEL_LIMPEZA_STATUS,
-  PTP_JANELAS,
-} from "@/lib/verso/constants";
+import type { FolhaChecklistDia, Turno } from "@/lib/checklist/types";
+import { LABEL_LIMPEZA_STATUS } from "@/lib/verso/constants";
 import type { ResumoVerso } from "@/lib/verso/resumo";
-
-const TOTAL_JANELAS = PTP_JANELAS.length;
 
 function statusLimpezaLabel(status: ResumoVerso["limpeza"]["dia"]): string {
   if (!status) return "Sem registro";
@@ -85,12 +80,16 @@ export function VersoResumoCard({
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <MiniInfo
                   label="Finalizadas"
-                  valor={`${resumo.ptp.finalizadas}/${TOTAL_JANELAS}`}
-                  tone={resumo.ptp.finalizadas === TOTAL_JANELAS ? "success" : "warning"}
+                  valor={`${resumo.ptp.finalizadas}/${resumo.ptp.totalJanelasTurno}`}
+                  tone={
+                    resumo.ptp.finalizadas === resumo.ptp.totalJanelasTurno
+                      ? "success"
+                      : "warning"
+                  }
                 />
                 <MiniInfo
                   label="Registradas"
-                  valor={`${resumo.ptp.registradas}/${TOTAL_JANELAS}`}
+                  valor={`${resumo.ptp.registradas}/${resumo.ptp.totalJanelasTurno}`}
                 />
                 <MiniInfo
                   label="Ocorrências"
@@ -105,38 +104,7 @@ export function VersoResumoCard({
               </div>
             </section>
 
-            <section className="rounded-xl border border-border bg-muted/20 p-4">
-              <h3 className="text-sm font-bold text-foreground">Limpeza</h3>
-              <div className="mt-3 grid grid-cols-1 gap-2">
-                <MiniInfo
-                  label="12x36 Dia"
-                  valor={statusLimpezaLabel(resumo.limpeza.dia)}
-                  tone={
-                    resumo.limpeza.dia === "validado"
-                      ? "success"
-                      : resumo.limpeza.dia
-                        ? "warning"
-                        : "default"
-                  }
-                />
-                <MiniInfo
-                  label="12x36 Noite"
-                  valor={statusLimpezaLabel(resumo.limpeza.noite)}
-                  tone={
-                    resumo.limpeza.noite === "validado"
-                      ? "success"
-                      : resumo.limpeza.noite
-                        ? "warning"
-                        : "default"
-                  }
-                />
-                <MiniInfo
-                  label="Itens não realizados"
-                  valor={String(resumo.limpeza.itensNaoRealizados)}
-                  tone={resumo.limpeza.itensNaoRealizados > 0 ? "danger" : "success"}
-                />
-              </div>
-            </section>
+            <LimpezaSecao turno={folha.contexto.turno} resumo={resumo} />
           </div>
         </>
       ) : (
@@ -145,5 +113,31 @@ export function VersoResumoCard({
         </div>
       )}
     </div>
+  );
+}
+
+function LimpezaSecao({ turno, resumo }: { turno: Turno; resumo: ResumoVerso }) {
+  const status =
+    turno === "12x36 Dia"
+      ? resumo.limpeza.dia
+      : turno === "12x36 Noite"
+        ? resumo.limpeza.noite
+        : null;
+  return (
+    <section className="rounded-xl border border-border bg-muted/20 p-4">
+      <h3 className="text-sm font-bold text-foreground">Limpeza</h3>
+      <div className="mt-3 grid grid-cols-1 gap-2">
+        <MiniInfo
+          label={turno}
+          valor={statusLimpezaLabel(status)}
+          tone={status === "validado" ? "success" : status ? "warning" : "default"}
+        />
+        <MiniInfo
+          label="Itens não realizados"
+          valor={String(resumo.limpeza.itensNaoRealizados)}
+          tone={resumo.limpeza.itensNaoRealizados > 0 ? "danger" : "success"}
+        />
+      </div>
+    </section>
   );
 }
