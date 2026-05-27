@@ -260,6 +260,40 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
           </div>
         )}
       </div>
+
+      <AlertDialog open={confirmandoSaida} onOpenChange={setConfirmandoSaida}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem {pendingCount} registro{pendingCount > 1 ? "s" : ""} não enviado{pendingCount > 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se sair agora, esses dados serão <strong>perdidos permanentemente</strong>. Recomendamos
+              conferir a fila pendente e tentar enviar antes de sair.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setConfirmandoSaida(false);
+                navigate({ to: "/operador/fila-pendente" });
+              }}
+            >
+              Ver fila pendente
+            </Button>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                setConfirmandoSaida(false);
+                void executarSaida(true);
+              }}
+            >
+              Sair e perder dados
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 }
+
