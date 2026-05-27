@@ -604,7 +604,9 @@ function HistoricoDialog({
         <DialogHeader>
           <DialogTitle>Histórico de edições do verso</DialogTitle>
           <DialogDescription>
-            Trilha auditável de alterações em PTP e Limpeza desta folha.
+            Trilha auditável de alterações em PTP e Limpeza. Mostra o{" "}
+            <strong>dia operacional inteiro</strong> (Dia + Noite) — gestão
+            pode investigar qualquer edição que afetou esta folha.
           </DialogDescription>
         </DialogHeader>
 
