@@ -10,7 +10,6 @@ import type {
   Turno,
 } from "./types";
 import { temVerso } from "@/lib/verso/aplicabilidade";
-import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import type { ResumoVerso } from "@/lib/verso/resumo";
 
 /** Estado do verso (PTP + Limpeza) — só faz sentido pra Linha 3 / Enchedora 3. */
@@ -137,13 +136,9 @@ export function filtrarFolhas(
         // implicitamente requerem verso.
         return false;
       }
-      // A partir daqui temVerso === true, então precisamos do resumo.
-      const key = buildFolhaDiaKey(
-        folha.contexto.data,
-        folha.contexto.linha,
-        folha.contexto.maquina,
-      );
-      const resumo = resumosVerso?.get(key);
+      // A partir daqui temVerso === true, então precisamos do resumo
+      // escopado por turno (chave é a folhaKey, não folhaDiaKey).
+      const resumo = resumosVerso?.get(folha.folhaKey);
       if (f.estadoVerso === "com_verso") {
         // basta ser Linha 3 / Enchedora 3 — não exige resumo
       } else if (f.estadoVerso === "pendente") {
