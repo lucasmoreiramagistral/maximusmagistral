@@ -384,23 +384,23 @@ function PtpRow({
 
 // ────────────────────────────── Limpeza ──────────────────────────────
 function LimpezaTurnos({
-  turnoPorCodigo,
+  turno,
+  dado,
 }: {
-  turnoPorCodigo: Map<Turno, LimpezaTurno>;
+  turno: Turno;
+  dado: LimpezaTurno | undefined;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
       <h3 className="text-base font-bold text-foreground md:text-lg">
-        Limpeza Sala de Envase — turnos
+        Limpeza Sala de Envase — {turno}
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
         21 itens oficiais · validação pelo líder do turno
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {Array.from(turnoPorCodigo.entries()).map(([turno, t]) => (
-          <LimpezaCard key={turno} turno={turno} dado={t} />
-        ))}
+      <div className="mt-4">
+        <LimpezaCard turno={turno} dado={dado} />
       </div>
     </div>
   );
