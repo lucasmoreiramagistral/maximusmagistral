@@ -1,4 +1,5 @@
 import type { LimpezaTurno, LimpezaTurnoStatus, PtpJanela } from "./types";
+import { PTP_JANELAS } from "./constants";
 
 /**
  * Saúde do verso do dia — visão de gestão (read-only).
@@ -20,6 +21,15 @@ export interface ResumoVersoPtp {
   naoRodou: number;
   rascunho: number;
   pendente: number;
+  /** 12 - registradas: janelas sem registro nenhum no banco. */
+  naoPreenchidas: number;
+  /** Códigos de janela ausentes (ex.: ["J05","J08"]). */
+  codigosFaltantes: string[];
+  /**
+   * Janelas finalizadas mas SEM `assinaturaOperador`. Indica corrupção de
+   * dados anterior aos CHECK constraints — gestão precisa investigar.
+   */
+  comAssinaturaCorrupta: number;
 }
 
 export interface ResumoVersoLimpeza {
@@ -55,8 +65,15 @@ export function calcularResumoVerso(input: {
   let rascunho = 0;
   let pendente = 0;
   let finalizadas = 0;
+  let comAssinaturaCorrupta = 0;
+  const codigosRegistrados = new Set<string>();
   for (const j of janelas) {
-    if (STATUS_FINAL_PTP.has(j.statusJanela)) finalizadas++;
+    codigosRegistrados.add(j.janelaCodigo);
+    const ehFinal = STATUS_FINAL_PTP.has(j.statusJanela);
+    if (ehFinal) finalizadas++;
+    // sem_ocorrencia e houve_ocorrencia exigem assinatura;
+    // nao_rodou também (todos os "concluídos"). Sem ela, é corrupção.
+    if (ehFinal && !j.assinaturaOperador) comAssinaturaCorrupta++;
     switch (j.statusJanela) {
       case "houve_ocorrencia":
         comOcorrencia++;
@@ -75,6 +92,10 @@ export function calcularResumoVerso(input: {
         break;
     }
   }
+  const codigosFaltantes = PTP_JANELAS.map((d) => d.codigo).filter(
+    (c) => !codigosRegistrados.has(c),
+  );
+  const naoPreenchidas = codigosFaltantes.length;
 
   // ─── Limpeza ───
   let itensNaoRealizados = 0;
@@ -90,12 +111,16 @@ export function calcularResumoVerso(input: {
 
   // ─── Saúde ───
   const semDados = janelas.length === 0 && turnos.length === 0;
-  const temAtencao = comOcorrencia > 0 || itensNaoRealizados > 0;
+  const temAtencao =
+    comOcorrencia > 0 ||
+    itensNaoRealizados > 0 ||
+    comAssinaturaCorrupta > 0;
   const completo =
     finalizadas === 12 &&
     dia === "validado" &&
     noite === "validado" &&
-    itensNaoRealizados === 0;
+    itensNaoRealizados === 0 &&
+    comAssinaturaCorrupta === 0;
 
   let saude: SaudeVerso;
   if (semDados) saude = "nao_iniciado";
@@ -112,6 +137,9 @@ export function calcularResumoVerso(input: {
       naoRodou,
       rascunho,
       pendente,
+      naoPreenchidas,
+      codigosFaltantes,
+      comAssinaturaCorrupta,
     },
     limpeza: {
       dia,
@@ -121,3 +149,4 @@ export function calcularResumoVerso(input: {
     saude,
   };
 }
+

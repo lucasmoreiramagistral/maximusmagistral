@@ -50,11 +50,13 @@ export async function fetchPtpJanelas(
   let query = supabase
     .from("ptp_janelas" as never)
     .select("*")
-    .eq("folha_dia_key", folhaDiaKey);
+    .eq("folha_dia_key", folhaDiaKey)
+    .order("updated_at", { ascending: false });
   if (operadorUserId) {
     query = query.eq("operador_user_id", operadorUserId);
   }
   const { data, error } = await query;
+
   if (error) {
     console.error("[fetchPtpJanelas] supabase error:", error);
     throw error;
@@ -121,11 +123,13 @@ export async function fetchLimpezaTurnos(
   let query = supabase
     .from("limpeza_turnos" as never)
     .select("*")
-    .eq("folha_dia_key", folhaDiaKey);
+    .eq("folha_dia_key", folhaDiaKey)
+    .order("updated_at", { ascending: false });
   if (operadorUserId) {
     query = query.eq("operador_user_id", operadorUserId);
   }
   const { data, error } = await query;
+
   if (error) {
     console.error("[fetchLimpezaTurnos] supabase error:", error);
     throw error;
