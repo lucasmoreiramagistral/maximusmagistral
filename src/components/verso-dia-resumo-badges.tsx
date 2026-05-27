@@ -47,6 +47,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
   if (!resumo) return null;
 
   const { ptp, limpeza, saude } = resumo;
+  const totalJanelas = ptp.totalJanelasTurno;
 
   // PTP ─────
   let tonPtp: "verde" | "ambar" | "vermelho" | "cinza" = "cinza";
@@ -59,15 +60,15 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
   } else if (ptp.comOcorrencia > 0) {
     tonPtp = "vermelho";
     IconPtp = AlertTriangle;
-    labelPtp = `PTP ${ptp.finalizadas}/${TOTAL_JANELAS} · ${ptp.comOcorrencia} c/ ocorrência`;
-  } else if (ptp.finalizadas === TOTAL_JANELAS) {
+    labelPtp = `PTP ${ptp.finalizadas}/${totalJanelas} · ${ptp.comOcorrencia} c/ ocorrência`;
+  } else if (ptp.finalizadas === totalJanelas) {
     tonPtp = "verde";
     IconPtp = CheckCircle2;
-    labelPtp = `PTP ${TOTAL_JANELAS}/${TOTAL_JANELAS} completo`;
+    labelPtp = `PTP ${totalJanelas}/${totalJanelas} completo`;
   } else {
     tonPtp = "ambar";
     IconPtp = Clock;
-    labelPtp = `PTP ${ptp.finalizadas}/${TOTAL_JANELAS}`;
+    labelPtp = `PTP ${ptp.finalizadas}/${totalJanelas}`;
   }
 
   // Saúde geral
