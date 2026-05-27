@@ -131,77 +131,117 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
           <div className="flex items-center gap-3">
             {(() => {
               const ehOperador = usuario.perfil === "operador";
-              // Operador: NUNCA mostra contador. Indicador "Offline" só aparece
-              // quando há fila represada (erro real ao salvar) E está offline.
-              // Gestão: mantém comportamento completo (status + contador).
-              const mostrarOfflineOperador =
-                ehOperador && !isOnline && pendingCount > 0;
+              // Operador: badge clicável aparece SEMPRE que houver fila pendente
+              // (online: amarelo "N pendentes"; offline: vermelho "Sem conexão · N pend.").
+              // Sem fila e offline: mantém badge discreto vermelho.
+              // Gestão: comportamento completo (status + contador).
+              const mostrarOperadorPendente = ehOperador && pendingCount > 0;
+              const mostrarOperadorOffline =
+                ehOperador && !isOnline && pendingCount === 0;
               const mostrarStatusGestao = !ehOperador;
 
-              if (!mostrarOfflineOperador && !mostrarStatusGestao) return null;
+              if (
+                !mostrarOperadorPendente &&
+                !mostrarOperadorOffline &&
+                !mostrarStatusGestao
+              )
+                return null;
+
+              if (ehOperador) {
+                const offlineComPendentes = !isOnline && pendingCount > 0;
+                const cls = offlineComPendentes
+                  ? "bg-destructive/10 text-destructive border border-destructive/40"
+                  : !isOnline
+                    ? "bg-destructive/10 text-destructive border border-destructive/40"
+                    : "bg-warning/20 text-warning-foreground border border-warning/40";
+                const label = !isOnline
+                  ? pendingCount > 0
+                    ? `Sem conexão · ${pendingCount} pend.`
+                    : "Sem conexão"
+                  : sincronizando
+                    ? `Enviando ${pendingCount}...`
+                    : `${pendingCount} pendente${pendingCount > 1 ? "s" : ""}`;
+                const conteudo = (
+                  <span
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 ${cls}`}
+                  >
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${
+                        !isOnline ? "bg-destructive" : "bg-warning"
+                      }`}
+                    />
+                    <span className="text-xs font-semibold">{label}</span>
+                  </span>
+                );
+                return (
+                  <div title={isOnline ? "Pendências" : "Offline"} aria-live="polite">
+                    {pendingCount > 0 ? (
+                      <Link
+                        to="/operador/fila-pendente"
+                        className="cursor-pointer"
+                      >
+                        {conteudo}
+                      </Link>
+                    ) : (
+                      conteudo
+                    )}
+                  </div>
+                );
+              }
 
               return (
                 <div
                   title={isOnline ? "Online" : "Offline"}
                   aria-live="polite"
                 >
-                  {ehOperador ? (
-                    // Operador: badge discreto SÓ quando há problema real
-                    <span className="flex items-center gap-1.5 rounded-full bg-destructive/10 px-2.5 py-1">
-                      <span className="inline-block h-2 w-2 rounded-full bg-destructive" />
-                      <span className="text-xs font-semibold text-destructive">
-                        Sem conexão
+                  <>
+                    {/* Gestão Mobile: bolinha + texto curto + pendências compactas */}
+                    <span className="flex items-center gap-1 md:hidden">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full ${
+                          isOnline ? "bg-success" : "bg-destructive"
+                        }`}
+                      />
+                      <span
+                        className={`text-xs font-semibold ${
+                          isOnline ? "text-success" : "text-destructive"
+                        }`}
+                      >
+                        {isOnline ? "On" : "Off"}
                       </span>
+                      {pendingCount > 0 && (
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {sincronizando ? `↑${pendingCount}` : `${pendingCount} pend.`}
+                        </span>
+                      )}
                     </span>
-                  ) : (
-                    <>
-                      {/* Gestão Mobile: bolinha + texto curto + pendências compactas */}
-                      <span className="flex items-center gap-1 md:hidden">
-                        <span
-                          className={`inline-block h-2 w-2 rounded-full ${
-                            isOnline ? "bg-success" : "bg-destructive"
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-semibold ${
-                            isOnline ? "text-success" : "text-destructive"
-                          }`}
-                        >
-                          {isOnline ? "On" : "Off"}
-                        </span>
-                        {pendingCount > 0 && (
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {sincronizando ? `↑${pendingCount}` : `${pendingCount} pend.`}
-                          </span>
-                        )}
+                    {/* Gestão Desktop: bolinha + texto completo */}
+                    <span className="hidden items-center gap-1.5 md:flex">
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full ${
+                          isOnline ? "bg-success" : "bg-destructive"
+                        }`}
+                      />
+                      <span
+                        className={`text-xs font-semibold ${
+                          isOnline ? "text-success" : "text-destructive"
+                        }`}
+                      >
+                        {isOnline ? "Online" : "Offline"}
                       </span>
-                      {/* Gestão Desktop: bolinha + texto completo */}
-                      <span className="hidden items-center gap-1.5 md:flex">
-                        <span
-                          className={`inline-block h-2 w-2 rounded-full ${
-                            isOnline ? "bg-success" : "bg-destructive"
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-semibold ${
-                            isOnline ? "text-success" : "text-destructive"
-                          }`}
-                        >
-                          {isOnline ? "Online" : "Offline"}
+                      {pendingCount > 0 && (
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {sincronizando
+                            ? `Enviando ${pendingCount}...`
+                            : `${pendingCount} pend.`}
                         </span>
-                        {pendingCount > 0 && (
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {sincronizando
-                              ? `Enviando ${pendingCount}...`
-                              : `${pendingCount} pend.`}
-                          </span>
-                        )}
-                      </span>
-                    </>
-                  )}
+                      )}
+                    </span>
+                  </>
                 </div>
               );
             })()}
+
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{nomeExibido}</p>
               <p className="text-xs text-muted-foreground">
