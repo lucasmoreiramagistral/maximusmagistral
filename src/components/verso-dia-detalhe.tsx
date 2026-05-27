@@ -164,8 +164,12 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
         <ResumoChips resumo={resumo} />
       </div>
 
-      <PtpGrid janelasPorCodigo={janelasPorCodigo} />
-      <LimpezaTurnos turnoPorCodigo={turnoPorCodigo} />
+      <PtpGrid
+        codigosDoTurno={codigosDoTurno}
+        janelasPorCodigo={janelasPorCodigo}
+        turno={turno}
+      />
+      <LimpezaTurnos turno={turno} dado={turnoDado} />
 
       <HistoricoDialog
         open={historicoOpen}
@@ -185,7 +189,7 @@ function ResumoChips({
   const { ptp, limpeza } = resumo;
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-      <Chip label="Janelas finalizadas" valor={`${ptp.finalizadas}/12`} tone="azul" />
+      <Chip label="Janelas finalizadas" valor={`${ptp.finalizadas}/${ptp.totalJanelasTurno}`} tone="azul" />
       <Chip
         label="Sem ocorrência"
         valor={String(ptp.semOcorrencia)}
