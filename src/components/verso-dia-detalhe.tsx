@@ -29,7 +29,7 @@ import {
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
 import { calcularResumoVerso } from "@/lib/verso/resumo";
-import { derivarEscalaDaJanela } from "@/lib/verso/reporting";
+import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
 import {
   useEdicoesVerso,
   type EdicaoVersoLimpeza,
@@ -37,14 +37,16 @@ import {
 } from "@/hooks/use-edicoes-verso";
 import { formatarDataHora } from "@/lib/checklist/format";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
-import type { Turno } from "@/lib/checklist/types";
+import type { Equipe, Turno } from "@/lib/checklist/types";
 
 interface Props {
   folhaDiaKey: string;
   dataOperacao: string;
+  turno: Turno;
+  equipe: Equipe;
 }
 
-export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao }: Props) {
+export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Props) {
   const [janelas, setJanelas] = useState<PtpJanela[]>([]);
   const [turnos, setTurnos] = useState<LimpezaTurno[]>([]);
   const [loading, setLoading] = useState(true);
@@ -77,22 +79,42 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao }: Props) {
     };
   }, [folhaDiaKey]);
 
+  // Códigos de janela DESTE turno (ex.: J01..J06 no Dia, J07..J12 na Noite).
+  const codigosDoTurno = useMemo(
+    () => janelasPtpDoTurnoEquipe(turno, equipe),
+    [turno, equipe],
+  );
+
+  // Filtra registros para só este turno.
+  const janelasDoTurno = useMemo(() => {
+    const setCods = new Set(codigosDoTurno);
+    return janelas.filter((j) => setCods.has(j.janelaCodigo));
+  }, [janelas, codigosDoTurno]);
+  const turnosDoTurno = useMemo(
+    () => turnos.filter((t) => t.turno === turno),
+    [turnos, turno],
+  );
+
   const resumo = useMemo(
-    () => calcularResumoVerso({ janelas, turnos }),
-    [janelas, turnos],
+    () =>
+      calcularResumoVerso({
+        janelas: janelasDoTurno,
+        turnos: turnosDoTurno,
+        escopo: { turno, equipe },
+      }),
+    [janelasDoTurno, turnosDoTurno, turno, equipe],
   );
 
   const janelasPorCodigo = useMemo(() => {
     const map = new Map<string, PtpJanela>();
-    for (const j of janelas) map.set(j.janelaCodigo, j);
+    for (const j of janelasDoTurno) map.set(j.janelaCodigo, j);
     return map;
-  }, [janelas]);
+  }, [janelasDoTurno]);
 
-  const turnoPorCodigo = useMemo(() => {
-    const map = new Map<Turno, LimpezaTurno>();
-    for (const t of turnos) map.set(t.turno, t);
-    return map;
-  }, [turnos]);
+  const turnoDado = useMemo(
+    () => turnosDoTurno.find((t) => t.turno === turno),
+    [turnosDoTurno, turno],
+  );
 
   if (loading) {
     return (
@@ -142,8 +164,12 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao }: Props) {
         <ResumoChips resumo={resumo} />
       </div>
 
-      <PtpGrid janelasPorCodigo={janelasPorCodigo} />
-      <LimpezaTurnos turnoPorCodigo={turnoPorCodigo} />
+      <PtpGrid
+        codigosDoTurno={codigosDoTurno}
+        janelasPorCodigo={janelasPorCodigo}
+        turno={turno}
+      />
+      <LimpezaTurnos turno={turno} dado={turnoDado} />
 
       <HistoricoDialog
         open={historicoOpen}
@@ -163,7 +189,7 @@ function ResumoChips({
   const { ptp, limpeza } = resumo;
   return (
     <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
-      <Chip label="Janelas finalizadas" valor={`${ptp.finalizadas}/12`} tone="azul" />
+      <Chip label="Janelas finalizadas" valor={`${ptp.finalizadas}/${ptp.totalJanelasTurno}`} tone="azul" />
       <Chip
         label="Sem ocorrência"
         valor={String(ptp.semOcorrencia)}
@@ -212,79 +238,55 @@ function Chip({
 
 // ────────────────────────────── PTP grid ─────────────────────────────
 function PtpGrid({
+  codigosDoTurno,
   janelasPorCodigo,
+  turno,
 }: {
+  codigosDoTurno: string[];
   janelasPorCodigo: Map<string, PtpJanela>;
+  turno: Turno;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
       <h3 className="text-base font-bold text-foreground md:text-lg">
-        PTP Garrafas — 12 janelas
+        PTP Garrafas — {codigosDoTurno.length} janelas do turno
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
-        Dia (J01–J06): 06:00 → 18:00 · Noite (J07–J12): 18:00 → 06:00
+        Janelas: {codigosDoTurno.join(", ") || "—"}
       </p>
 
-      <div className="mt-4 space-y-4">
-        {(() => {
-          // Modelo LAZY: derivar turnos com dado a partir das janelas reais.
-          const turnosComDado = Array.from(
-            new Set(
-              Array.from(janelasPorCodigo.values())
-                .map((j) => derivarEscalaDaJanela(j.janelaCodigo)?.turno)
-                .filter((t): t is Turno => Boolean(t)),
-            ),
-          );
-          // Fallback: se não souber inferir turno, mostra "12x36 Dia/Noite"
-          // (compat retroativa com folhas antigas).
-          const turnosRender: Turno[] = turnosComDado.length
-            ? turnosComDado
-            : (["12x36 Dia", "12x36 Noite"] as Turno[]);
-          return turnosRender.map((turno) => {
-            const codigos = Array.from(janelasPorCodigo.values())
-              .filter((j) => {
-                const t = derivarEscalaDaJanela(j.janelaCodigo)?.turno;
-                return t === turno || !t;
-              })
-              .map((j) => j.janelaCodigo);
-            const codigosUnicos = Array.from(new Set(codigos));
-            return (
-              <div key={turno}>
-                <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                  {turno}
-                </p>
-                <div className="overflow-hidden rounded-xl border border-border">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      <tr>
-                        <th className="px-3 py-2">Janela</th>
-                        <th className="px-3 py-2">Horário</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
-                        <th className="px-3 py-2">Operador</th>
-                        <th className="px-3 py-2">Assinatura</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {codigosUnicos.map((cod: string) => {
-                        const def = PTP_JANELAS.find((d) => d.codigo === cod);
-                        const j = janelasPorCodigo.get(cod);
-                        return (
-                          <PtpRow
-                            key={cod}
-                            codigo={cod}
-                            rotulo={def?.rotulo ?? cod}
-                            janela={j}
-                          />
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          });
-        })()}
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          {turno}
+        </p>
+        <div className="overflow-hidden rounded-xl border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-muted/60 text-xs font-bold uppercase tracking-wide text-muted-foreground">
+              <tr>
+                <th className="px-3 py-2">Janela</th>
+                <th className="px-3 py-2">Horário</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-center">Itens c/ ocorrência</th>
+                <th className="px-3 py-2">Operador</th>
+                <th className="px-3 py-2">Assinatura</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {codigosDoTurno.map((cod) => {
+                const def = PTP_JANELAS.find((d) => d.codigo === cod);
+                const j = janelasPorCodigo.get(cod);
+                return (
+                  <PtpRow
+                    key={cod}
+                    codigo={cod}
+                    rotulo={def?.rotulo ?? cod}
+                    janela={j}
+                  />
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -382,23 +384,23 @@ function PtpRow({
 
 // ────────────────────────────── Limpeza ──────────────────────────────
 function LimpezaTurnos({
-  turnoPorCodigo,
+  turno,
+  dado,
 }: {
-  turnoPorCodigo: Map<Turno, LimpezaTurno>;
+  turno: Turno;
+  dado: LimpezaTurno | undefined;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
       <h3 className="text-base font-bold text-foreground md:text-lg">
-        Limpeza Sala de Envase — turnos
+        Limpeza Sala de Envase — {turno}
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
         21 itens oficiais · validação pelo líder do turno
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {Array.from(turnoPorCodigo.entries()).map(([turno, t]) => (
-          <LimpezaCard key={turno} turno={turno} dado={t} />
-        ))}
+      <div className="mt-4">
+        <LimpezaCard turno={turno} dado={dado} />
       </div>
     </div>
   );
@@ -602,7 +604,9 @@ function HistoricoDialog({
         <DialogHeader>
           <DialogTitle>Histórico de edições do verso</DialogTitle>
           <DialogDescription>
-            Trilha auditável de alterações em PTP e Limpeza desta folha.
+            Trilha auditável de alterações em PTP e Limpeza. Mostra o{" "}
+            <strong>dia operacional inteiro</strong> (Dia + Noite) — gestão
+            pode investigar qualquer edição que afetou esta folha.
           </DialogDescription>
         </DialogHeader>
 

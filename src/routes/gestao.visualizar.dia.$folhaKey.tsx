@@ -28,7 +28,7 @@ import { temVerso } from "@/lib/verso/aplicabilidade";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 
 export const Route = createFileRoute("/gestao/visualizar/dia/$folhaKey")({
-  head: () => ({ meta: [{ title: "Checklist Completo do Dia — Gestão" }] }),
+  head: () => ({ meta: [{ title: "Checklist Completo do Turno — Gestão" }] }),
   component: VisualizarDiaPage,
 });
 
@@ -87,8 +87,8 @@ function VisualizarDiaPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        titulo="Checklist Completo do Dia"
-        subtitulo="Visão consolidada dos 3 momentos"
+        titulo="Checklist Completo do Turno"
+        subtitulo="Visão consolidada do turno"
         voltarPara="/gestao/checklists"
       />
       <main className="mx-auto w-full max-w-[1300px] px-4 py-6 md:px-8 md:py-10">
@@ -115,6 +115,8 @@ function VisualizarDiaPage() {
                     folha.contexto.maquina,
                   )}
                   dataOperacao={folha.contexto.data}
+                  turno={folha.contexto.turno}
+                  equipe={folha.contexto.equipe}
                 />
               </div>
             )}

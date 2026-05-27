@@ -51,7 +51,7 @@ export function ChecklistDiaResumoCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Folha do dia
+            Folha do turno
           </p>
           <p className="text-lg font-bold text-foreground md:text-xl">
             {formatarData(folha.contexto.data)} · {folha.contexto.turno}
@@ -61,7 +61,7 @@ export function ChecklistDiaResumoCard({
           </p>
         </div>
         <Button asChild>
-          <Link to={href}>Ver checklist completo do dia</Link>
+          <Link to={href}>Ver checklist completo do turno</Link>
         </Button>
       </div>
 
@@ -141,7 +141,7 @@ export function ChecklistDiaDetalhe({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold text-foreground md:text-xl">
-              Checklist Completo do Dia
+              Checklist Completo do Turno
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
               Última atualização: {formatarDataHora(folha.ultimaAtualizacao)}

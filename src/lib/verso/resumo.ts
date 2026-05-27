@@ -1,42 +1,35 @@
 import type { LimpezaTurno, LimpezaTurnoStatus, PtpJanela } from "./types";
 import { PTP_JANELAS } from "./constants";
+import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
+import type { Equipe, Turno } from "@/lib/checklist/types";
 
 /**
  * Saúde do verso do dia — visão de gestão (read-only).
  *
- * IMPORTANTE: o cálculo é baseado **só no campo `status`** dos registros
- * que vieram do banco. NÃO infla com defaults (12 janelas pendentes), pois
- * isso enganaria o gestor mostrando "12 pendentes" quando na verdade o
- * operador nem começou.
+ * Quando `escopo: { turno, equipe }` é informado, o resumo é restrito às
+ * janelas/limpeza daquele turno (ex.: card do 12x36 Dia ignora janelas e
+ * limpeza da Noite).
  */
 export type SaudeVerso = "completo" | "atencao" | "parcial" | "nao_iniciado";
 
 export interface ResumoVersoPtp {
-  /** Quantas janelas têm registro no banco (0..12). */
   registradas: number;
-  /** Janelas em status final (sem_ocorrencia | houve_ocorrencia | nao_rodou). */
   finalizadas: number;
   comOcorrencia: number;
   semOcorrencia: number;
   naoRodou: number;
   rascunho: number;
   pendente: number;
-  /** 12 - registradas: janelas sem registro nenhum no banco. */
   naoPreenchidas: number;
-  /** Códigos de janela ausentes (ex.: ["J05","J08"]). */
   codigosFaltantes: string[];
-  /**
-   * Janelas finalizadas mas SEM `assinaturaOperador`. Indica corrupção de
-   * dados anterior aos CHECK constraints — gestão precisa investigar.
-   */
   comAssinaturaCorrupta: number;
+  /** Tamanho do escopo do PTP (ex.: 6 num turno 12x36, 12 sem escopo). */
+  totalJanelasTurno: number;
 }
 
 export interface ResumoVersoLimpeza {
-  /** `null` = sem registro no banco para o turno. */
   dia: LimpezaTurnoStatus | null;
   noite: LimpezaTurnoStatus | null;
-  /** Soma de itens marcados como `nao_realizado` em qualquer turno registrado. */
   itensNaoRealizados: number;
 }
 
@@ -55,8 +48,24 @@ const STATUS_FINAL_PTP = new Set([
 export function calcularResumoVerso(input: {
   janelas: PtpJanela[];
   turnos: LimpezaTurno[];
+  /** Escopo opcional: restringe o cálculo às janelas/limpeza do turno. */
+  escopo?: { turno: Turno; equipe: Equipe };
 }): ResumoVerso {
-  const { janelas, turnos } = input;
+  const { janelas: janelasInput, turnos: turnosInput, escopo } = input;
+
+  // ─── Escopo por turno ───
+  const codigosDoTurno = escopo
+    ? janelasPtpDoTurnoEquipe(escopo.turno, escopo.equipe)
+    : PTP_JANELAS.map((d) => d.codigo);
+  const totalJanelasTurno = codigosDoTurno.length || PTP_JANELAS.length;
+  const codigosSet = new Set(codigosDoTurno);
+
+  const janelas = escopo
+    ? janelasInput.filter((j) => codigosSet.has(j.janelaCodigo))
+    : janelasInput;
+  const turnos = escopo
+    ? turnosInput.filter((t) => t.turno === escopo.turno)
+    : turnosInput;
 
   // ─── PTP ───
   let comOcorrencia = 0;
@@ -71,8 +80,6 @@ export function calcularResumoVerso(input: {
     codigosRegistrados.add(j.janelaCodigo);
     const ehFinal = STATUS_FINAL_PTP.has(j.statusJanela);
     if (ehFinal) finalizadas++;
-    // sem_ocorrencia e houve_ocorrencia exigem assinatura;
-    // nao_rodou também (todos os "concluídos"). Sem ela, é corrupção.
     if (ehFinal && !j.assinaturaOperador) comAssinaturaCorrupta++;
     switch (j.statusJanela) {
       case "houve_ocorrencia":
@@ -92,7 +99,7 @@ export function calcularResumoVerso(input: {
         break;
     }
   }
-  const codigosFaltantes = PTP_JANELAS.map((d) => d.codigo).filter(
+  const codigosFaltantes = codigosDoTurno.filter(
     (c) => !codigosRegistrados.has(c),
   );
   const naoPreenchidas = codigosFaltantes.length;
@@ -115,10 +122,18 @@ export function calcularResumoVerso(input: {
     comOcorrencia > 0 ||
     itensNaoRealizados > 0 ||
     comAssinaturaCorrupta > 0;
+
+  const limpezaCompleta = escopo
+    ? escopo.turno === "12x36 Dia"
+      ? dia === "validado"
+      : escopo.turno === "12x36 Noite"
+        ? noite === "validado"
+        : dia === "validado" && noite === "validado"
+    : dia === "validado" && noite === "validado";
+
   const completo =
-    finalizadas === 12 &&
-    dia === "validado" &&
-    noite === "validado" &&
+    finalizadas === totalJanelasTurno &&
+    limpezaCompleta &&
     itensNaoRealizados === 0 &&
     comAssinaturaCorrupta === 0;
 
@@ -140,6 +155,7 @@ export function calcularResumoVerso(input: {
       naoPreenchidas,
       codigosFaltantes,
       comAssinaturaCorrupta,
+      totalJanelasTurno,
     },
     limpeza: {
       dia,
@@ -149,4 +165,3 @@ export function calcularResumoVerso(input: {
     saude,
   };
 }
-

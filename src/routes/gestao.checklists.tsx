@@ -17,8 +17,7 @@ import {
   FILTROS_KEY,
 } from "@/lib/checklist/filtros";
 import type { EstadoVersoFiltro } from "@/lib/checklist/filtros";
-import { extrairFolhasDiaKeysComVerso, temVerso } from "@/lib/verso/aplicabilidade";
-import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
+import { temVerso } from "@/lib/verso/aplicabilidade";
 import { formatarData, formatarDataHora } from "@/lib/checklist/format";
 import { buildFolhasAgrupadas } from "@/lib/checklist/supabase-storage";
 import { ClipboardCheck, Filter, LayoutGrid, ListIcon, Loader2 } from "lucide-react";
@@ -70,11 +69,7 @@ function ListaChecklists() {
     () => buildFolhasAgrupadas(checklists, anomalias),
     [checklists, anomalias],
   );
-  const folhaDiaKeys = useMemo(
-    () => extrairFolhasDiaKeysComVerso(todasFolhas),
-    [todasFolhas],
-  );
-  const { resumos: resumosVerso } = useVersosDosDiasRemote(folhaDiaKeys);
+  const { resumos: resumosVerso } = useVersosDosDiasRemote(todasFolhas);
   const folhas = useMemo(
     () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
     [todasFolhas, anomalias, filtros, resumosVerso],
@@ -89,7 +84,7 @@ function ListaChecklists() {
     visao === "verso"
       ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
       : visao === "dia"
-        ? `${folhas.length} ${folhas.length === 1 ? "folha do dia" : "folhas do dia"}`
+        ? `${folhas.length} ${folhas.length === 1 ? "folha do turno" : "folhas do turno"}`
         : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
 
   return (
@@ -111,7 +106,7 @@ function ListaChecklists() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <LayoutGrid className="h-3.5 w-3.5" /> Checklist completo do dia
+                <LayoutGrid className="h-3.5 w-3.5" /> Checklist completo do turno
               </button>
               <button
                 type="button"
@@ -161,21 +156,14 @@ function ListaChecklists() {
             <FolhasVazio filtros={filtros} visao="verso" />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {folhasVerso.map((f) => {
-                const versoKey = buildFolhaDiaKey(
-                  f.contexto.data,
-                  f.contexto.linha,
-                  f.contexto.maquina,
-                );
-                return (
-                  <VersoResumoCard
-                    key={f.folhaKey}
-                    folha={f}
-                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                    resumo={resumosVerso.get(versoKey)}
-                  />
-                );
-              })}
+              {folhasVerso.map((f) => (
+                <VersoResumoCard
+                  key={f.folhaKey}
+                  folha={f}
+                  href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                  resumo={resumosVerso.get(f.folhaKey)}
+                />
+              ))}
             </div>
           )
         ) : visao === "dia" ? (
@@ -183,21 +171,14 @@ function ListaChecklists() {
             <FolhasVazio filtros={filtros} visao="dia" />
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-              {folhas.map((f) => {
-                const versoKey = buildFolhaDiaKey(
-                  f.contexto.data,
-                  f.contexto.linha,
-                  f.contexto.maquina,
-                );
-                return (
-                  <ChecklistDiaResumoCard
-                    key={f.folhaKey}
-                    folha={f}
-                    href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
-                    versoResumo={resumosVerso.get(versoKey)}
-                  />
-                );
-              })}
+              {folhas.map((f) => (
+                <ChecklistDiaResumoCard
+                  key={f.folhaKey}
+                  folha={f}
+                  href={`/gestao/visualizar/dia/${encodeURIComponent(f.folhaKey)}`}
+                  versoResumo={resumosVerso.get(f.folhaKey)}
+                />
+              ))}
             </div>
           )
         ) : lista.length === 0 ? (

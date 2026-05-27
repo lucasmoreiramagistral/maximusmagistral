@@ -5,13 +5,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  LABEL_LIMPEZA_STATUS,
-  PTP_JANELAS,
-} from "@/lib/verso/constants";
+import { LABEL_LIMPEZA_STATUS } from "@/lib/verso/constants";
 import type { ResumoVerso } from "@/lib/verso/resumo";
-
-const TOTAL_JANELAS = PTP_JANELAS.length;
 
 function tonClasses(tone: "verde" | "ambar" | "vermelho" | "cinza"): string {
   switch (tone) {
@@ -52,6 +47,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
   if (!resumo) return null;
 
   const { ptp, limpeza, saude } = resumo;
+  const totalJanelas = ptp.totalJanelasTurno;
 
   // PTP ─────
   let tonPtp: "verde" | "ambar" | "vermelho" | "cinza" = "cinza";
@@ -64,15 +60,15 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
   } else if (ptp.comOcorrencia > 0) {
     tonPtp = "vermelho";
     IconPtp = AlertTriangle;
-    labelPtp = `PTP ${ptp.finalizadas}/${TOTAL_JANELAS} · ${ptp.comOcorrencia} c/ ocorrência`;
-  } else if (ptp.finalizadas === TOTAL_JANELAS) {
+    labelPtp = `PTP ${ptp.finalizadas}/${totalJanelas} · ${ptp.comOcorrencia} c/ ocorrência`;
+  } else if (ptp.finalizadas === totalJanelas) {
     tonPtp = "verde";
     IconPtp = CheckCircle2;
-    labelPtp = `PTP ${TOTAL_JANELAS}/${TOTAL_JANELAS} completo`;
+    labelPtp = `PTP ${totalJanelas}/${totalJanelas} completo`;
   } else {
     tonPtp = "ambar";
     IconPtp = Clock;
-    labelPtp = `PTP ${ptp.finalizadas}/${TOTAL_JANELAS}`;
+    labelPtp = `PTP ${ptp.finalizadas}/${totalJanelas}`;
   }
 
   // Saúde geral
@@ -152,7 +148,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
                 className={`inline-flex cursor-help items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-bold ${tonClasses("vermelho")}`}
               >
                 <AlertTriangle className="h-3.5 w-3.5" />
-                {ptp.naoPreenchidas} de {TOTAL_JANELAS} não preenchida
+                {ptp.naoPreenchidas} de {totalJanelas} não preenchida
                 {ptp.naoPreenchidas > 1 ? "s" : ""}
                 <Info className="h-3 w-3 opacity-60" />
               </span>
