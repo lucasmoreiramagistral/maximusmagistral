@@ -462,6 +462,41 @@ export function calcularDiagnosticoPtp(
     return (derivarTurnoDaJanela(janelaCodigo) ?? "12x36 Dia") as Turno;
   }
 
+  // Lista detalhada de ocorrências
+  const ocorrenciasLista: DiagnosticoPtp["ocorrenciasLista"] = [];
+  for (const j of ptpDoRecorte) {
+    if (j.statusJanela !== "houve_ocorrencia") continue;
+    const turno = resolverTurno(j.dataOperacao, j.janelaCodigo);
+
+    for (const it of j.itens) {
+      if (it.status !== "houve_ocorrencia") continue;
+
+      if (it.historico && it.historico.length > 0) {
+        for (const h of it.historico) {
+          if (h.tipo === "correcao_zerar") continue;
+          ocorrenciasLista.push({
+            dataOperacao: j.dataOperacao,
+            turno,
+            horario: h.horario,
+            itemNome: it.nome,
+            quantidade: h.quantidade,
+            motivo: h.motivo || undefined,
+          });
+        }
+      } else if ((it.quantidade ?? 0) > 0) {
+        // Fallback legado
+        ocorrenciasLista.push({
+          dataOperacao: j.dataOperacao,
+          turno,
+          horario: j.dataOperacao,
+          itemNome: it.nome,
+          quantidade: it.quantidade,
+        });
+      }
+    }
+  }
+  ocorrenciasLista.sort((a, b) => b.horario.localeCompare(a.horario));
+
   // Janelas com observação preenchida
   const comObservacao = ptpDoRecorte
     .filter((j) => j.observacao && j.observacao.trim().length > 0)
@@ -476,6 +511,7 @@ export function calcularDiagnosticoPtp(
         a.dataOperacao.localeCompare(b.dataOperacao) ||
         a.janelaCodigo.localeCompare(b.janelaCodigo),
     );
+
 
   // ── Análise de Ângulo por janela ──
   const rotuloPorJanela = new Map(PTP_JANELAS.map((d) => [d.codigo, d.rotulo]));
