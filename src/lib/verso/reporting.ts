@@ -546,8 +546,16 @@ export function calcularDiagnosticoPtp(
         a.janelaCodigo.localeCompare(b.janelaCodigo),
     );
 
-  return { porStatus, topItens, porJanela, comObservacao, analiseAnguloPorJanela };
+  return {
+    porStatus,
+    topItens,
+    porJanela,
+    ocorrenciasLista,
+    comObservacao,
+    analiseAnguloPorJanela,
+  };
 }
+
 
 // ─── Diagnóstico Limpeza ─────────────────────────────────────────────
 
