@@ -970,7 +970,24 @@ function RelatorioPage() {
                         cor="var(--color-chart-1)"
                       />
                     </div>
+
+                    <TabelaSimples
+                      titulo="Detalhamento das ocorrências (PTP)"
+                      colunas={["Data", "Turno", "Horário", "Item", "Qtd", "Motivo"]}
+                      linhas={diagPtp.ocorrenciasLista.slice(0, 50).map((o) => [
+                        o.dataOperacao.split("-").reverse().join("/"),
+                        o.turno,
+                        o.horario.includes("T")
+                          ? o.horario.split("T")[1].slice(0, 5)
+                          : o.horario,
+                        o.itemNome,
+                        o.quantidade,
+                        o.motivo || "—",
+                      ])}
+                    />
+
                     {diagPtp.comObservacao.length > 0 && (
+
                       <TabelaSimples
                         titulo="Janelas com observação registrada"
                         colunas={["Data", "Turno", "Janela", "Observação"]}
