@@ -85,12 +85,15 @@ export interface DiagnosticoPtp {
     label: string; // "X ocorrências"
   }[];
   porJanela: { chave: string; total: number; rotulo: string }[];
-  comObservacao: {
+  ocorrenciasLista: {
     dataOperacao: string;
     turno: Turno;
-    janelaCodigo: string;
-    observacao: string;
+    horario: string; // HH:mm ou ISO
+    itemNome: string;
+    quantidade: number;
+    motivo?: string;
   }[];
+  comObservacao: {
   /**
    * Análise de Ângulo por janela — métrica de aderência/verificação.
    * NÃO é defeito, NÃO conta como ocorrência.
