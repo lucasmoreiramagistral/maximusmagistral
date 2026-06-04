@@ -94,6 +94,11 @@ export interface DiagnosticoPtp {
     motivo?: string;
   }[];
   comObservacao: {
+    dataOperacao: string;
+    turno: Turno;
+    janelaCodigo: string;
+    observacao: string;
+  }[];
   /**
    * Análise de Ângulo por janela — métrica de aderência/verificação.
    * NÃO é defeito, NÃO conta como ocorrência.
