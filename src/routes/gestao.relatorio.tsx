@@ -27,7 +27,7 @@ import {
   YAxis,
   Legend,
 } from "recharts";
-import { FileBarChart2, Filter as FilterIcon, ClipboardList } from "lucide-react";
+import { FileBarChart2, Filter as FilterIcon, ClipboardList, ChevronDown, ChevronUp } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { Button } from "@/components/ui/button";
@@ -1619,6 +1619,10 @@ type AnaliseAnguloLinha = {
 };
 
 function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
+  const [expandido, setExpandido] = useState(false);
+  const totalLinhas = linhas.length;
+  const LIMITE_LINHAS = 5;
+
   const formatarData = (iso: string) => {
     const [, m, d] = iso.split("-");
     return d && m ? `${d}/${m}` : iso;
@@ -1668,15 +1672,38 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
     );
   };
 
+  const linhasExibidas = expandido ? linhas : linhas.slice(0, LIMITE_LINHAS);
+
   return (
     <div className="rounded-lg border border-border bg-card">
-      <div className="border-b border-border px-3 py-2">
-        <h4 className="text-sm font-semibold text-foreground">
-          Análise de Ângulo por Janela
-        </h4>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          Verificação de aderência (não conta como defeito). 2 verificações por janela.
-        </p>
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+        <div>
+          <h4 className="text-sm font-semibold text-foreground">
+            Análise de Ângulo por Janela
+          </h4>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Verificação de aderência (não conta como defeito). 2 verificações por janela.
+          </p>
+        </div>
+        {totalLinhas > LIMITE_LINHAS && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpandido(!expandido)}
+            className="h-8 px-2 text-xs text-primary hover:text-primary/80"
+          >
+            {expandido ? (
+              <>
+                Recolher <ChevronUp className="ml-1 h-3 w-3" />
+              </>
+            ) : (
+              <>
+                Clique aqui para expandir ({totalLinhas} itens){" "}
+                <ChevronDown className="ml-1 h-3 w-3" />
+              </>
+            )}
+          </Button>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -1691,7 +1718,7 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
             </tr>
           </thead>
           <tbody>
-            {linhas.map((r, i) => {
+            {linhasExibidas.map((r, i) => {
               const naoRodou = r.status === "nao_rodou";
               return (
                 <tr
@@ -1719,6 +1746,18 @@ function TabelaAnaliseAngulo({ linhas }: { linhas: AnaliseAnguloLinha[] }) {
           </tbody>
         </table>
       </div>
+      {!expandido && totalLinhas > LIMITE_LINHAS && (
+        <div className="border-t border-border bg-muted/10 px-3 py-2 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setExpandido(true)}
+            className="h-6 w-full text-[10px] text-muted-foreground hover:text-primary"
+          >
+            Mostrando {LIMITE_LINHAS} de {totalLinhas} itens. Clique para ver todos.
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
