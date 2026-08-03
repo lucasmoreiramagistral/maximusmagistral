@@ -52,10 +52,124 @@ Cada linha tem espaço para assinatura do líder "a cada checagem", igual ao pap
 
 ## Ordem de execução
 
-1. Migração SQL (tabelas + grants + RLS + índices).
+O SQL vem primeiro: você cola no SQL Editor do seu Supabase e, com as tabelas já existindo, eu construo o código todo e você já testa funcionando de imediato (sem tela quebrada esperando o banco).
+
+1. Você roda o SQL abaixo no Supabase.
 2. Constantes, cálculo do acumulado e testes.
 3. Storage + hook com fila offline.
 4. Tela do operador e card na home.
 5. Bloco na gestão (folha do dia + relatório).
 
+## SQL para colar no SQL Editor
+
+```sql
+-- ─── Tabela principal: uma linha por hora ────────────────────────────
+create table if not exists public.producao_horaria (
+  id uuid primary key default gen_random_uuid(),
+  folha_dia_key text not null,
+  data_operacao date not null,
+  linha text not null,
+  area text not null default 'Envase',
+  maquina text not null,
+  equipamento text,
+  turno text not null,
+  hora_codigo text not null,          -- H01..H24
+  hora_inicio text not null,          -- '06:00'
+  hora_fim text not null,             -- '07:00'
+  meta integer,
+  quantidade integer,
+  nao_rodou boolean not null default false,
+  tempo_parada_min integer,
+  reinicia_acumulado boolean not null default false,
+  motivo_reinicio text,               -- 'troca_sabor' | 'troca_tamanho' | 'cip'
+  produto_sabor text,
+  produto_tamanho text,
+  observacao text,
+  operador_login text,
+  operador_nome text,
+  operador_user_id uuid,
+  lider_nome text,
+  assinatura_lider jsonb,
+  lider_assinou_em timestamptz,
+  ultima_edicao_por_login text,
+  ultima_edicao_por_nome text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint producao_horaria_unica unique (folha_dia_key, hora_codigo, operador_user_id),
+  constraint producao_horaria_qtd_valida
+    check (quantidade is null or quantidade >= 0),
+  constraint producao_horaria_parada_valida
+    check (tempo_parada_min is null or (tempo_parada_min >= 0 and tempo_parada_min <= 60)),
+  constraint producao_horaria_meta_valida
+    check (meta is null or meta >= 0),
+  constraint producao_horaria_nao_rodou_sem_qtd
+    check (not nao_rodou or coalesce(quantidade, 0) = 0),
+  constraint producao_horaria_reinicio_com_motivo
+    check (not reinicia_acumulado or motivo_reinicio is not null)
+);
+
+grant select, insert, update, delete on public.producao_horaria to authenticated;
+grant all on public.producao_horaria to service_role;
+
+alter table public.producao_horaria enable row level security;
+
+create policy "producao_horaria_select_autenticado"
+  on public.producao_horaria for select to authenticated using (true);
+create policy "producao_horaria_insert_autenticado"
+  on public.producao_horaria for insert to authenticated with check (true);
+create policy "producao_horaria_update_autenticado"
+  on public.producao_horaria for update to authenticated using (true) with check (true);
+create policy "producao_horaria_delete_autenticado"
+  on public.producao_horaria for delete to authenticated using (true);
+
+create index if not exists producao_horaria_folha_idx
+  on public.producao_horaria (folha_dia_key);
+create index if not exists producao_horaria_dia_idx
+  on public.producao_horaria (data_operacao, linha, maquina);
+create index if not exists producao_horaria_operador_idx
+  on public.producao_horaria (operador_user_id);
+
+-- updated_at automático
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists producao_horaria_set_updated_at on public.producao_horaria;
+create trigger producao_horaria_set_updated_at
+  before update on public.producao_horaria
+  for each row execute function public.set_updated_at();
+
+-- ─── Auditoria de edições ────────────────────────────────────────────
+create table if not exists public.producao_horaria_edicoes (
+  id uuid primary key default gen_random_uuid(),
+  producao_horaria_id uuid not null,
+  folha_dia_key text not null,
+  hora_codigo text not null,
+  editado_por_login text not null,
+  editado_por_nome text not null,
+  motivo_edicao text,
+  antes_json jsonb,
+  depois_json jsonb,
+  created_at timestamptz not null default now()
+);
+
+grant select, insert on public.producao_horaria_edicoes to authenticated;
+grant all on public.producao_horaria_edicoes to service_role;
+
+alter table public.producao_horaria_edicoes enable row level security;
+
+create policy "producao_horaria_edicoes_select_autenticado"
+  on public.producao_horaria_edicoes for select to authenticated using (true);
+create policy "producao_horaria_edicoes_insert_autenticado"
+  on public.producao_horaria_edicoes for insert to authenticated with check (true);
+
+create index if not exists producao_horaria_edicoes_folha_idx
+  on public.producao_horaria_edicoes (folha_dia_key, hora_codigo);
+```
+
 Depois dessa base pronta, sigo com as demais seções da frente (checklist de apoio, assepsia, CIP) e o verso (tanques e passagem de turno), reaproveitando a mesma folha do dia.
+
