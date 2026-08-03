@@ -48,6 +48,7 @@ export type FilaItemTipo =
   | "anomalia"
   | "ptp_janela"
   | "limpeza_turno"
+  | "producao_hora"
   | "it_evento"
   | "it_sessao_close";
 
