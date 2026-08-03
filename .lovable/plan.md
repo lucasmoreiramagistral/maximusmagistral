@@ -25,9 +25,10 @@ Por linha o operador informa:
 
 O acumulado soma as quantidades horárias e **zera** em dois casos:
 1. Na virada de turno (06:00 e 18:00).
-2. Quando o operador marca a hora como "início de novo acumulado" (troca de sabor / CIP) — é isso que explica o 07/07 reiniciando em 1.477 às 10:00.
+2. Na **troca de produto** — seja troca de sabor (ex.: Tauá → M. Gold) ou troca de tamanho do mesmo sabor (ex.: Regente 1L → Regente 2L), e também em CIP. É isso que explica o 07/07 reiniciando em 1.477 às 10:00.
 
-A marcação de troca de sabor/CIP fica como um botão discreto na linha da hora ("reiniciar acumulado aqui"), e o app recalcula tudo daí pra frente.
+Na prática, cada bloco de acumulado é um "produto rodando". Ao marcar a troca na linha da hora, o operador informa o sabor e o tamanho do novo produto; o app zera o acumulado a partir dali, recalcula as horas seguintes e passa a exibir qual produto está sendo contado em cada bloco. Como cada produto/tamanho tem sua própria meta, a meta digitada também vale a partir daquele bloco.
+
 
 ### Assinatura do líder
 
