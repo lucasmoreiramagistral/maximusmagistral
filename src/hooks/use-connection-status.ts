@@ -305,6 +305,20 @@ const store = {
           console.error("[fila] insertLimpezaEdicao falhou:", e);
         }
       }
+    } else if (item.tipo === "producao_hora") {
+      const { hora, expectedUpdatedAt, edicao } = item.payload as {
+        hora: ProducaoHora;
+        expectedUpdatedAt?: string | null;
+        edicao?: ProducaoHoraEdicaoPayload | null;
+      };
+      await upsertProducaoHora(hora, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      if (edicao) {
+        try {
+          await insertProducaoHoraEdicao(edicao);
+        } catch (e) {
+          console.error("[fila] insertProducaoHoraEdicao falhou:", e);
+        }
+      }
     } else if (item.tipo === "it_evento") {
       const evento = item.payload as EventoIt;
       await insertItEvento(evento);
