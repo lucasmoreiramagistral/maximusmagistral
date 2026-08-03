@@ -1,10 +1,15 @@
 # Hora x Hora — Relatório Operacional Horário da Enchedora (L3)
 
-Nova funcionalidade no `/operador`: registro da produção hora a hora da Enchedora da Linha 3, seguindo o formulário oficial PM04 PSG007 (frente).
+Nova funcionalidade no `/operador`: registro da produção hora a hora da Enchedora da Linha 3, seguindo o formulário oficial FM08 PSGQ07 (rev. 04) — frente.
 
 ## Escopo desta etapa
 
-Somente a **tabela horária** da frente da folha. Ficam de fora por enquanto (entram depois, quando você mandar o modelo Excel): checklist de apoio, controle de assepsia, controle de CIP, registro dos tanques de xarope e passagem de turno.
+Somente a **tabela horária** da frente (colunas HORA, META, QUANTIDADE HORÁRIA, QUANTIDADE ACUMULADA, TEMPO DE PARADA e ASSINATURA DO LÍDER).
+
+Ficam mapeados para etapas seguintes, já conferidos no modelo Excel:
+- Frente: Checklist de Apoio (8 atividades × marcação 1ºT/2ºT/3ºT), Controle de Assepsia (5 trocas de sabor com início/fim), Controle de CIP (7 etapas, com assinatura do operador executante e liberação do CQ com horário).
+- Verso: Registro dos tanques de xarope (18 linhas: sabor, tamanho, nº tanque, lote, qtd inicial/final em L, hora início/término) e Passagem de Turno (3 blocos de ocorrências — 1ºT/12x36 Dia, 2ºT/12x36 Noite, 3ºT).
+
 
 ## Como vai funcionar
 
@@ -51,4 +56,4 @@ Cada linha tem espaço para assinatura do líder "a cada checagem", igual ao pap
 4. Tela do operador e card na home.
 5. Bloco na gestão (folha do dia + relatório).
 
-Quando você mandar o modelo Excel frente e verso, ajusto rótulos/colunas e planejo as demais seções (assepsia, CIP, tanques e passagem de turno).
+Depois dessa base pronta, sigo com as demais seções da frente (checklist de apoio, assepsia, CIP) e o verso (tanques e passagem de turno), reaproveitando a mesma folha do dia.
