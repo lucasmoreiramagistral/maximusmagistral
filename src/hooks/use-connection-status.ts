@@ -32,6 +32,14 @@ import {
 } from "@/lib/it/supabase-analytics";
 import type { EventoIt } from "@/lib/it/telemetria";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import {
+  insertProducaoHoraEdicao,
+  upsertProducaoHora,
+} from "@/lib/producao/supabase-storage";
+import type {
+  ProducaoHora,
+  ProducaoHoraEdicaoPayload,
+} from "@/lib/producao/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FONTE ÚNICA DE VERDADE (singleton) para status de conexão + fila offline.
