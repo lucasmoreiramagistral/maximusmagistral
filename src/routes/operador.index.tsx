@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Droplets,
   Wrench,
+  TrendingUp,
+
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -358,6 +360,13 @@ function OperadorHome() {
             descricao="Checklist operacional de limpeza"
             badge={limpezaOk ? "Concluído" : undefined}
           />
+          <BotaoAcao
+            to="/operador/hora-x-hora"
+            icon={<TrendingUp className="h-8 w-8" />}
+            titulo="Hora x Hora — Enchedora L3"
+            descricao="Relatório operacional horário de produção"
+          />
+
           <BotaoAcao
             to="/operador/tutorial-sigma"
             icon={<Wrench className="h-8 w-8" />}

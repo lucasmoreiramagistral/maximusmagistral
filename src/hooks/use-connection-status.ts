@@ -32,6 +32,14 @@ import {
 } from "@/lib/it/supabase-analytics";
 import type { EventoIt } from "@/lib/it/telemetria";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import {
+  insertProducaoHoraEdicao,
+  upsertProducaoHora,
+} from "@/lib/producao/supabase-storage";
+import type {
+  ProducaoHora,
+  ProducaoHoraEdicaoPayload,
+} from "@/lib/producao/types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FONTE ÚNICA DE VERDADE (singleton) para status de conexão + fila offline.
@@ -48,6 +56,7 @@ export type FilaItemTipo =
   | "anomalia"
   | "ptp_janela"
   | "limpeza_turno"
+  | "producao_hora"
   | "it_evento"
   | "it_sessao_close";
 
@@ -302,6 +311,20 @@ const store = {
           await insertLimpezaEdicao(edicao);
         } catch (e) {
           console.error("[fila] insertLimpezaEdicao falhou:", e);
+        }
+      }
+    } else if (item.tipo === "producao_hora") {
+      const { hora, expectedUpdatedAt, edicao } = item.payload as {
+        hora: ProducaoHora;
+        expectedUpdatedAt?: string | null;
+        edicao?: ProducaoHoraEdicaoPayload | null;
+      };
+      await upsertProducaoHora(hora, { expectedUpdatedAt: expectedUpdatedAt ?? undefined });
+      if (edicao) {
+        try {
+          await insertProducaoHoraEdicao(edicao);
+        } catch (e) {
+          console.error("[fila] insertProducaoHoraEdicao falhou:", e);
         }
       }
     } else if (item.tipo === "it_evento") {
