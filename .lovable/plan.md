@@ -56,4 +56,4 @@ Cada linha tem espaço para assinatura do líder "a cada checagem", igual ao pap
 4. Tela do operador e card na home.
 5. Bloco na gestão (folha do dia + relatório).
 
-Quando você mandar o modelo Excel frente e verso, ajusto rótulos/colunas e planejo as demais seções (assepsia, CIP, tanques e passagem de turno).
+Depois dessa base pronta, sigo com as demais seções da frente (checklist de apoio, assepsia, CIP) e o verso (tanques e passagem de turno), reaproveitando a mesma folha do dia.
