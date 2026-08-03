@@ -25,9 +25,10 @@ Por linha o operador informa:
 
 O acumulado soma as quantidades horárias e **zera** em dois casos:
 1. Na virada de turno (06:00 e 18:00).
-2. Quando o operador marca a hora como "início de novo acumulado" (troca de sabor / CIP) — é isso que explica o 07/07 reiniciando em 1.477 às 10:00.
+2. Na **troca de produto** — seja troca de sabor (ex.: Tauá → M. Gold) ou troca de tamanho do mesmo sabor (ex.: Regente 1L → Regente 2L), e também em CIP. É isso que explica o 07/07 reiniciando em 1.477 às 10:00.
 
-A marcação de troca de sabor/CIP fica como um botão discreto na linha da hora ("reiniciar acumulado aqui"), e o app recalcula tudo daí pra frente.
+Na prática, cada bloco de acumulado é um "produto rodando". Ao marcar a troca na linha da hora, o operador informa o sabor e o tamanho do novo produto; o app zera o acumulado a partir dali, recalcula as horas seguintes e passa a exibir qual produto está sendo contado em cada bloco. Como cada produto/tamanho tem sua própria meta, a meta digitada também vale a partir daquele bloco.
+
 
 ### Assinatura do líder
 
@@ -41,10 +42,11 @@ Cada linha tem espaço para assinatura do líder "a cada checagem", igual ao pap
 
 ## Detalhes técnicos
 
-- Nova tabela `producao_horaria` no Supabase, uma linha por hora: `folha_dia_key`, `data_operacao`, `linha`, `maquina`, `hora_codigo` (H01..H24), `hora_inicio`, `hora_fim`, `turno`, `meta`, `quantidade`, `nao_rodou`, `tempo_parada_min`, `reinicia_acumulado`, dados do operador, assinatura do líder, `updated_at`. Com GRANTs para `authenticated`/`service_role`, RLS habilitada e índice em `(data_operacao, linha, maquina)`.
+- Nova tabela `producao_horaria` no Supabase, uma linha por hora: `folha_dia_key`, `data_operacao`, `linha`, `maquina`, `hora_codigo` (H01..H24), `hora_inicio`, `hora_fim`, `turno`, `meta`, `quantidade`, `nao_rodou`, `tempo_parada_min`, `reinicia_acumulado`, `produto_sabor`, `produto_tamanho`, `motivo_reinicio` (troca de sabor / troca de tamanho / CIP), dados do operador, assinatura do líder, `updated_at`. Com GRANTs para `authenticated`/`service_role`, RLS habilitada e índice em `(data_operacao, linha, maquina)`.
 - Tabela de auditoria `producao_horaria_edicoes`, espelhando `ptp_janelas_edicoes`.
 - `src/lib/producao/constants.ts` com as 24 faixas horárias e o mapeamento hora → turno (reaproveitando `escalas.ts`).
-- `src/lib/producao/acumulado.ts` — função pura que recebe as horas do dia e devolve o acumulado de cada uma, aplicando as duas regras de reset. Coberta por testes unitários com os números reais dos PDFs de 07 a 10/07.
+- `src/lib/producao/acumulado.ts` — função pura que recebe as horas do dia e devolve o acumulado de cada uma e o produto vigente, aplicando as regras de reset (virada de turno + troca de produto/tamanho/CIP). Coberta por testes unitários com os números reais dos PDFs de 07 a 10/07.
+
 - `src/lib/producao/supabase-storage.ts` e `src/hooks/use-producao-horaria.ts` seguindo exatamente o padrão de `use-ptp-janelas` (fila offline, `ConflitoVersaoError`, erros de aplicação propagados para o toast).
 - Rota `src/routes/operador.hora-x-hora.tsx` + card em `operador.index.tsx`; resumo na gestão via `resumo.ts` e badges do dia.
 
