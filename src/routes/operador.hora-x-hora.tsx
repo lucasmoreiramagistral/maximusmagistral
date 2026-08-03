@@ -303,7 +303,7 @@ function HoraXHoraPage() {
             try {
               await salvarHora(nova, {
                 anterior: horaEmEdicao,
-                editadoPorLogin: usuario.login,
+                editadoPorLogin: usuario.usuario,
                 editadoPorNome: usuario.nome,
               });
               toast.success(`Hora ${nova.horaInicio} salva.`);
