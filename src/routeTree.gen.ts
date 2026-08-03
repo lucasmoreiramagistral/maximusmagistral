@@ -17,6 +17,7 @@ import { Route as OperadorTutorialSigmaRouteImport } from './routes/operador.tut
 import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
 import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
 import { Route as OperadorItRouteImport } from './routes/operador.it'
+import { Route as OperadorHoraXHoraRouteImport } from './routes/operador.hora-x-hora'
 import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
 import { Route as OperadorFilaPendenteRouteImport } from './routes/operador.fila-pendente'
 import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
@@ -77,6 +78,11 @@ const OperadorMomentoRoute = OperadorMomentoRouteImport.update({
 const OperadorItRoute = OperadorItRouteImport.update({
   id: '/operador/it',
   path: '/operador/it',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorHoraXHoraRoute = OperadorHoraXHoraRouteImport.update({
+  id: '/operador/hora-x-hora',
+  path: '/operador/hora-x-hora',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorHistoricoRoute = OperadorHistoricoRouteImport.update({
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/operador/contexto': typeof OperadorContextoRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
+  '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
   '/operador/it': typeof OperadorItRouteWithChildren
   '/operador/momento': typeof OperadorMomentoRoute
   '/operador/resumo': typeof OperadorResumoRoute
@@ -300,6 +309,7 @@ export interface FileRouteTypes {
     | '/operador/contexto'
     | '/operador/fila-pendente'
     | '/operador/historico'
+    | '/operador/hora-x-hora'
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/operador/contexto'
     | '/operador/fila-pendente'
     | '/operador/historico'
+    | '/operador/hora-x-hora'
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/operador/contexto'
     | '/operador/fila-pendente'
     | '/operador/historico'
+    | '/operador/hora-x-hora'
     | '/operador/it'
     | '/operador/momento'
     | '/operador/resumo'
@@ -394,6 +406,7 @@ export interface RootRouteChildren {
   OperadorContextoRoute: typeof OperadorContextoRoute
   OperadorFilaPendenteRoute: typeof OperadorFilaPendenteRoute
   OperadorHistoricoRoute: typeof OperadorHistoricoRoute
+  OperadorHoraXHoraRoute: typeof OperadorHoraXHoraRoute
   OperadorItRoute: typeof OperadorItRouteWithChildren
   OperadorMomentoRoute: typeof OperadorMomentoRoute
   OperadorResumoRoute: typeof OperadorResumoRoute
@@ -464,6 +477,13 @@ declare module '@tanstack/react-router' {
       path: '/operador/it'
       fullPath: '/operador/it'
       preLoaderRoute: typeof OperadorItRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/hora-x-hora': {
+      id: '/operador/hora-x-hora'
+      path: '/operador/hora-x-hora'
+      fullPath: '/operador/hora-x-hora'
+      preLoaderRoute: typeof OperadorHoraXHoraRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/historico': {
@@ -656,6 +676,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorContextoRoute: OperadorContextoRoute,
   OperadorFilaPendenteRoute: OperadorFilaPendenteRoute,
   OperadorHistoricoRoute: OperadorHistoricoRoute,
+  OperadorHoraXHoraRoute: OperadorHoraXHoraRoute,
   OperadorItRoute: OperadorItRouteWithChildren,
   OperadorMomentoRoute: OperadorMomentoRoute,
   OperadorResumoRoute: OperadorResumoRoute,
