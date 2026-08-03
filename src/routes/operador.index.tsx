@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Droplets,
   Wrench,
+  TrendingUp,
+
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
