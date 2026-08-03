@@ -42,10 +42,11 @@ Cada linha tem espaço para assinatura do líder "a cada checagem", igual ao pap
 
 ## Detalhes técnicos
 
-- Nova tabela `producao_horaria` no Supabase, uma linha por hora: `folha_dia_key`, `data_operacao`, `linha`, `maquina`, `hora_codigo` (H01..H24), `hora_inicio`, `hora_fim`, `turno`, `meta`, `quantidade`, `nao_rodou`, `tempo_parada_min`, `reinicia_acumulado`, dados do operador, assinatura do líder, `updated_at`. Com GRANTs para `authenticated`/`service_role`, RLS habilitada e índice em `(data_operacao, linha, maquina)`.
+- Nova tabela `producao_horaria` no Supabase, uma linha por hora: `folha_dia_key`, `data_operacao`, `linha`, `maquina`, `hora_codigo` (H01..H24), `hora_inicio`, `hora_fim`, `turno`, `meta`, `quantidade`, `nao_rodou`, `tempo_parada_min`, `reinicia_acumulado`, `produto_sabor`, `produto_tamanho`, `motivo_reinicio` (troca de sabor / troca de tamanho / CIP), dados do operador, assinatura do líder, `updated_at`. Com GRANTs para `authenticated`/`service_role`, RLS habilitada e índice em `(data_operacao, linha, maquina)`.
 - Tabela de auditoria `producao_horaria_edicoes`, espelhando `ptp_janelas_edicoes`.
 - `src/lib/producao/constants.ts` com as 24 faixas horárias e o mapeamento hora → turno (reaproveitando `escalas.ts`).
-- `src/lib/producao/acumulado.ts` — função pura que recebe as horas do dia e devolve o acumulado de cada uma, aplicando as duas regras de reset. Coberta por testes unitários com os números reais dos PDFs de 07 a 10/07.
+- `src/lib/producao/acumulado.ts` — função pura que recebe as horas do dia e devolve o acumulado de cada uma e o produto vigente, aplicando as regras de reset (virada de turno + troca de produto/tamanho/CIP). Coberta por testes unitários com os números reais dos PDFs de 07 a 10/07.
+
 - `src/lib/producao/supabase-storage.ts` e `src/hooks/use-producao-horaria.ts` seguindo exatamente o padrão de `use-ptp-janelas` (fila offline, `ConflitoVersaoError`, erros de aplicação propagados para o toast).
 - Rota `src/routes/operador.hora-x-hora.tsx` + card em `operador.index.tsx`; resumo na gestão via `resumo.ts` e badges do dia.
 
