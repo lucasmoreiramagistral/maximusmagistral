@@ -7,6 +7,7 @@ import {
   Clock,
   Lock,
   MinusCircle,
+  PenLine,
   RefreshCcw,
   TrendingUp,
 } from "lucide-react";
