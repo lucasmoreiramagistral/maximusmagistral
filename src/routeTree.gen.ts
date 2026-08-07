@@ -20,6 +20,7 @@ import { Route as OperadorItRouteImport } from './routes/operador.it'
 import { Route as OperadorHoraXHoraRouteImport } from './routes/operador.hora-x-hora'
 import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
 import { Route as OperadorFilaPendenteRouteImport } from './routes/operador.fila-pendente'
+import { Route as OperadorEnchedoraApoioRouteImport } from './routes/operador.enchedora-apoio'
 import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
 import { Route as OperadorConfirmacaoRouteImport } from './routes/operador.confirmacao'
 import { Route as OperadorChecklistRouteImport } from './routes/operador.checklist'
@@ -93,6 +94,11 @@ const OperadorHistoricoRoute = OperadorHistoricoRouteImport.update({
 const OperadorFilaPendenteRoute = OperadorFilaPendenteRouteImport.update({
   id: '/operador/fila-pendente',
   path: '/operador/fila-pendente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorEnchedoraApoioRoute = OperadorEnchedoraApoioRouteImport.update({
+  id: '/operador/enchedora-apoio',
+  path: '/operador/enchedora-apoio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorContextoRoute = OperadorContextoRouteImport.update({
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
+  '/operador/enchedora-apoio': typeof OperadorEnchedoraApoioRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
@@ -240,6 +247,7 @@ export interface FileRoutesByTo {
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
+  '/operador/enchedora-apoio': typeof OperadorEnchedoraApoioRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/operador/checklist': typeof OperadorChecklistRoute
   '/operador/confirmacao': typeof OperadorConfirmacaoRoute
   '/operador/contexto': typeof OperadorContextoRoute
+  '/operador/enchedora-apoio': typeof OperadorEnchedoraApoioRoute
   '/operador/fila-pendente': typeof OperadorFilaPendenteRoute
   '/operador/historico': typeof OperadorHistoricoRoute
   '/operador/hora-x-hora': typeof OperadorHoraXHoraRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
+    | '/operador/enchedora-apoio'
     | '/operador/fila-pendente'
     | '/operador/historico'
     | '/operador/hora-x-hora'
@@ -339,6 +349,7 @@ export interface FileRouteTypes {
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
+    | '/operador/enchedora-apoio'
     | '/operador/fila-pendente'
     | '/operador/historico'
     | '/operador/hora-x-hora'
@@ -371,6 +382,7 @@ export interface FileRouteTypes {
     | '/operador/checklist'
     | '/operador/confirmacao'
     | '/operador/contexto'
+    | '/operador/enchedora-apoio'
     | '/operador/fila-pendente'
     | '/operador/historico'
     | '/operador/hora-x-hora'
@@ -404,6 +416,7 @@ export interface RootRouteChildren {
   OperadorChecklistRoute: typeof OperadorChecklistRoute
   OperadorConfirmacaoRoute: typeof OperadorConfirmacaoRoute
   OperadorContextoRoute: typeof OperadorContextoRoute
+  OperadorEnchedoraApoioRoute: typeof OperadorEnchedoraApoioRoute
   OperadorFilaPendenteRoute: typeof OperadorFilaPendenteRoute
   OperadorHistoricoRoute: typeof OperadorHistoricoRoute
   OperadorHoraXHoraRoute: typeof OperadorHoraXHoraRoute
@@ -498,6 +511,13 @@ declare module '@tanstack/react-router' {
       path: '/operador/fila-pendente'
       fullPath: '/operador/fila-pendente'
       preLoaderRoute: typeof OperadorFilaPendenteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/enchedora-apoio': {
+      id: '/operador/enchedora-apoio'
+      path: '/operador/enchedora-apoio'
+      fullPath: '/operador/enchedora-apoio'
+      preLoaderRoute: typeof OperadorEnchedoraApoioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/contexto': {
@@ -674,6 +694,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorChecklistRoute: OperadorChecklistRoute,
   OperadorConfirmacaoRoute: OperadorConfirmacaoRoute,
   OperadorContextoRoute: OperadorContextoRoute,
+  OperadorEnchedoraApoioRoute: OperadorEnchedoraApoioRoute,
   OperadorFilaPendenteRoute: OperadorFilaPendenteRoute,
   OperadorHistoricoRoute: OperadorHistoricoRoute,
   OperadorHoraXHoraRoute: OperadorHoraXHoraRoute,
@@ -693,12 +714,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

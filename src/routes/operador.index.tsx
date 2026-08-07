@@ -12,6 +12,7 @@ import {
   Droplets,
   Wrench,
   TrendingUp,
+  FlaskConical,
 
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
@@ -366,6 +367,13 @@ function OperadorHome() {
             titulo="Hora x Hora — Enchedora L3"
             descricao="Relatório operacional horário de produção"
           />
+          <BotaoAcao
+            to="/operador/enchedora-apoio"
+            icon={<FlaskConical className="h-8 w-8" />}
+            titulo="Apoio, Assepsia e CIP — L3"
+            descricao="Checklist de apoio, trocas de sabor e CIP"
+          />
+
 
           <BotaoAcao
             to="/operador/tutorial-sigma"

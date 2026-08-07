@@ -36,6 +36,8 @@ import {
   insertProducaoHoraEdicao,
   upsertProducaoHora,
 } from "@/lib/producao/supabase-storage";
+import { upsertProducaoApoio } from "@/lib/producao/apoio-supabase";
+import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type {
   ProducaoHora,
   ProducaoHoraEdicaoPayload,
@@ -57,6 +59,7 @@ export type FilaItemTipo =
   | "ptp_janela"
   | "limpeza_turno"
   | "producao_hora"
+  | "producao_apoio"
   | "it_evento"
   | "it_sessao_close";
 
@@ -327,6 +330,14 @@ const store = {
           console.error("[fila] insertProducaoHoraEdicao falhou:", e);
         }
       }
+    } else if (item.tipo === "producao_apoio") {
+      const { apoio, expectedUpdatedAt } = item.payload as {
+        apoio: ProducaoApoio;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoApoio(apoio, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
     } else if (item.tipo === "it_evento") {
       const evento = item.payload as EventoIt;
       await insertItEvento(evento);
