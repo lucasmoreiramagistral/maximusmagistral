@@ -207,11 +207,37 @@ function HoraXHoraPage() {
           <Cartao titulo="Parada total" valor={`${resumo.totalParadaMin} min`} />
         </div>
 
+        {checagens.length > 0 && (
+          <div
+            className={`mb-4 flex items-start gap-2 rounded-xl border p-3 text-sm ${
+              checagensAssinadas === checagens.length
+                ? "border-success/40 bg-success/10"
+                : "border-warning/40 bg-warning/10"
+            }`}
+          >
+            <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-foreground/70" />
+            <p className="text-foreground">
+              <span className="font-semibold">
+                Checagem do líder: {checagensAssinadas}/{checagens.length}
+              </span>{" "}
+              — o líder assina apenas nas horas{" "}
+              {checagens
+                .map((c) => {
+                  const f = porCodigo.get(c);
+                  return f ? `${f.horaInicio} às ${f.horaFim}` : c;
+                })
+                .join(" e ")}
+              .
+            </p>
+          </div>
+        )}
+
         <p className="mb-3 text-sm text-muted-foreground">
           Toque em uma hora para lançar a produção. A quantidade acumulada é
           calculada automaticamente e zera na virada do turno e a cada troca de
           produto ou CIP.
         </p>
+
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {codigosDoTurno.map((codigo) => {
