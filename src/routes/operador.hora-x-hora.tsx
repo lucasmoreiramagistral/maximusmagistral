@@ -316,6 +316,20 @@ function HoraXHoraPage() {
                     Produto: <span className="font-semibold text-foreground">{h.produtoVigente}</span>
                   </p>
                 )}
+                {ehHoraDeChecagemLider(h.horaCodigo) && (
+                  <p
+                    className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                      h.assinaturaLider?.dataUrl
+                        ? "bg-success/15 text-success"
+                        : "bg-warning/15 text-warning"
+                    }`}
+                  >
+                    <PenLine className="h-3 w-3" />
+                    {h.assinaturaLider?.dataUrl
+                      ? `Líder assinou${h.liderNome ? ` · ${h.liderNome}` : ""}`
+                      : "Checagem do líder pendente"}
+                  </p>
+                )}
               </button>
             );
           })}
