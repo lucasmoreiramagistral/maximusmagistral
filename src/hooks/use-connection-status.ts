@@ -57,6 +57,7 @@ export type FilaItemTipo =
   | "ptp_janela"
   | "limpeza_turno"
   | "producao_hora"
+  | "producao_apoio"
   | "it_evento"
   | "it_sessao_close";
 
