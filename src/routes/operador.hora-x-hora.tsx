@@ -41,8 +41,11 @@ import {
   LABEL_MOTIVO_REINICIO,
   PRODUCAO_CONTEXTO_FIXO,
   TAMANHOS_SUGERIDOS,
+  checagensLiderDoTurno,
+  ehHoraDeChecagemLider,
   horasDoTurnoEquipe,
 } from "@/lib/producao/constants";
+import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
 import type { MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
 
