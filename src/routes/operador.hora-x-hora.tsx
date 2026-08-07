@@ -416,7 +416,12 @@ function DialogHora({
   const [sabor, setSabor] = useState(hora.produtoSabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? "");
   const [observacao, setObservacao] = useState(hora.observacao ?? "");
+  const [liderNome, setLiderNome] = useState(hora.liderNome ?? "");
+  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(
+    hora.assinaturaLider?.dataUrl ?? null,
+  );
   const [salvando, setSalvando] = useState(false);
+  const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
 
   async function handleSalvar() {
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
