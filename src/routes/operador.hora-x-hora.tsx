@@ -7,6 +7,7 @@ import {
   Clock,
   Lock,
   MinusCircle,
+  PenLine,
   RefreshCcw,
   TrendingUp,
 } from "lucide-react";
@@ -41,8 +42,11 @@ import {
   LABEL_MOTIVO_REINICIO,
   PRODUCAO_CONTEXTO_FIXO,
   TAMANHOS_SUGERIDOS,
+  checagensLiderDoTurno,
+  ehHoraDeChecagemLider,
   horasDoTurnoEquipe,
 } from "@/lib/producao/constants";
+import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
 import type { MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
 
@@ -117,6 +121,15 @@ function HoraXHoraPage() {
     () => calcularResumoHoraXHora(horas, codigosDoTurno),
     [horas, codigosDoTurno],
   );
+
+  // As 2 checagens do líder do turno (meio e fim do turno).
+  const checagens = useMemo(
+    () => checagensLiderDoTurno(codigosDoTurno),
+    [codigosDoTurno],
+  );
+  const checagensAssinadas = checagens.filter(
+    (c) => !!porCodigo.get(c)?.assinaturaLider?.dataUrl,
+  ).length;
 
   // Bloqueio de horas futuras: só quando o relógio ainda está dentro do turno.
   const codigoAtual = useMemo(() => {
@@ -195,11 +208,37 @@ function HoraXHoraPage() {
           <Cartao titulo="Parada total" valor={`${resumo.totalParadaMin} min`} />
         </div>
 
+        {checagens.length > 0 && (
+          <div
+            className={`mb-4 flex items-start gap-2 rounded-xl border p-3 text-sm ${
+              checagensAssinadas === checagens.length
+                ? "border-success/40 bg-success/10"
+                : "border-warning/40 bg-warning/10"
+            }`}
+          >
+            <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-foreground/70" />
+            <p className="text-foreground">
+              <span className="font-semibold">
+                Checagem do líder: {checagensAssinadas}/{checagens.length}
+              </span>{" "}
+              — o líder assina apenas nas horas{" "}
+              {checagens
+                .map((c) => {
+                  const f = porCodigo.get(c);
+                  return f ? `${f.horaInicio} às ${f.horaFim}` : c;
+                })
+                .join(" e ")}
+              .
+            </p>
+          </div>
+        )}
+
         <p className="mb-3 text-sm text-muted-foreground">
           Toque em uma hora para lançar a produção. A quantidade acumulada é
           calculada automaticamente e zera na virada do turno e a cada troca de
           produto ou CIP.
         </p>
+
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {codigosDoTurno.map((codigo) => {
@@ -275,6 +314,20 @@ function HoraXHoraPage() {
                 {!h.reiniciaAcumulado && h.produtoVigente && (
                   <p className="mt-2 text-[11px] text-muted-foreground">
                     Produto: <span className="font-semibold text-foreground">{h.produtoVigente}</span>
+                  </p>
+                )}
+                {ehHoraDeChecagemLider(h.horaCodigo) && (
+                  <p
+                    className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                      h.assinaturaLider?.dataUrl
+                        ? "bg-success/15 text-success"
+                        : "bg-warning/15 text-warning"
+                    }`}
+                  >
+                    <PenLine className="h-3 w-3" />
+                    {h.assinaturaLider?.dataUrl
+                      ? `Líder assinou${h.liderNome ? ` · ${h.liderNome}` : ""}`
+                      : "Checagem do líder pendente"}
                   </p>
                 )}
               </button>
@@ -363,7 +416,12 @@ function DialogHora({
   const [sabor, setSabor] = useState(hora.produtoSabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? "");
   const [observacao, setObservacao] = useState(hora.observacao ?? "");
+  const [liderNome, setLiderNome] = useState(hora.liderNome ?? "");
+  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(
+    hora.assinaturaLider?.dataUrl ?? null,
+  );
   const [salvando, setSalvando] = useState(false);
+  const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
 
   async function handleSalvar() {
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
@@ -391,6 +449,11 @@ function DialogHora({
       return;
     }
 
+    if (exigeLider && assinaturaLider && !liderNome.trim()) {
+      toast.error("Informe o nome do líder que assinou.");
+      return;
+    }
+
     setSalvando(true);
     try {
       await onSalvar({
@@ -404,11 +467,28 @@ function DialogHora({
         produtoSabor: sabor.trim() || null,
         produtoTamanho: tamanho.trim() || null,
         observacao: observacao.trim() || null,
+        liderNome: exigeLider ? liderNome.trim() || null : hora.liderNome ?? null,
+        assinaturaLider:
+          exigeLider && assinaturaLider
+            ? {
+                dataUrl: assinaturaLider,
+                nome: liderNome.trim(),
+                assinadoEm:
+                  hora.assinaturaLider?.dataUrl === assinaturaLider
+                    ? hora.assinaturaLider.assinadoEm
+                    : new Date().toISOString(),
+              }
+            : exigeLider
+              ? null
+              : hora.assinaturaLider ?? null,
+        liderAssinouEm:
+          exigeLider && assinaturaLider ? new Date().toISOString() : hora.liderAssinouEm ?? null,
       });
     } finally {
       setSalvando(false);
     }
   }
+
 
   return (
     <Dialog open onOpenChange={(o) => !o && !salvando && onFechar()}>
@@ -547,7 +627,36 @@ function DialogHora({
               className="mt-1"
             />
           </div>
+
+          {exigeLider && (
+            <div className="rounded-xl border-2 border-primary/30 bg-primary-soft/40 p-3">
+              <p className="text-sm font-bold text-foreground">
+                Checagem do líder ({hora.horaInicio} às {hora.horaFim})
+              </p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                O líder assina só nesta checagem — são 2 assinaturas por turno.
+              </p>
+              <div className="mb-3">
+                <Label htmlFor="lider-nome">Nome do líder</Label>
+                <Input
+                  id="lider-nome"
+                  value={liderNome}
+                  onChange={(e) => setLiderNome(e.target.value)}
+                  placeholder="Nome de quem está checando"
+                  className="mt-1 h-12 text-base"
+                />
+              </div>
+              <SignaturePad
+                label="Assinatura do líder"
+                ajuda="Opcional agora — pode ser assinada quando o líder passar."
+                value={assinaturaLider}
+                onChange={setAssinaturaLider}
+                altura={150}
+              />
+            </div>
+          )}
         </div>
+
 
         <DialogFooter>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>

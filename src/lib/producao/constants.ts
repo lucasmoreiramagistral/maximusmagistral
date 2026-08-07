@@ -99,3 +99,21 @@ export const LABEL_MOTIVO_REINICIO: Record<MotivoReinicio, string> = {
 };
 
 export const TAMANHOS_SUGERIDOS = ["300ml", "500ml", "1L", "1,5L", "2L", "2,5L"];
+
+// ─── Checagens do líder ─────────────────────────────────────────────
+/**
+ * O formulário em papel prevê assinatura do líder "a cada checagem".
+ * Na prática são 2 checagens por turno: meio e fim do turno.
+ *  Dia   → H06 (11:00 às 12:00) e H12 (17:00 às 18:00)
+ *  Noite → H18 (23:00 às 00:00) e H24 (05:00 às 06:00)
+ */
+export const HORAS_CHECAGEM_LIDER = ["H06", "H12", "H18", "H24"] as const;
+
+export function ehHoraDeChecagemLider(codigo: string): boolean {
+  return (HORAS_CHECAGEM_LIDER as readonly string[]).includes(codigo);
+}
+
+/** As 2 horas de checagem do líder dentro do turno informado. */
+export function checagensLiderDoTurno(codigosDoTurno: string[]): string[] {
+  return codigosDoTurno.filter(ehHoraDeChecagemLider);
+}
