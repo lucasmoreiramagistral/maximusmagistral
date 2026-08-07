@@ -327,6 +327,14 @@ const store = {
           console.error("[fila] insertProducaoHoraEdicao falhou:", e);
         }
       }
+    } else if (item.tipo === "producao_apoio") {
+      const { apoio, expectedUpdatedAt } = item.payload as {
+        apoio: ProducaoApoio;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoApoio(apoio, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
     } else if (item.tipo === "it_evento") {
       const evento = item.payload as EventoIt;
       await insertItEvento(evento);
