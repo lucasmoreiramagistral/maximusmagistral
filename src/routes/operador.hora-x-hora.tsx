@@ -449,6 +449,11 @@ function DialogHora({
       return;
     }
 
+    if (exigeLider && assinaturaLider && !liderNome.trim()) {
+      toast.error("Informe o nome do líder que assinou.");
+      return;
+    }
+
     setSalvando(true);
     try {
       await onSalvar({
@@ -462,11 +467,28 @@ function DialogHora({
         produtoSabor: sabor.trim() || null,
         produtoTamanho: tamanho.trim() || null,
         observacao: observacao.trim() || null,
+        liderNome: exigeLider ? liderNome.trim() || null : hora.liderNome ?? null,
+        assinaturaLider:
+          exigeLider && assinaturaLider
+            ? {
+                dataUrl: assinaturaLider,
+                nome: liderNome.trim(),
+                assinadoEm:
+                  hora.assinaturaLider?.dataUrl === assinaturaLider
+                    ? hora.assinaturaLider.assinadoEm
+                    : new Date().toISOString(),
+              }
+            : exigeLider
+              ? null
+              : hora.assinaturaLider ?? null,
+        liderAssinouEm:
+          exigeLider && assinaturaLider ? new Date().toISOString() : hora.liderAssinouEm ?? null,
       });
     } finally {
       setSalvando(false);
     }
   }
+
 
   return (
     <Dialog open onOpenChange={(o) => !o && !salvando && onFechar()}>
