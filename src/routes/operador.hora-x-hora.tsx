@@ -121,6 +121,15 @@ function HoraXHoraPage() {
     [horas, codigosDoTurno],
   );
 
+  // As 2 checagens do líder do turno (meio e fim do turno).
+  const checagens = useMemo(
+    () => checagensLiderDoTurno(codigosDoTurno),
+    [codigosDoTurno],
+  );
+  const checagensAssinadas = checagens.filter(
+    (c) => !!porCodigo.get(c)?.assinaturaLider?.dataUrl,
+  ).length;
+
   // Bloqueio de horas futuras: só quando o relógio ainda está dentro do turno.
   const codigoAtual = useMemo(() => {
     const agora = minutosManausAgora();
