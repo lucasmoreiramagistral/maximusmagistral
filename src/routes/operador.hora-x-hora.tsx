@@ -627,7 +627,36 @@ function DialogHora({
               className="mt-1"
             />
           </div>
+
+          {exigeLider && (
+            <div className="rounded-xl border-2 border-primary/30 bg-primary-soft/40 p-3">
+              <p className="text-sm font-bold text-foreground">
+                Checagem do líder ({hora.horaInicio} às {hora.horaFim})
+              </p>
+              <p className="mb-3 text-xs text-muted-foreground">
+                O líder assina só nesta checagem — são 2 assinaturas por turno.
+              </p>
+              <div className="mb-3">
+                <Label htmlFor="lider-nome">Nome do líder</Label>
+                <Input
+                  id="lider-nome"
+                  value={liderNome}
+                  onChange={(e) => setLiderNome(e.target.value)}
+                  placeholder="Nome de quem está checando"
+                  className="mt-1 h-12 text-base"
+                />
+              </div>
+              <SignaturePad
+                label="Assinatura do líder"
+                ajuda="Opcional agora — pode ser assinada quando o líder passar."
+                value={assinaturaLider}
+                onChange={setAssinaturaLider}
+                altura={150}
+              />
+            </div>
+          )}
         </div>
+
 
         <DialogFooter>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>
