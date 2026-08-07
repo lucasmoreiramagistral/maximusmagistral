@@ -36,6 +36,8 @@ import {
   insertProducaoHoraEdicao,
   upsertProducaoHora,
 } from "@/lib/producao/supabase-storage";
+import { upsertProducaoApoio } from "@/lib/producao/apoio-supabase";
+import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type {
   ProducaoHora,
   ProducaoHoraEdicaoPayload,
