@@ -32,7 +32,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApoioSecoes } from "@/components/producao/apoio-secoes";
 import { TelaCarregando } from "@/components/tela-carregando";
+
 import { useGuard } from "@/hooks/use-guard";
 import { useProducaoHoraria } from "@/hooks/use-producao-horaria";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
@@ -198,6 +201,15 @@ function HoraXHoraPage() {
           </div>
         )}
 
+        <Tabs defaultValue="producao">
+          <TabsList className="mb-4 grid w-full grid-cols-2">
+            <TabsTrigger value="producao">Produção hora a hora</TabsTrigger>
+            <TabsTrigger value="apoio">Apoio, assepsia e CIP</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="producao" forceMount>
+
+
         <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Cartao titulo="Horas lançadas" valor={`${resumo.lancadas}/${resumo.total}`} />
           <Cartao titulo="Produzido no turno" valor={resumo.totalProduzido.toLocaleString("pt-BR")} />
@@ -344,7 +356,19 @@ function HoraXHoraPage() {
             </p>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="apoio" forceMount>
+            <ApoioSecoes
+              usuario={usuario}
+              turno={turno}
+              data={data}
+              folhaDiaKey={folhaDiaKey}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
+
 
       {horaEmEdicao && (
         <DialogHora
