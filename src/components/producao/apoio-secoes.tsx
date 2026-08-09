@@ -50,32 +50,8 @@ export function ApoioSecoes({ usuario, turno, data, folhaDiaKey }: ApoioSecoesPr
     if (apoio) setRascunho(apoio);
   }, [apoio]);
 
+  if (carregando || !rascunho) return <TelaCarregando />;
 
-  if (loading || !usuario || carregando) return <TelaCarregando />;
-
-  if (!turno || !equipe) {
-    return (
-      <div className="min-h-screen bg-background">
-        <AppHeader
-          titulo="Apoio, Assepsia e CIP"
-          subtitulo="Defina seu turno do dia"
-          voltarPara="/operador"
-        />
-        <main className="mx-auto w-full max-w-[800px] px-4 py-10 md:py-16">
-          <div className="rounded-2xl border-2 border-warning/40 bg-warning/10 p-6 text-center md:p-8">
-            <p className="text-base font-bold text-foreground md:text-lg">
-              Defina seu turno do dia para abrir esta folha
-            </p>
-            <Button asChild className="mt-4 h-12 px-6 text-base font-semibold">
-              <Link to="/operador">Definir turno do dia agora</Link>
-            </Button>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
-  if (!rascunho) return <TelaCarregando />;
 
   const atual = rascunho;
   const feitos = atual.checklist.filter((c) => c.feito).length;
