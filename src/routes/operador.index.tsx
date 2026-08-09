@@ -365,14 +365,10 @@ function OperadorHome() {
             to="/operador/hora-x-hora"
             icon={<TrendingUp className="h-8 w-8" />}
             titulo="Hora x Hora — Enchedora L3"
-            descricao="Relatório operacional horário de produção"
+            descricao="Produção horária + apoio, assepsia e CIP"
           />
-          <BotaoAcao
-            to="/operador/enchedora-apoio"
-            icon={<FlaskConical className="h-8 w-8" />}
-            titulo="Apoio, Assepsia e CIP — L3"
-            descricao="Checklist de apoio, trocas de sabor e CIP"
-          />
+
+
 
 
           <BotaoAcao
