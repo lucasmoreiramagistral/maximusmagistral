@@ -344,7 +344,19 @@ function HoraXHoraPage() {
             </p>
           </div>
         )}
+          </TabsContent>
+
+          <TabsContent value="apoio" forceMount>
+            <ApoioSecoes
+              usuario={usuario}
+              turno={turno}
+              data={data}
+              folhaDiaKey={folhaDiaKey}
+            />
+          </TabsContent>
+        </Tabs>
       </main>
+
 
       {horaEmEdicao && (
         <DialogHora
