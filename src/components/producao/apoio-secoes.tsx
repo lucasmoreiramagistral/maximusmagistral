@@ -98,13 +98,9 @@ export function ApoioSecoes({ usuario, turno, data, folhaDiaKey }: ApoioSecoesPr
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <AppHeader
-        titulo="Apoio, Assepsia e CIP"
-        subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno}${turnoAtivo.ehExtra ? " · EXTRA" : ""}`}
-        voltarPara="/operador"
-      />
-      <main className="mx-auto w-full max-w-[1000px] px-4 py-6 md:px-8 md:py-10">
+    <div>
+      <div>
+
         {conflito && (
           <div className="mb-4 rounded-xl border-2 border-destructive/40 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
             Conflito de versão: outra pessoa alterou esta folha. Recarregue a tela
