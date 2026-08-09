@@ -12,7 +12,6 @@ import {
   Droplets,
   Wrench,
   TrendingUp,
-  FlaskConical,
 
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
