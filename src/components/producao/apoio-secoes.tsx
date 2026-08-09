@@ -1,8 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { CheckCircle2, ClipboardCheck, Droplets, FlaskConical } from "lucide-react";
-import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -11,11 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SignaturePad } from "@/components/signature-pad";
 import { TelaCarregando } from "@/components/tela-carregando";
-import { useGuard } from "@/hooks/use-guard";
 import { useProducaoApoio } from "@/hooks/use-producao-apoio";
-import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
-import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operacional";
-import { PRODUCAO_CONTEXTO_FIXO } from "@/lib/producao/constants";
 import {
   APOIO_ATIVIDADES,
   APOIO_GRUPOS,
@@ -24,43 +18,24 @@ import {
   CIP_ETAPAS,
 } from "@/lib/producao/apoio-constants";
 import type { ProducaoApoio } from "@/lib/producao/apoio-types";
-
-export const Route = createFileRoute("/operador/enchedora-apoio")({
-  head: () => ({
-    meta: [
-      { title: "Apoio, Assepsia e CIP — Enchedora L3" },
-      {
-        name: "description",
-        content:
-          "Checklist de apoio do expediente, controle de assepsia por troca de sabor e controle de CIP da enchedora da Linha 3.",
-      },
-      { property: "og:title", content: "Apoio, Assepsia e CIP — Enchedora L3" },
-      {
-        property: "og:description",
-        content:
-          "Registro do checklist de apoio, assepsia e CIP da enchedora da Linha 3 pelo operador do turno.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-    ],
-  }),
-  component: ApoioPage,
-});
+import type { Turno, Usuario } from "@/lib/checklist/types";
 
 function agoraIso() {
   return new Date().toISOString();
 }
 
-function ApoioPage() {
-  const { usuario, loading } = useGuard("operador");
-  const turnoAtivo = useTurnoAtivoDoDia(usuario);
-  const { turno, equipe, data } = turnoAtivo;
-  const folhaDiaKey = buildFolhaDiaKey(
-    data,
-    PRODUCAO_CONTEXTO_FIXO.linha,
-    PRODUCAO_CONTEXTO_FIXO.maquina,
-  );
+interface ApoioSecoesProps {
+  usuario: Usuario;
+  turno: Turno;
+  data: string;
+  folhaDiaKey: string;
+}
 
+/**
+ * Blocos de apoio da frente do relatório operacional horário:
+ * Checklist de Apoio + Assepsia + CIP. Renderizado dentro do Hora x Hora.
+ */
+export function ApoioSecoes({ usuario, turno, data, folhaDiaKey }: ApoioSecoesProps) {
   const { apoio, loading: carregando, conflito, salvar } = useProducaoApoio(
     folhaDiaKey,
     data,
@@ -74,6 +49,7 @@ function ApoioPage() {
   useEffect(() => {
     if (apoio) setRascunho(apoio);
   }, [apoio]);
+
 
   if (loading || !usuario || carregando) return <TelaCarregando />;
 
