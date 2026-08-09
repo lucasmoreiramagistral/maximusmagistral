@@ -32,7 +32,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ApoioSecoes } from "@/components/producao/apoio-secoes";
 import { TelaCarregando } from "@/components/tela-carregando";
+
 import { useGuard } from "@/hooks/use-guard";
 import { useProducaoHoraria } from "@/hooks/use-producao-horaria";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
