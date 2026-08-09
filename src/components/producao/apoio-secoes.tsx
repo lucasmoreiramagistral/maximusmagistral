@@ -401,7 +401,7 @@ export function ApoioSecoes({ usuario, turno, data, folhaDiaKey }: ApoioSecoesPr
             {salvando ? "Salvando..." : "Salvar apoio, assepsia e CIP"}
           </Button>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
