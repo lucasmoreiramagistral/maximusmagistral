@@ -16,6 +16,19 @@ dist-ssr
 .nitro
 *.local
 
+# Segredos.
+#
+# O .env versionado guarda SOMENTE valores publicos (SUPABASE_URL e a
+# publishable key), porque o Vite os injeta no bundle em tempo de build e a
+# Lovable compila a partir deste repositorio: apagar o arquivo quebraria o
+# app nos tablets.
+#
+# Chave privilegiada (service_role) mora no .env.local, que nunca e commitado.
+# Ela ignora todo o RLS — quem tem ela apaga a base inteira.
+.env.local
+.env.*.local
+.env.production
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
