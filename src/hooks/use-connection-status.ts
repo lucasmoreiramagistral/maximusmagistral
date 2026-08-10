@@ -37,6 +37,14 @@ import {
   upsertProducaoHora,
 } from "@/lib/producao/supabase-storage";
 import { upsertProducaoApoio } from "@/lib/producao/apoio-supabase";
+import {
+  upsertProducaoPassagem,
+  upsertProducaoTanque,
+} from "@/lib/producao/verso-supabase";
+import type {
+  ProducaoPassagem,
+  ProducaoTanque,
+} from "@/lib/producao/verso-types";
 import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type {
   ProducaoHora,
