@@ -74,8 +74,8 @@ function LiderHome() {
   }, [data]);
 
   const linhas = useMemo(
-    () => montarFarol({ checklists, limpezas, data }),
-    [checklists, limpezas, data],
+    () => montarFarol({ checklists, limpezas, data, hoje }),
+    [checklists, limpezas, data, hoje],
   );
 
   const aguardandoValidacao = useMemo(

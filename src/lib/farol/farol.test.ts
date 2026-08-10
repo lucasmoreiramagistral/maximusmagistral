@@ -198,3 +198,53 @@ describe("calcularCumprimentoPeriodo", () => {
     expect(r.totalEsperado).toBe(6);
   });
 });
+
+describe("dia em andamento nao vira cobranca", () => {
+  it("hoje sem checklist fica aguardando, nao NR", () => {
+    const [linha] = montarFarol({
+      checklists: [],
+      data: DATA,
+      hoje: DATA, // mesmo dia = turno ainda correndo
+      maquinas: MAQ,
+    });
+    expect(linha.celulas.map((c) => c.estado)).toEqual([
+      "aguardando",
+      "aguardando",
+      "aguardando",
+    ]);
+  });
+
+  it("dia passado sem checklist continua NR", () => {
+    const [linha] = montarFarol({
+      checklists: [],
+      data: "2026-08-09",
+      hoje: DATA, // hoje e outro dia = 09/08 ja fechou
+      maquinas: MAQ,
+    });
+    expect(linha.celulas.every((c) => c.estado === "nr")).toBe(true);
+  });
+
+  it("aguardando fica fora do denominador do cumprimento", () => {
+    const linhas = montarFarol({
+      checklists: [checklist(MOM_A, ["Conforme"])],
+      data: DATA,
+      hoje: DATA,
+      maquinas: MAQ,
+    });
+    const resumo = resumirFarol(linhas);
+    expect(resumo.aguardando).toBe(2);
+    expect(resumo.totalAvaliado).toBe(1); // so o momento ja feito conta
+    expect(percentualCumprimento(resumo)).toBe(100);
+  });
+
+  it("NC no dia corrente continua vermelho na hora", () => {
+    // Alarme falso e ruim; esconder problema real e pior.
+    const [linha] = montarFarol({
+      checklists: [checklist(MOM_A, ["Nao conforme" as never])],
+      data: DATA,
+      hoje: DATA,
+      maquinas: MAQ,
+    });
+    expect(linha.celulas[0].estado).not.toBe("aguardando");
+  });
+});

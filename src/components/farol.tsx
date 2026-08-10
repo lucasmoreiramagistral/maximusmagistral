@@ -9,6 +9,7 @@
 import { cn } from "@/lib/utils";
 import {
   CODIGO_MOMENTO,
+  ETAPA_PDCA,
   DESCRICAO_ESTADO,
   ROTULO_ESTADO,
   percentualCumprimento,
@@ -24,6 +25,7 @@ const CLASSE_CELULA: Record<EstadoFarol, string> = {
   nc: "bg-destructive text-destructive-foreground border-destructive",
   nr: "bg-destructive-soft text-destructive border-destructive/40 [background-image:repeating-linear-gradient(45deg,transparent,transparent_6px,rgba(0,0,0,.06)_6px,rgba(0,0,0,.06)_12px)]",
   pendente_validacao: "bg-warning/25 text-warning-foreground border-warning/50",
+  aguardando: "bg-primary-soft/60 text-primary border-primary/25 border-dashed",
   na: "bg-na-soft text-muted-foreground border-border",
   conforme: "bg-success-soft text-success border-success/40",
   sem_escopo: "bg-muted/40 text-muted-foreground/50 border-dashed border-border",
@@ -109,8 +111,11 @@ export function Farol({
         <Legenda estado="nc" />
         <Legenda estado="nr" />
         <Legenda estado="pendente_validacao" />
+        <Legenda estado="aguardando" />
         <Legenda estado="na" />
       </div>
+
+      <AcoesPdca linhas={linhas} />
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Indicador
@@ -133,12 +138,72 @@ export function Farol({
         />
         <Indicador
           rotulo="Cumprimento"
-          valor={`${cumprimento}%`}
-          tom={cumprimento >= 90 ? "bom" : cumprimento >= 70 ? "atencao" : "ruim"}
-          nota={`${resumo.totalAvaliado - resumo.nr} de ${resumo.totalAvaliado} verificações`}
+          valor={resumo.totalAvaliado === 0 ? "—" : `${cumprimento}%`}
+          tom={
+            resumo.totalAvaliado === 0
+              ? "neutro"
+              : cumprimento >= 90
+                ? "bom"
+                : cumprimento >= 70
+                  ? "atencao"
+                  : "ruim"
+          }
+          nota={
+            resumo.totalAvaliado === 0
+              ? `turno em andamento · ${resumo.aguardando} a vencer`
+              : `${resumo.totalAvaliado - resumo.nr} de ${resumo.totalAvaliado} verificações`
+          }
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * O que o farol está pedindo, na linguagem do ciclo.
+ *
+ * Cada estado que exige ação aponta a letra do PDCA que está parada e quem
+ * tem que agir. Sem isso o farol informa, mas não manda ninguém fazer nada.
+ */
+function AcoesPdca({ linhas }: { linhas: LinhaFarol[] }) {
+  const pendencias = new Map<string, { letra: string; acao: string; qtd: number }>();
+  for (const linha of linhas) {
+    for (const c of linha.celulas) {
+      const etapa = ETAPA_PDCA[c.estado];
+      if (!etapa) continue;
+      const atual = pendencias.get(c.estado) ?? { ...etapa, qtd: 0 };
+      atual.qtd += 1;
+      pendencias.set(c.estado, atual);
+    }
+  }
+
+  if (pendencias.size === 0) {
+    return (
+      <div className="mt-4 rounded-xl border border-success/40 bg-success-soft px-4 py-3 text-sm font-semibold text-success">
+        Ciclo em dia — nada exigindo ação agora.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 space-y-2">
+      {[...pendencias.values()]
+        .sort((a, b) => b.qtd - a.qtd)
+        .map((p) => (
+          <div
+            key={p.acao}
+            className="flex items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-base font-black text-primary-foreground">
+              {p.letra}
+            </span>
+            <p className="text-sm font-semibold text-foreground">{p.acao}</p>
+            <span className="ml-auto rounded-full bg-muted px-2.5 py-0.5 text-xs font-bold text-foreground">
+              {p.qtd}
+            </span>
+          </div>
+        ))}
+    </div>
   );
 }
 
@@ -207,7 +272,7 @@ function Indicador({
   rotulo: string;
   valor: number | string;
   nota: string;
-  tom: "bom" | "atencao" | "ruim";
+  tom: "bom" | "atencao" | "ruim" | "neutro";
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
@@ -218,6 +283,7 @@ function Indicador({
           tom === "ruim" && "text-destructive",
           tom === "atencao" && "text-warning-foreground",
           tom === "bom" && "text-success",
+          tom === "neutro" && "text-muted-foreground",
         )}
       >
         {valor}

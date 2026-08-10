@@ -80,7 +80,7 @@ function SupervisorHome() {
   );
 
   const farolHoje = useMemo(
-    () => montarFarol({ checklists, limpezas, data: hoje }),
+    () => montarFarol({ checklists, limpezas, data: hoje, hoje }),
     [checklists, limpezas, hoje],
   );
 

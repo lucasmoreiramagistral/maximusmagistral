@@ -20,8 +20,9 @@ import type { LimpezaTurno } from "@/lib/verso/types";
 /** Estado de uma célula, na ordem de gravidade (pior primeiro). */
 export type EstadoFarol =
   | "nc" // não conforme, sem tratativa
-  | "nr" // não realizado — o checklist daquele momento não foi feito
+  | "nr" // não realizado — o momento fechou e o checklist não foi feito
   | "pendente_validacao" // operador fechou, líder ainda não validou
+  | "aguardando" // o turno ainda está correndo; ainda não é cobrança
   | "na" // não aplicável (ex.: não houve setup no turno)
   | "conforme"
   | "sem_escopo"; // máquina ainda não implantada
@@ -30,15 +31,17 @@ const GRAVIDADE: Record<EstadoFarol, number> = {
   nc: 0,
   nr: 1,
   pendente_validacao: 2,
-  na: 3,
-  conforme: 4,
-  sem_escopo: 5,
+  aguardando: 3,
+  na: 4,
+  conforme: 5,
+  sem_escopo: 6,
 };
 
 export const ROTULO_ESTADO: Record<EstadoFarol, string> = {
   nc: "NC",
   nr: "NR",
   pendente_validacao: "!",
+  aguardando: "·",
   na: "NA",
   conforme: "C",
   sem_escopo: "—",
@@ -48,9 +51,26 @@ export const DESCRICAO_ESTADO: Record<EstadoFarol, string> = {
   nc: "Não conforme",
   nr: "Não realizado",
   pendente_validacao: "Aguarda o líder",
+  aguardando: "Turno em andamento",
   na: "Não aplicável",
   conforme: "Conforme",
   sem_escopo: "A implantar",
+};
+
+/**
+ * A que etapa do PDCA cada estado chama.
+ *
+ * O farol não é só semáforo: cada cor diz qual letra do ciclo está parada.
+ * É a leitura que o gerente pediu nos dois papéis.
+ */
+export const ETAPA_PDCA: Record<EstadoFarol, { letra: string; acao: string } | null> = {
+  nc: { letra: "D", acao: "Liderança precisa abrir plano de ação" },
+  nr: { letra: "D", acao: "Rotina não executada — cobrar operador/líder" },
+  pendente_validacao: { letra: "C", acao: "Líder precisa checar e validar" },
+  aguardando: null,
+  na: null,
+  conforme: null,
+  sem_escopo: null,
 };
 
 /** Código curto do momento, como no desenho: A, B, C. */
@@ -88,7 +108,9 @@ export interface ResumoFarol {
   pendenteValidacao: number;
   conforme: number;
   na: number;
-  /** Denominador: células de máquinas ativas. */
+  /** Momentos que ainda não venceram — ficam fora do denominador. */
+  aguardando: number;
+  /** Denominador: células de máquinas ativas cuja janela já passou. */
   totalAvaliado: number;
 }
 
@@ -127,6 +149,15 @@ export interface EntradaFarol {
   /** Quando informado, considera só este turno. */
   turno?: string | null;
   maquinas?: ReadonlyArray<MaquinaFarol>;
+  /**
+   * Data operacional corrente. Se for igual a `data`, o dia ainda está
+   * correndo: momento sem checklist vira "aguardando", não "NR".
+   *
+   * Indicador que acusa falha antes da hora perde credibilidade, e um farol
+   * em que ninguém confia deixa de ser olhado. Só se mede contra o padrão
+   * depois que a janela do padrão passou.
+   */
+  hoje?: string;
 }
 
 /**
@@ -134,7 +165,7 @@ export interface EntradaFarol {
  *
  * Regra de cada célula, na ordem em que decide:
  *   1. máquina não implantada       → sem_escopo
- *   2. nenhum checklist no momento  → nr   (é o caso que mais acontece)
+ *   2. nenhum checklist no momento  → nr, ou aguardando se o dia é hoje
  *   3. tem item não conforme        → nc
  *   4. concluído mas sem validação  → pendente_validacao
  *   5. tudo "não aplicável"         → na
@@ -142,6 +173,7 @@ export interface EntradaFarol {
  */
 export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
   const maquinas = entrada.maquinas ?? MAQUINAS_FAROL;
+  const diaEmAndamento = !!entrada.hoje && entrada.hoje === entrada.data;
 
   const doDia = entrada.checklists.filter((c) => {
     if (c.contexto.data !== entrada.data) return false;
@@ -177,7 +209,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       const totalNc = daCelula.reduce((s, c) => s + contarNcDoChecklist(c), 0);
 
       if (daCelula.length === 0) {
-        estado = "nr";
+        estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
       } else if (daCelula.every((c) => c.status === "concluido") && limpezaPendente) {
@@ -214,11 +246,17 @@ export function resumirFarol(linhas: LinhaFarol[]): ResumoFarol {
     pendenteValidacao: 0,
     conforme: 0,
     na: 0,
+    aguardando: 0,
     totalAvaliado: 0,
   };
   for (const linha of linhas) {
     for (const c of linha.celulas) {
       if (c.estado === "sem_escopo") continue;
+      // Momento que ainda não venceu não entra na conta: não é acerto nem erro.
+      if (c.estado === "aguardando") {
+        r.aguardando += 1;
+        continue;
+      }
       r.totalAvaliado += 1;
       if (c.estado === "nc") r.nc += 1;
       else if (c.estado === "nr") r.nr += 1;
