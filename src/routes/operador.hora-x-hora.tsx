@@ -202,9 +202,10 @@ function HoraXHoraPage() {
         )}
 
         <Tabs defaultValue="producao">
-          <TabsList className="mb-4 grid w-full grid-cols-2">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
             <TabsTrigger value="producao">Produção hora a hora</TabsTrigger>
             <TabsTrigger value="apoio">Apoio, assepsia e CIP</TabsTrigger>
+            <TabsTrigger value="verso">Tanques e passagem</TabsTrigger>
           </TabsList>
 
           <TabsContent value="producao" forceMount>
