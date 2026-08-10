@@ -352,11 +352,86 @@ export function percentualCumprimento(resumo: ResumoFarol): number {
 // estar sendo cumprida todo dia, por todo turno.
 // ---------------------------------------------------------------------------
 
+/**
+ * A rotina que a máquina DEVERIA cumprir — o denominador.
+ *
+ * Precisa ser configuração, não dedução. A versão anterior derivava o esperado
+ * dos registros que apareceram: para cada dia, cada turno que deu sinal de vida
+ * deveria ter os 3 momentos. Parecia justo (não punia dia de máquina parada) e
+ * tinha um buraco fatal — um turno que não registrou NADA simplesmente sumia do
+ * denominador. O indicador era, por construção, incapaz de enxergar turno
+ * esquecido, que é justamente a falha que ele existe para pegar.
+ *
+ * O dado real da Enchedora 3 fecha a discussão. Em 108 dias houve 23 dias com
+ * um turno só. Cruzando com as janelas de PTP para saber se a máquina rodava no
+ * turno que faltou:
+ *
+ *   - 1 dia   → o turno RODOU e não fez checklist (PTP preenchido nas horas dele)
+ *   - 22 dias → nenhum registro de nada: nem checklist, nem PTP
+ *
+ * Ou seja: em 22 dias o banco não sabe dizer se a máquina rodou. Não dá para
+ * chutar "rodou" (culpa quem estava parado) nem "não rodou" (absolve quem
+ * esqueceu). Então nem se chuta: vira SEM INFORMAÇÃO, uma terceira coluna, que
+ * é o número honesto e o que o gerente precisa ver para cobrar.
+ *
+ * Só sai do denominador o que tiver parada justificada e registrada.
+ */
+export interface RotinaEsperada {
+  /** Turnos que a máquina está programada para rodar, todo dia. */
+  turnos: ReadonlyArray<string>;
+  /**
+   * Data em que o v2 entrou no ar. Antes disso não se cobra cumprimento: o
+   * passivo histórico existe e aparece em tela própria, mas não faz sentido
+   * medir contra uma regra que ainda não valia. Sem isto o v2 nasce com 4
+   * meses de vermelho que ninguém tem como responder.
+   */
+  vigenteDesde: string;
+}
+
+/**
+ * Parada com motivo registrado e validada — o único jeito de um turno sair do
+ * denominador. Enquanto o Relatório Operacional não estiver em uso (a tabela
+ * producao_horaria está zerada hoje), esta lista chega vazia e todo turno
+ * esperado sem registro cai em "sem informação". É o comportamento correto:
+ * ausência de dado é ausência de dado, não é máquina parada.
+ */
+export interface ParadaJustificada {
+  data: string;
+  turno: string;
+  motivo: string;
+}
+
+/**
+ * A rotina programada da Enchedora 3 no piloto.
+ *
+ * ATENÇÃO — os dois valores abaixo são decisão do gerente, não do código:
+ *
+ *   `turnos`        Assume que a Enchedora 3 é programada para os dois turnos
+ *                   todo dia. É o que o histórico sugere (70 dos 108 dias têm
+ *                   os dois), mas não há no banco nada que DIGA a programação.
+ *                   Se houver dia de um turno só por escala, isto tem que
+ *                   virar uma agenda por data em vez de uma lista fixa.
+ *
+ *   `vigenteDesde`  Data de entrada do v2. Enquanto não for definida, está no
+ *                   dia em que o farol novo foi montado, para o indicador não
+ *                   nascer cobrando 4 meses de uma regra que não valia.
+ *                   O passivo histórico não é apagado: ele vive nas pendências,
+ *                   com idade, em tela própria.
+ */
+export const ROTINA_ENCHEDORA_3: RotinaEsperada = {
+  turnos: ["12x36 Dia", "12x36 Noite"],
+  vigenteDesde: "2026-08-10",
+};
+
 export interface DiaCumprimento {
   data: string;
-  /** Momentos esperados no dia = turnos que rodaram × 3 momentos. */
+  /** Momentos esperados no dia, já descontada parada justificada. */
   esperado: number;
   realizado: number;
+  /** Momentos esperados sem nenhum registro e sem justificativa. */
+  semInformacao: number;
+  /** Momentos que saíram da conta por parada justificada. */
+  justificado: number;
   /** Limpezas do dia que o líder nunca validou. */
   limpezasSemValidacao: number;
   percentual: number;
@@ -367,6 +442,13 @@ export interface CumprimentoPeriodo {
   totalEsperado: number;
   totalRealizado: number;
   percentualGeral: number;
+  /**
+   * Momentos esperados sobre os quais o sistema não sabe nada. Não são acerto
+   * nem erro — são buraco, e é o primeiro número que a liderança tem que
+   * atacar. Fica separado justamente para não ser confundido com cumprimento.
+   */
+  totalSemInformacao: number;
+  totalJustificado: number;
   /** Dias no período sem nenhum checklist. */
   diasSemNada: number;
   limpezasSemValidacao: number;
@@ -388,20 +470,29 @@ function listarDias(de: string, ate: string): string[] {
 /**
  * Calcula o cumprimento no período.
  *
- * "Esperado" é derivado do que de fato rodou: para cada dia, cada turno que
- * apareceu (em checklist ou em limpeza) deveria ter os 3 momentos. Assim a
- * conta não pune dia de máquina parada, que é o que aconteceria se a gente
- * fixasse 2 turnos × 3 momentos todo dia.
+ * O esperado vem da `rotina` (configuração), nunca dos registros encontrados.
+ * Cada turno programado no dia vale 3 momentos. Desse total saem apenas as
+ * paradas justificadas; o resto se divide em REALIZADO e SEM INFORMAÇÃO.
+ *
+ * O percentual é realizado ÷ (esperado − justificado). "Sem informação" fica
+ * dentro do denominador de propósito: turno esquecido tem que doer no número,
+ * senão esquecer vira a estratégia ótima.
+ *
+ * Dias anteriores a `rotina.vigenteDesde` não entram — ver RotinaEsperada.
  */
 export function calcularCumprimentoPeriodo(
   checklists: Checklist[],
   limpezas: LimpezaTurno[],
   de: string,
   ate: string,
+  rotina: RotinaEsperada,
   maquina = "Enchedora 3",
+  paradas: ParadaJustificada[] = [],
 ): CumprimentoPeriodo {
-  const dias = listarDias(de, ate);
+  const dias = listarDias(de, ate).filter((d) => d >= rotina.vigenteDesde);
   const porTurnoAcc = new Map<string, { esperado: number; realizado: number }>();
+
+  const justificadas = new Set(paradas.map((p) => `${p.data}|${p.turno}`));
 
   const detalhe: DiaCumprimento[] = dias.map((dia) => {
     const cs = checklists.filter(
@@ -409,19 +500,30 @@ export function calcularCumprimentoPeriodo(
     );
     const ls = limpezas.filter((l) => l.dataOperacao === dia);
 
-    const turnos = new Set<string>([
-      ...cs.map((c) => c.contexto.turno as string),
-      ...ls.map((l) => l.turno as string),
-    ]);
-
     let esperado = 0;
     let realizado = 0;
-    for (const turno of turnos) {
+    let semInformacao = 0;
+    let justificado = 0;
+
+    // Itera sobre os turnos PROGRAMADOS, não sobre os que apareceram. É esta
+    // linha que faz o turno esquecido existir na conta.
+    for (const turno of rotina.turnos) {
+      if (justificadas.has(`${dia}|${turno}`)) {
+        justificado += MOMENTOS_CHECKLIST.length;
+        continue;
+      }
+
       const feitos = new Set(
         cs.filter((c) => c.contexto.turno === turno).map((c) => c.momento),
       ).size;
+      const temAlgumSinal = feitos > 0 || ls.some((l) => l.turno === turno);
+
       esperado += MOMENTOS_CHECKLIST.length;
       realizado += feitos;
+      // Turno sem nenhum sinal de vida: o sistema não sabe se rodou. Não é
+      // acerto nem erro — é buraco, e vai contado como tal.
+      if (!temAlgumSinal) semInformacao += MOMENTOS_CHECKLIST.length;
+
       const acc = porTurnoAcc.get(turno) ?? { esperado: 0, realizado: 0 };
       acc.esperado += MOMENTOS_CHECKLIST.length;
       acc.realizado += feitos;
@@ -434,6 +536,8 @@ export function calcularCumprimentoPeriodo(
       data: dia,
       esperado,
       realizado,
+      semInformacao,
+      justificado,
       limpezasSemValidacao: semValidacao,
       percentual: esperado === 0 ? 0 : Math.round((realizado / esperado) * 100),
     };
@@ -448,7 +552,9 @@ export function calcularCumprimentoPeriodo(
     totalRealizado,
     percentualGeral:
       totalEsperado === 0 ? 0 : Math.round((totalRealizado / totalEsperado) * 100),
-    diasSemNada: detalhe.filter((d) => d.esperado === 0).length,
+    totalSemInformacao: detalhe.reduce((s, d) => s + d.semInformacao, 0),
+    totalJustificado: detalhe.reduce((s, d) => s + d.justificado, 0),
+    diasSemNada: detalhe.filter((d) => d.realizado === 0 && d.esperado > 0).length,
     limpezasSemValidacao: detalhe.reduce((s, d) => s + d.limpezasSemValidacao, 0),
     porTurno: [...porTurnoAcc.entries()]
       .map(([turno, v]) => ({

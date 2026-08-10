@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   calcularCumprimentoPeriodo,
+  ROTINA_ENCHEDORA_3,
   montarFarol,
   type CumprimentoPeriodo,
 } from "@/lib/farol/farol";
@@ -118,7 +119,7 @@ function SupervisorHome() {
   );
 
   const cumprimento = useMemo(
-    () => calcularCumprimentoPeriodo(checklists, limpezas, de, hoje),
+    () => calcularCumprimentoPeriodo(checklists, limpezas, de, hoje, ROTINA_ENCHEDORA_3),
     [checklists, limpezas, de, hoje],
   );
 
@@ -211,21 +212,25 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
         />
         <Cartao
           rotulo="Não realizado"
-          valor={c.totalEsperado - c.totalRealizado}
-          nota="checklist que faltou"
-          tom={c.totalEsperado - c.totalRealizado > 0 ? "ruim" : "bom"}
+          valor={c.totalEsperado - c.totalRealizado - c.totalSemInformacao}
+          nota="turno rodou e pulou o momento"
+          tom={c.totalEsperado - c.totalRealizado - c.totalSemInformacao > 0 ? "ruim" : "bom"}
+        />
+        {/* Substitui o antigo "Dias sem produção · fora da conta de
+            cumprimento". Aquele cartão afirmava que a máquina não rodou; o
+            banco não sabe disso. Dizer "não sei" é o número honesto, e é o
+            que a liderança tem que atacar primeiro. */}
+        <Cartao
+          rotulo="Sem informação"
+          valor={c.totalSemInformacao}
+          nota="turno programado sem registro nenhum"
+          tom={c.totalSemInformacao > 0 ? "ruim" : "bom"}
         />
         <Cartao
           rotulo="Sem validação do líder"
           valor={c.limpezasSemValidacao}
           nota="limpezas que o líder não fechou"
           tom={c.limpezasSemValidacao > 0 ? "ruim" : "bom"}
-        />
-        <Cartao
-          rotulo="Dias sem produção"
-          valor={c.diasSemNada}
-          nota="fora da conta de cumprimento"
-          tom="neutro"
         />
       </div>
 

@@ -141,49 +141,89 @@ describe("calcularCumprimentoPeriodo", () => {
     });
   }
 
-  it("turno que rodou espera os 3 momentos", () => {
+  const ROTINA = { turnos: ["12x36 Dia", "12x36 Noite"], vigenteDesde: "2026-01-01" };
+
+  it("o esperado vem da rotina programada, nao dos registros encontrados", () => {
+    // Um turno so preencheu. O outro estava programado e nao deu sinal: os 3
+    // momentos dele CONTAM, como sem informacao.
     const r = calcularCumprimentoPeriodo(
       noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B]),
       [],
       "2026-08-09",
       "2026-08-09",
+      ROTINA,
     );
-    expect(r.totalEsperado).toBe(3);
+    expect(r.totalEsperado).toBe(6); // 2 turnos x 3, nao 3
     expect(r.totalRealizado).toBe(2);
-    expect(r.percentualGeral).toBe(67);
+    expect(r.totalSemInformacao).toBe(3); // o turno da noite inteiro
+    expect(r.percentualGeral).toBe(33);
   });
 
-  it("dia sem nada nao entra no denominador, mas e contado", () => {
-    // Máquina parada não pode ser punida como rotina não cumprida.
+  it("turno esquecido NAO some do denominador", () => {
+    // Este e o furo que o denominador antigo tinha. Ele derivava o esperado
+    // dos turnos que apareceram, entao um turno que nao registrou nada saia
+    // da conta e o dia fechava em 100%. Era um indicador incapaz, por
+    // construcao, de enxergar a falha que existe para pegar.
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+      [],
+      "2026-08-09",
+      "2026-08-09",
+      ROTINA,
+    );
+    expect(r.percentualGeral).toBe(50); // e nao 100
+    expect(r.totalSemInformacao).toBe(3);
+  });
+
+  it("dia inteiro sem registro conta como sem informacao, nao como parada", () => {
+    // "Nao veio dado" nunca pode virar "a maquina nao rodou". Dos 23 dias com
+    // um turno so no historico real, 22 nao tinham prova de nada.
     const r = calcularCumprimentoPeriodo(
       noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
       [],
       "2026-08-08",
       "2026-08-09",
+      ROTINA,
     );
-    expect(r.diasSemNada).toBe(1);
-    expect(r.totalEsperado).toBe(3);
-    expect(r.percentualGeral).toBe(100);
+    expect(r.totalEsperado).toBe(12); // 2 dias x 2 turnos x 3
+    expect(r.totalRealizado).toBe(3);
+    expect(r.totalSemInformacao).toBe(9);
+    expect(r.percentualGeral).toBe(25);
   });
 
-  it("dois turnos no mesmo dia dobram o esperado", () => {
+  it("parada justificada SAI do denominador", () => {
+    // O unico jeito de um turno sair da conta: motivo registrado.
     const r = calcularCumprimentoPeriodo(
-      [
-        ...noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
-        ...noDia("2026-08-09", "12x36 Noite", [MOM_A]),
-      ],
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
       [],
       "2026-08-09",
       "2026-08-09",
+      ROTINA,
+      "Enchedora 3",
+      [{ data: "2026-08-09", turno: "12x36 Noite", motivo: "sem programação" }],
     );
-    expect(r.totalEsperado).toBe(6);
-    expect(r.totalRealizado).toBe(4);
-    // pior turno primeiro
-    expect(r.porTurno[0].turno).toBe("12x36 Noite");
-    expect(r.porTurno[0].percentual).toBe(33);
+    expect(r.totalEsperado).toBe(3);
+    expect(r.totalJustificado).toBe(3);
+    expect(r.totalSemInformacao).toBe(0);
+    expect(r.percentualGeral).toBe(100);
   });
 
-  it("conta limpeza que o lider nunca validou", () => {
+  it("nao cobra periodo anterior a entrada do v2", () => {
+    // Senao o app nasce com 4 meses de vermelho que ninguem tem como responder.
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+      [],
+      "2026-08-01",
+      "2026-08-09",
+      { turnos: ["12x36 Dia", "12x36 Noite"], vigenteDesde: "2026-08-09" },
+    );
+    expect(r.dias).toHaveLength(1);
+    expect(r.totalEsperado).toBe(6);
+  });
+
+  it("limpeza conta como sinal de vida do turno", () => {
+    // O turno da noite nao fez checklist nenhum, mas assinou limpeza: entao
+    // ele rodou e falhou na rotina — e NAO "sem informacao".
     const r = calcularCumprimentoPeriodo(
       noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
       [
@@ -192,10 +232,13 @@ describe("calcularCumprimentoPeriodo", () => {
       ],
       "2026-08-09",
       "2026-08-09",
+      ROTINA,
     );
     expect(r.limpezasSemValidacao).toBe(1);
-    // a limpeza da noite revela que o turno rodou e nao fez checklist nenhum
     expect(r.totalEsperado).toBe(6);
+    expect(r.totalSemInformacao).toBe(0); // deu sinal de vida
+    expect(r.porTurno[0].turno).toBe("12x36 Noite"); // pior turno primeiro
+    expect(r.porTurno[0].percentual).toBe(0);
   });
 });
 
