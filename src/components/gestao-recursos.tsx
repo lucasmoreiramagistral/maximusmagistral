@@ -33,9 +33,26 @@ export function GestaoRecursos({
 }) {
   const hoje = hojeISO();
 
-  const comPlano = pendencias.filter((p) => p.plano && p.plano.status === "aberto");
+  // Pendencia de validacao NAO e problema que pede plano de acao: e turno que
+  // o lider nunca fechou. Contar as duas juntas inflava "sem plano de accao"
+  // com dezenas de itens que nao precisam de plano nenhum, e era o mesmo erro
+  // conceitual ja corrigido na tela do lider (pendencias-abertas.tsx separa as
+  // duas filas). Aqui ficou passando.
+  const problemas = pendencias.filter((p) => p.tipo === "nc");
+  const validacoes = pendencias.filter((p) => p.tipo === "validacao");
+
+  const comPlano = problemas.filter((p) => p.plano && p.plano.status === "aberto");
   const vencidos = comPlano.filter((p) => p.plano!.quando < hoje && !p.plano!.recursoLiberadoEm);
-  const semPlano = pendencias.filter((p) => !p.plano || p.plano.status === "nao_cumprido");
+  const semPlano = problemas.filter((p) => !p.plano || p.plano.status === "nao_cumprido");
+
+  const maisAntiga = pendencias.reduce<Pendencia | null>(
+    (a, p) => (a === null || p.idadeDias > a.idadeDias ? p : a),
+    null,
+  );
+  const validacaoMaisAntiga = validacoes.reduce(
+    (m, p) => Math.max(m, p.idadeDias),
+    0,
+  );
 
   return (
     <section className="mt-8" aria-label="Ciclo PDCA da linha">
@@ -43,11 +60,11 @@ export function GestaoRecursos({
         Ciclo PDCA — onde está travado
       </h3>
 
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Cartao
           rotulo="Sem plano de ação"
           valor={semPlano.length}
-          nota="liderança ainda não assumiu"
+          nota="problema sem quem assuma"
           letra="P"
           tom={semPlano.length > 0 ? "ruim" : "bom"}
         />
@@ -66,21 +83,24 @@ export function GestaoRecursos({
           tom={vencidos.length > 0 ? "ruim" : "bom"}
         />
         <Cartao
-          rotulo="Pendência mais antiga"
-          valor={pendencias.length > 0 ? `${pendencias[0].idadeDias}d` : "—"}
+          rotulo="Validação em atraso"
+          valor={validacoes.length}
           nota={
-            pendencias.length > 0
-              ? `desde ${formatarDataBR(pendencias[0].dataOrigem)}`
-              : "nada em aberto"
+            validacoes.length > 0
+              ? `turno que o líder não fechou · mais antiga há ${validacaoMaisAntiga}d`
+              : "todo turno fechado"
           }
           letra="C"
-          tom={
-            pendencias.length === 0
-              ? "bom"
-              : pendencias[0].idadeDias > 30
-                ? "ruim"
-                : "atencao"
+          tom={validacoes.length > 0 ? "ruim" : "bom"}
+        />
+        <Cartao
+          rotulo="Pendência mais antiga"
+          valor={maisAntiga ? `${maisAntiga.idadeDias}d` : "—"}
+          nota={
+            maisAntiga ? `desde ${formatarDataBR(maisAntiga.dataOrigem)}` : "nada em aberto"
           }
+          letra="—"
+          tom={!maisAntiga ? "bom" : maisAntiga.idadeDias > 30 ? "ruim" : "atencao"}
         />
       </div>
 

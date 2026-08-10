@@ -50,10 +50,23 @@ const DIAS_NCNR = 30;
 
 function GestaoHome() {
   const { usuario, loading } = useGuard("gestao");
-  const { data: checklists } = useChecklistsRemote({ realtime: true });
+  const { data: checklists, loading: carregandoChecklists } = useChecklistsRemote({
+    realtime: true,
+  });
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
   const [planos, setPlanos] = useState<PlanoAcao[]>([]);
   const [recarga, setRecarga] = useState(0);
+
+  // Lista vazia e lista ainda nao carregada sao a mesma coisa em memoria e
+  // coisas opostas na fabrica: uma diz "nao ha pendencia", a outra "eu ainda
+  // nao sei". Sem estes dois flags a tela pintava "ciclo em dia" no instante
+  // anterior aos dados chegarem — verde por ignorancia, que e a unica cor que
+  // este painel nao pode mostrar.
+  //
+  // So travam a PRIMEIRA carga: como nunca voltam a true, o botao de recarregar
+  // atualiza sem piscar a tela inteira.
+  const [carregandoLimpeza, setCarregandoLimpeza] = useState(true);
+  const [carregandoPlanos, setCarregandoPlanos] = useState(true);
 
   const hoje = calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao);
 
@@ -72,11 +85,13 @@ function GestaoHome() {
       if (error) {
         console.error("[gestao.index] limpeza fetch:", error);
         setTurnosLimpeza([]);
+        setCarregandoLimpeza(false);
         return;
       }
       setTurnosLimpeza(
         ((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow),
       );
+      setCarregandoLimpeza(false);
     })();
     return () => {
       cancelado = true;
@@ -87,7 +102,9 @@ function GestaoHome() {
     let cancelado = false;
     void (async () => {
       const p = await buscarPlanos();
-      if (!cancelado) setPlanos(p);
+      if (cancelado) return;
+      setPlanos(p);
+      setCarregandoPlanos(false);
     })();
     return () => {
       cancelado = true;
@@ -120,7 +137,7 @@ function GestaoHome() {
     [checklists, turnosLimpeza],
   );
 
-  if (loading || !usuario) {
+  if (loading || !usuario || carregandoChecklists || carregandoLimpeza || carregandoPlanos) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
