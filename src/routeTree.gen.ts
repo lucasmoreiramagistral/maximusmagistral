@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OperadorIndexRouteImport } from './routes/operador.index'
+import { Route as LiderIndexRouteImport } from './routes/lider.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
 import { Route as OperadorTutorialSigmaRouteImport } from './routes/operador.tutorial-sigma'
@@ -49,6 +50,11 @@ const IndexRoute = IndexRouteImport.update({
 const OperadorIndexRoute = OperadorIndexRouteImport.update({
   id: '/operador/',
   path: '/operador/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiderIndexRoute = LiderIndexRouteImport.update({
+  id: '/lider/',
+  path: '/lider/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoIndexRoute = GestaoIndexRouteImport.update({
@@ -224,6 +230,7 @@ export interface FileRoutesByFullPath {
   '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
+  '/lider/': typeof LiderIndexRoute
   '/operador/': typeof OperadorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByTo {
   '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao': typeof GestaoIndexRoute
+  '/lider': typeof LiderIndexRoute
   '/operador': typeof OperadorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -291,6 +299,7 @@ export interface FileRoutesById {
   '/operador/tutorial-sigma': typeof OperadorTutorialSigmaRoute
   '/operador/validacao-lider': typeof OperadorValidacaoLiderRoute
   '/gestao/': typeof GestaoIndexRoute
+  '/lider/': typeof LiderIndexRoute
   '/operador/': typeof OperadorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao/'
+    | '/lider/'
     | '/operador/'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao'
+    | '/lider'
     | '/operador'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -392,6 +403,7 @@ export interface FileRouteTypes {
     | '/operador/tutorial-sigma'
     | '/operador/validacao-lider'
     | '/gestao/'
+    | '/lider/'
     | '/operador/'
     | '/operador/it/$doc'
     | '/operador/it/ata'
@@ -426,6 +438,7 @@ export interface RootRouteChildren {
   OperadorTutorialSigmaRoute: typeof OperadorTutorialSigmaRoute
   OperadorValidacaoLiderRoute: typeof OperadorValidacaoLiderRoute
   GestaoIndexRoute: typeof GestaoIndexRoute
+  LiderIndexRoute: typeof LiderIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
   OperadorVersoLimpezaRoute: typeof OperadorVersoLimpezaRoute
   OperadorVersoPtpRoute: typeof OperadorVersoPtpRouteWithChildren
@@ -448,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: '/operador'
       fullPath: '/operador/'
       preLoaderRoute: typeof OperadorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lider/': {
+      id: '/lider/'
+      path: '/lider'
+      fullPath: '/lider/'
+      preLoaderRoute: typeof LiderIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/': {
@@ -704,6 +724,7 @@ const rootRouteChildren: RootRouteChildren = {
   OperadorTutorialSigmaRoute: OperadorTutorialSigmaRoute,
   OperadorValidacaoLiderRoute: OperadorValidacaoLiderRoute,
   GestaoIndexRoute: GestaoIndexRoute,
+  LiderIndexRoute: LiderIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,
   OperadorVersoLimpezaRoute: OperadorVersoLimpezaRoute,
   OperadorVersoPtpRoute: OperadorVersoPtpRouteWithChildren,
@@ -714,3 +735,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
