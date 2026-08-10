@@ -68,6 +68,8 @@ export type FilaItemTipo =
   | "limpeza_turno"
   | "producao_hora"
   | "producao_apoio"
+  | "producao_tanque"
+  | "producao_passagem"
   | "it_evento"
   | "it_sessao_close";
 
