@@ -8,6 +8,7 @@ import type {
   Equipe,
   Hierarquia,
   ModuloAcesso,
+  Perfil,
   Turno,
   Usuario,
 } from "@/lib/checklist/types";
@@ -17,7 +18,7 @@ interface ProfileRow {
   nome: string;
   usuario: string;
   email_interno: string;
-  perfil: "operador" | "gestao" | "manutencao";
+  perfil: Perfil;
   equipe_padrao: Equipe | null;
   turno_padrao: Turno | null;
   active: boolean;

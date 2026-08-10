@@ -3,6 +3,8 @@ import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUsuario } from "@/hooks/use-storage";
+import { PERFIL_INFO, ROTA_INICIAL, ehPerfilAtivo, type PerfilAtivo, type Usuario } from "@/lib/checklist/types";
+import { areasDisponiveis, getAreaAtiva, setAreaAtiva } from "@/lib/checklist/areas";
 import { useConnectionStatus } from "@/hooks/use-connection-status";
 import { Button } from "@/components/ui/button";
 import {
@@ -242,10 +244,14 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
               );
             })()}
 
+            <SeletorArea usuario={usuario} />
+
             <div className="text-right">
               <p className="text-sm font-medium text-foreground">{nomeExibido}</p>
               <p className="text-xs text-muted-foreground">
-                {usuario.perfil === "operador" ? "Operador" : "Gestão Industrial"}
+                {ehPerfilAtivo(usuario.perfil)
+                  ? PERFIL_INFO[usuario.perfil].titulo
+                  : usuario.perfil}
               </p>
             </div>
             <Button
@@ -297,3 +303,46 @@ export function AppHeader({ titulo, subtitulo, voltarPara, voltarLabel }: AppHea
   );
 }
 
+
+/**
+ * Troca de área sem deslogar — só aparece para quem tem mais de um módulo.
+ *
+ * O acesso é por `modulos_acesso`, que já existia no banco mas o login
+ * ignorava. Quem tem um módulo só nem vê este seletor.
+ */
+function SeletorArea({ usuario }: { usuario: Usuario }) {
+  const navigate = useNavigate();
+  const areas = areasDisponiveis(usuario);
+  if (areas.length < 2) return null;
+
+  const atual = getAreaAtiva(usuario);
+
+  const trocar = (area: PerfilAtivo) => {
+    setAreaAtiva(area);
+    navigate({ to: ROTA_INICIAL[area] });
+  };
+
+  return (
+    <div
+      className="hidden items-center gap-1 rounded-lg border border-border bg-card p-1 lg:flex"
+      role="group"
+      aria-label="Trocar de área"
+    >
+      {areas.map((area) => (
+        <button
+          key={area}
+          type="button"
+          onClick={() => trocar(area)}
+          aria-current={area === atual ? "page" : undefined}
+          className={
+            area === atual
+              ? "rounded-md bg-primary px-2.5 py-1 text-xs font-bold text-primary-foreground"
+              : "rounded-md px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:bg-accent"
+          }
+        >
+          {PERFIL_INFO[area].titulo.split(" ")[0]}
+        </button>
+      ))}
+    </div>
+  );
+}
