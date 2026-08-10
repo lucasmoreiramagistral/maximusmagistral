@@ -12,6 +12,13 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
+import { Farol } from "@/components/farol";
+import { GestaoRecursos } from "@/components/gestao-recursos";
+import { montarFarol } from "@/lib/farol/farol";
+import { levantarPendencias } from "@/lib/farol/pendencias";
+import { buscarPlanos } from "@/lib/farol/planos-storage";
+import type { PlanoAcao } from "@/lib/farol/planos-types";
+import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
 import { useChecklistsRemote } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { contarNcNrUltimosDias } from "@/lib/checklist/nao-conformidades";
@@ -41,17 +48,22 @@ function GestaoHome() {
   const { usuario, loading } = useGuard("gestao");
   const { data: checklists } = useChecklistsRemote({ realtime: true });
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
+  const [planos, setPlanos] = useState<PlanoAcao[]>([]);
+  const [recarga, setRecarga] = useState(0);
+
+  const hoje = calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao);
 
   useEffect(() => {
     let cancelado = false;
-    const desde = new Date();
-    desde.setDate(desde.getDate() - DIAS_NCNR);
-    const dataIso = desde.toISOString().slice(0, 10);
     void (async () => {
+      // SEM filtro de data: o passivo não mora nos últimos 30 dias. A limpeza
+      // sem validação mais antiga é de 24/04 — cortar em 30 dias esconderia
+      // justamente as que mais envergonham. O card de NC/NR abaixo continua
+      // usando a janela de DIAS_NCNR, que é outra pergunta.
       const { data, error } = await supabase
         .from("limpeza_turnos" as never)
         .select("*")
-        .gte("data_operacao", dataIso);
+        .order("data_operacao", { ascending: false });
       if (cancelado) return;
       if (error) {
         console.error("[gestao.index] limpeza fetch:", error);
@@ -66,6 +78,28 @@ function GestaoHome() {
       cancelado = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const p = await buscarPlanos();
+      if (!cancelado) setPlanos(p);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
+
+  // O passivo da linha — o mesmo que o líder vê, para a conversa ser a mesma.
+  const pendencias = useMemo(
+    () => levantarPendencias({ checklists, limpezas: turnosLimpeza, planos, hoje }),
+    [checklists, turnosLimpeza, planos, hoje],
+  );
+
+  const linhasFarol = useMemo(
+    () => montarFarol({ checklists, limpezas: turnosLimpeza, data: hoje, hoje, pendencias }),
+    [checklists, turnosLimpeza, hoje, pendencias],
+  );
 
   const ncnr = useMemo(
     () => contarNcNrUltimosDias(checklists, turnosLimpeza, DIAS_NCNR),
@@ -88,6 +122,18 @@ function GestaoHome() {
           <p className="text-sm text-muted-foreground md:text-base">Bem-vindo,</p>
           <h2 className="text-2xl font-bold text-foreground md:text-3xl">{usuario.nome}</h2>
         </div>
+
+        <Farol linhas={linhasFarol} data={hoje} />
+
+        <GestaoRecursos
+          pendencias={pendencias}
+          usuario={usuario}
+          onAtualizar={() => setRecarga((n) => n + 1)}
+        />
+
+        <h3 className="mb-3 mt-10 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+          Ferramentas de análise
+        </h3>
 
         {/* Bloco prioritário: Não conformidades e Não realizados */}
         <Link

@@ -206,3 +206,39 @@ describe("farol com passivo", () => {
     expect(linha.celulas.every((c) => c.estado === "aguardando")).toBe(true);
   });
 });
+
+describe("passivo vence o estado do dia", () => {
+  it("validacao antiga nao pode aparecer como 'turno em andamento'", () => {
+    // Bug pego no navegador: a celula mostrava "· Turno em andamento" com
+    // "ha 108 dias" embaixo. Contraditorio.
+    const pendencias = levantarPendencias({
+      checklists: [],
+      limpezas: [
+        {
+          id: "l-velha",
+          dataOperacao: "2026-04-24",
+          turno: "12x36 Dia",
+          status: "aguardando_validacao",
+          maquina: "Enchedora 3",
+        } as never,
+      ],
+      planos: [],
+      hoje: HOJE,
+    });
+
+    const [linha] = montarFarol({
+      checklists: [],
+      data: HOJE,
+      hoje: HOJE,
+      pendencias,
+      maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
+    });
+
+    // validacao (sem momento) cai no ultimo momento
+    const ultima = linha.celulas[linha.celulas.length - 1];
+    expect(ultima.estado).toBe("pendente_validacao");
+    expect(ultima.idadeMaxDias).toBe(108);
+    // as outras seguem neutras, porque o dia corre
+    expect(linha.celulas[0].estado).toBe("aguardando");
+  });
+});

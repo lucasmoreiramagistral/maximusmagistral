@@ -241,13 +241,19 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       const temNcAberta = pendencias.some((p) => p.tipo === "nc");
       const temValidacaoAberta = pendencias.some((p) => p.tipo === "validacao");
 
+      // O passivo é avaliado ANTES do estado do dia. Se a validação de 108
+      // dias caísse depois do "aguardando", a célula mostraria "turno em
+      // andamento · há 108 dias" — contraditório, e do tipo de mentira que
+      // este farol existe para eliminar.
       if (temNcAberta) {
         estado = "nc";
+      } else if (temValidacaoAberta) {
+        estado = "pendente_validacao";
       } else if (daCelula.length === 0) {
         estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
-      } else if (temValidacaoAberta || (daCelula.every((c) => c.status === "concluido") && limpezaPendente)) {
+      } else if (daCelula.every((c) => c.status === "concluido") && limpezaPendente) {
         estado = "pendente_validacao";
       } else if (daCelula.every(todoNaoAplicavel)) {
         estado = "na";
