@@ -223,10 +223,18 @@ function CelulaLampada({
       <span className="mt-1 text-[11px] font-bold leading-tight">
         {DESCRICAO_ESTADO[celula.estado]}
       </span>
-      {celula.totalNc > 0 && (
-        <span className="mt-0.5 text-[11px] font-semibold opacity-80">
-          {celula.totalNc} {celula.totalNc === 1 ? "item" : "itens"}
+      {/* A idade é o número que ganha a reunião: NC de 60 dias tem que
+          gritar mais alto que a de ontem. */}
+      {celula.idadeMaxDias > 0 ? (
+        <span className="mt-0.5 rounded-full bg-background/60 px-2 text-[11px] font-black">
+          há {celula.idadeMaxDias} {celula.idadeMaxDias === 1 ? "dia" : "dias"}
         </span>
+      ) : (
+        celula.totalNc > 0 && (
+          <span className="mt-0.5 text-[11px] font-semibold opacity-80">
+            {celula.totalNc} {celula.totalNc === 1 ? "item" : "itens"}
+          </span>
+        )
       )}
     </>
   );

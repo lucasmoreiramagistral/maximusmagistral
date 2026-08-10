@@ -16,6 +16,7 @@
 import type { Checklist, MomentoChecklist } from "@/lib/checklist/types";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type { LimpezaTurno } from "@/lib/verso/types";
+import type { Pendencia } from "./pendencias";
 
 /** Estado de uma célula, na ordem de gravidade (pior primeiro). */
 export type EstadoFarol =
@@ -93,6 +94,15 @@ export interface CelulaFarol {
   totalNc: number;
   /** Checklists encontrados para a célula (pode ser mais de um por turno). */
   checklists: Checklist[];
+  /**
+   * Pendências AINDA ABERTAS que caem nesta célula, de qualquer data.
+   *
+   * É o que impede o farol de mentir: uma NC de maio sem tratativa continua
+   * acendendo a célula hoje. Ordenadas da mais velha para a mais nova.
+   */
+  pendencias: Pendencia[];
+  /** Idade da pendência mais velha, em dias. 0 quando não há. */
+  idadeMaxDias: number;
 }
 
 export interface LinhaFarol {
@@ -150,6 +160,11 @@ export interface EntradaFarol {
   turno?: string | null;
   maquinas?: ReadonlyArray<MaquinaFarol>;
   /**
+   * Pendências abertas de QUALQUER data (ver pendencias.ts). São elas que
+   * mantêm a célula acesa depois que o dia vira.
+   */
+  pendencias?: Pendencia[];
+  /**
    * Data operacional corrente. Se for igual a `data`, o dia ainda está
    * correndo: momento sem checklist vira "aguardando", não "NR".
    *
@@ -198,6 +213,8 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
           estado: "sem_escopo" as EstadoFarol,
           totalNc: 0,
           checklists: [],
+          pendencias: [],
+          idadeMaxDias: 0,
         };
       }
 
@@ -205,14 +222,32 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         (c) => c.contexto.maquina === maquina.id && c.momento === momento,
       );
 
+      // Pendências abertas que pertencem a esta célula, de qualquer data.
+      // Validação (sem momento) cai no último momento, que é onde o
+      // fechamento do turno acontece.
+      const pendencias = (entrada.pendencias ?? []).filter((p) => {
+        if (p.maquina !== maquina.id) return false;
+        if (p.momento === null) return i === MOMENTOS_CHECKLIST.length - 1;
+        return p.momento === momento;
+      });
+      const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
+
       let estado: EstadoFarol;
       const totalNc = daCelula.reduce((s, c) => s + contarNcDoChecklist(c), 0);
 
-      if (daCelula.length === 0) {
+      // O PASSIVO MANDA. Uma NC aberta de maio deixa a célula vermelha hoje,
+      // mesmo que o checklist de hoje esteja impecável. Sem isso o farol
+      // mostra "ciclo em dia" com 108 dias de pendência escondida.
+      const temNcAberta = pendencias.some((p) => p.tipo === "nc");
+      const temValidacaoAberta = pendencias.some((p) => p.tipo === "validacao");
+
+      if (temNcAberta) {
+        estado = "nc";
+      } else if (daCelula.length === 0) {
         estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
-      } else if (daCelula.every((c) => c.status === "concluido") && limpezaPendente) {
+      } else if (temValidacaoAberta || (daCelula.every((c) => c.status === "concluido") && limpezaPendente)) {
         estado = "pendente_validacao";
       } else if (daCelula.every(todoNaoAplicavel)) {
         estado = "na";
@@ -227,6 +262,8 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         estado,
         totalNc,
         checklists: daCelula,
+        pendencias,
+        idadeMaxDias,
       };
     });
 
