@@ -7,6 +7,11 @@ import { useGuard } from "@/hooks/use-guard";
 import { useChecklistsRemote } from "@/hooks/use-storage";
 import { supabase } from "@/integrations/supabase/client";
 import { montarFarol, type CelulaFarol } from "@/lib/farol/farol";
+import { levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
+import { buscarPlanos } from "@/lib/farol/planos-storage";
+import type { PlanoAcao } from "@/lib/farol/planos-types";
+import { PendenciasAbertas } from "@/components/pendencias-abertas";
+import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
 import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
 import type { LimpezaTurno } from "@/lib/verso/types";
@@ -32,6 +37,9 @@ function LiderHome() {
 
   const [limpezas, setLimpezas] = useState<LimpezaTurno[]>([]);
   const [celulaAberta, setCelulaAberta] = useState<CelulaFarol | null>(null);
+  const [planos, setPlanos] = useState<PlanoAcao[]>([]);
+  const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
+  const [recarga, setRecarga] = useState(0);
 
   // Data operacional respeita a regra de madrugada: no turno da noite, antes
   // do fim do turno, a folha ainda é a do dia anterior.
@@ -58,7 +66,7 @@ function LiderHome() {
       const { data: linhasLimpeza, error } = await supabase
         .from("limpeza_turnos" as never)
         .select("*")
-        .eq("data_operacao", data);
+        .order("data_operacao", { ascending: false });
       if (cancelado) return;
       if (error) {
         console.error("[lider] limpezas:", error);
@@ -71,16 +79,28 @@ function LiderHome() {
     return () => {
       cancelado = true;
     };
-  }, [data]);
+  }, [recarga]);
 
-  const linhas = useMemo(
-    () => montarFarol({ checklists, limpezas, data, hoje }),
-    [checklists, limpezas, data, hoje],
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const p = await buscarPlanos();
+      if (!cancelado) setPlanos(p);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
+
+  // O passivo: tudo que continua aberto hoje, de qualquer data.
+  const pendencias = useMemo(
+    () => levantarPendencias({ checklists, limpezas, planos, hoje }),
+    [checklists, limpezas, planos, hoje],
   );
 
-  const aguardandoValidacao = useMemo(
-    () => limpezas.filter((l) => l.status === "aguardando_validacao"),
-    [limpezas],
+  const linhas = useMemo(
+    () => montarFarol({ checklists, limpezas, data, hoje, pendencias }),
+    [checklists, limpezas, data, hoje, pendencias],
   );
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -129,38 +149,17 @@ function LiderHome() {
           <Farol linhas={linhas} data={data} onAbrirCelula={setCelulaAberta} />
         )}
 
-        <section className="mt-8" aria-label="Validações pendentes">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-            Aguardando a sua validação
-          </h3>
-          {aguardandoValidacao.length === 0 ? (
-            <p className="mt-2 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-              Nada pendente de validação hoje.
-            </p>
-          ) : (
-            <ul className="mt-2 space-y-2">
-              {aguardandoValidacao.map((l) => (
-                <li
-                  key={l.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-warning/40 bg-warning/10 p-4"
-                >
-                  <div>
-                    <p className="font-bold text-foreground">
-                      Limpeza da sala de envase · {l.turno}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatarDataBR(l.dataOperacao)}
-                      {l.operadorNome ? ` · operador ${l.operadorNome}` : ""}
-                    </p>
-                  </div>
-                  <span className="rounded-full border border-warning/50 bg-warning/20 px-3 py-1 text-xs font-bold text-warning-foreground">
-                    Aguarda o líder
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <PendenciasAbertas pendencias={pendencias} onAbrirPlano={setPendenciaAberta} />
+
+
+        {pendenciaAberta && usuario && (
+          <PlanoAcaoDialog
+            pendencia={pendenciaAberta}
+            usuario={usuario}
+            onFechar={() => setPendenciaAberta(null)}
+            onSalvo={() => setRecarga((n) => n + 1)}
+          />
+        )}
 
         {celulaAberta && (
           <DetalheCelula celula={celulaAberta} onFechar={() => setCelulaAberta(null)} />
