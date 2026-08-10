@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApoioSecoes } from "@/components/producao/apoio-secoes";
+import { VersoSecoes } from "@/components/producao/verso-secoes";
 import { TelaCarregando } from "@/components/tela-carregando";
 
 import { useGuard } from "@/hooks/use-guard";
