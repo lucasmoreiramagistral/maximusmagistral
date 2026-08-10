@@ -12,6 +12,12 @@ import {
   montarFarol,
   type CumprimentoPeriodo,
 } from "@/lib/farol/farol";
+import { levantarPendencias } from "@/lib/farol/pendencias";
+import { buscarPlanos } from "@/lib/farol/planos-storage";
+import type { PlanoAcao } from "@/lib/farol/planos-types";
+import { PendenciasAbertas } from "@/components/pendencias-abertas";
+import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
+import type { Pendencia } from "@/lib/farol/pendencias";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
 import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
 import type { LimpezaTurno } from "@/lib/verso/types";
@@ -48,6 +54,9 @@ function SupervisorHome() {
 
   const [limpezas, setLimpezas] = useState<LimpezaTurno[]>([]);
   const [janela, setJanela] = useState<number>(7);
+  const [planos, setPlanos] = useState<PlanoAcao[]>([]);
+  const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
+  const [recarga, setRecarga] = useState(0);
 
   const hoje = useMemo(
     () => calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao),
@@ -58,10 +67,13 @@ function SupervisorHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
+      // SEM filtro de data: o passivo vai a 108 dias, muito alem da janela
+      // de 7/15/30. calcularCumprimentoPeriodo filtra por dia internamente,
+      // entao passar tudo nao afeta o percentual.
       const { data: linhas, error } = await supabase
         .from("limpeza_turnos" as never)
         .select("*")
-        .gte("data_operacao", de);
+        .order("data_operacao", { ascending: false });
       if (cancelado) return;
       if (error) {
         console.error("[supervisor] limpezas:", error);
@@ -72,7 +84,25 @@ function SupervisorHome() {
     return () => {
       cancelado = true;
     };
-  }, [de]);
+  }, [recarga]);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const p = await buscarPlanos();
+      if (!cancelado) setPlanos(p);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
+
+  // Mesmo passivo que o lider e a GI enxergam. As tres telas TEM que contar
+  // a mesma verdade: e o supervisor quem apresenta o farol para a GI.
+  const pendencias = useMemo(
+    () => levantarPendencias({ checklists, limpezas, planos, hoje }),
+    [checklists, limpezas, planos, hoje],
+  );
 
   const cumprimento = useMemo(
     () => calcularCumprimentoPeriodo(checklists, limpezas, de, hoje),
@@ -80,8 +110,8 @@ function SupervisorHome() {
   );
 
   const farolHoje = useMemo(
-    () => montarFarol({ checklists, limpezas, data: hoje, hoje }),
-    [checklists, limpezas, hoje],
+    () => montarFarol({ checklists, limpezas, data: hoje, hoje, pendencias }),
+    [checklists, limpezas, hoje, pendencias],
   );
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -98,6 +128,21 @@ function SupervisorHome() {
         ) : (
           <>
             <Farol linhas={farolHoje} data={hoje} />
+
+            <PendenciasAbertas
+              pendencias={pendencias}
+              planos={planos}
+              onAbrirPlano={setPendenciaAberta}
+            />
+
+            {pendenciaAberta && (
+              <PlanoAcaoDialog
+                pendencia={pendenciaAberta}
+                usuario={usuario}
+                onFechar={() => setPendenciaAberta(null)}
+                onSalvo={() => setRecarga((n) => n + 1)}
+              />
+            )}
 
             <section className="mt-10" aria-label="Cumprimento da rotina">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">

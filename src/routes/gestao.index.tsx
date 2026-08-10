@@ -14,6 +14,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { Farol } from "@/components/farol";
 import { GestaoRecursos } from "@/components/gestao-recursos";
+import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { montarFarol } from "@/lib/farol/farol";
 import { levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
@@ -130,6 +131,8 @@ function GestaoHome() {
           usuario={usuario}
           onAtualizar={() => setRecarga((n) => n + 1)}
         />
+
+        <PendenciasAbertas pendencias={pendencias} planos={planos} />
 
         <h3 className="mb-3 mt-10 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Ferramentas de análise
