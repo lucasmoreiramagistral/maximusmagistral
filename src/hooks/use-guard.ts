@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
 import type { Perfil, Usuario } from "@/lib/checklist/types";
+import { ROTA_INICIAL, ehPerfilAtivo } from "@/lib/checklist/types";
 
 /**
  * Guarda de rota: redireciona para "/" se não houver sessão válida,
@@ -28,14 +29,13 @@ export function useGuard(perfilEsperado?: Perfil): {
       navigate({ to: "/" });
       return;
     }
-    // Perfil "manutencao" foi descontinuado — empurra de volta pro login.
-    if (usuario.perfil === "manutencao") {
+    // Perfil sem área própria (ex.: "manutencao", descontinuado) volta pro login.
+    if (!ehPerfilAtivo(usuario.perfil)) {
       navigate({ to: "/" });
       return;
     }
     if (perfilEsperado && usuario.perfil !== perfilEsperado) {
-      const destino = usuario.perfil === "operador" ? "/operador" : "/gestao";
-      navigate({ to: destino });
+      navigate({ to: ROTA_INICIAL[usuario.perfil] });
     }
   }, [usuario, loading, perfilEsperado, navigate]);
 

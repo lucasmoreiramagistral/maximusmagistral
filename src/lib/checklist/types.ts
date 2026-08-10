@@ -187,7 +187,72 @@ export interface AnomaliaAtualizacao {
   origemHorario: "manual_gestao" | "automatico_manutencao";
 }
 
-export type Perfil = "operador" | "gestao" | "manutencao";
+/**
+ * Perfil = etapa do ciclo PDCA que a pessoa executa, não nível de acesso.
+ *
+ *   operador   → P + D  (aponta a NC e registra a ação tomada na hora)
+ *   lider      → D + C  (valida a execução e abre o plano de ação)
+ *   supervisor → C + A  (analisa o cumprimento da rotina e apresenta o farol)
+ *   gestao     → A      (libera recursos para o plano de ação e avalia melhorias)
+ *
+ * `manutencao` foi descontinuado, mas continua no tipo porque ainda existem
+ * contas com esse perfil no banco. Ver PERFIS_ATIVOS.
+ */
+export type Perfil =
+  | "operador"
+  | "lider"
+  | "supervisor"
+  | "gestao"
+  | "manutencao";
+
+/** Perfis que podem entrar no app. Ordem = ordem da cascata. */
+export const PERFIS_ATIVOS = [
+  "operador",
+  "lider",
+  "supervisor",
+  "gestao",
+] as const satisfies ReadonlyArray<Perfil>;
+
+export type PerfilAtivo = (typeof PERFIS_ATIVOS)[number];
+
+/** Rota inicial de cada perfil depois do login. */
+export const ROTA_INICIAL: Record<PerfilAtivo, string> = {
+  operador: "/operador",
+  lider: "/lider",
+  supervisor: "/supervisor",
+  gestao: "/gestao",
+};
+
+/** Metadados de exibição do perfil (login, cabeçalho, cadastro de usuário). */
+export const PERFIL_INFO: Record<
+  PerfilAtivo,
+  { titulo: string; descricao: string; etapas: string }
+> = {
+  operador: {
+    titulo: "Operador",
+    descricao: "Responder o checklist e registrar a ação tomada na não conformidade",
+    etapas: "PD",
+  },
+  lider: {
+    titulo: "Líder",
+    descricao: "Validar a execução do turno e abrir o plano de ação dos itens NC",
+    etapas: "DC",
+  },
+  supervisor: {
+    titulo: "Supervisão / Coordenação",
+    descricao: "Analisar o cumprimento da rotina, tratar os planos de ação e apresentar o farol",
+    etapas: "CA",
+  },
+  gestao: {
+    titulo: "Gestão Industrial",
+    descricao: "Liberar recursos para o plano de ação e avaliar melhorias",
+    etapas: "A",
+  },
+};
+
+export function ehPerfilAtivo(p: string | null | undefined): p is PerfilAtivo {
+  return !!p && (PERFIS_ATIVOS as readonly string[]).includes(p);
+}
 
 /**
  * Hierarquia organizacional (8 níveis). Usada para autorizar ações
@@ -206,7 +271,13 @@ export type Hierarquia =
 
 /** Módulos de acesso. Hoje apenas `perfil` é usado pelo login/useGuard;
  *  `modulosAcesso` é salvo para o futuro (multi-módulo). */
-export type ModuloAcesso = "operador" | "gestao" | "manutencao" | "admin";
+export type ModuloAcesso =
+  | "operador"
+  | "lider"
+  | "supervisor"
+  | "gestao"
+  | "manutencao"
+  | "admin";
 
 export const HIERARQUIAS: Hierarquia[] = [
   "desenvolvedor",
@@ -219,7 +290,14 @@ export const HIERARQUIAS: Hierarquia[] = [
   "externo",
 ];
 
-export const MODULOS_ACESSO: ModuloAcesso[] = ["operador", "gestao", "manutencao", "admin"];
+export const MODULOS_ACESSO: ModuloAcesso[] = [
+  "operador",
+  "lider",
+  "supervisor",
+  "gestao",
+  "manutencao",
+  "admin",
+];
 
 /** Hierarquias autorizadas a cadastrar/editar usuários. */
 export const HIERARQUIAS_ADMIN_GESTAO: Hierarquia[] = [

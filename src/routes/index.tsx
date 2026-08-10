@@ -1,12 +1,25 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Factory, HardHat, ClipboardCheck, Loader2 } from "lucide-react";
+import {
+  Factory,
+  HardHat,
+  ClipboardCheck,
+  Loader2,
+  ShieldCheck,
+  ClipboardList,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
-import type { Perfil } from "@/lib/checklist/types";
+import type { PerfilAtivo } from "@/lib/checklist/types";
+import {
+  PERFIS_ATIVOS,
+  PERFIL_INFO,
+  ROTA_INICIAL,
+  ehPerfilAtivo,
+} from "@/lib/checklist/types";
 import { cn } from "@/lib/utils";
 import { TelaCarregando } from "@/components/tela-carregando";
 import logoMagistral from "@/assets/logo-magistral.png";
@@ -23,6 +36,13 @@ export const Route = createFileRoute("/")({
   }),
   component: LoginPage,
 });
+
+const ICONE_PERFIL: Record<PerfilAtivo, React.ReactNode> = {
+  operador: <HardHat className="h-7 w-7" />,
+  lider: <ShieldCheck className="h-7 w-7" />,
+  supervisor: <ClipboardList className="h-7 w-7" />,
+  gestao: <Factory className="h-7 w-7" />,
+};
 
 /**
  * Converte o "usuário interno" (ex.: "joao.silva") em e-mail válido para o
@@ -57,7 +77,7 @@ function LoginPage() {
   const navigate = useNavigate();
   const usuarioAtual = useUsuario();
   const authLoading = useAuthLoading();
-  const [perfilSel, setPerfilSel] = useState<Perfil>("operador");
+  const [perfilSel, setPerfilSel] = useState<PerfilAtivo>("operador");
   const [usuario, setUsuarioInput] = useState("");
   const [senha, setSenha] = useState("");
   const [erro, setErro] = useState("");
@@ -69,18 +89,16 @@ function LoginPage() {
   useEffect(() => {
     if (authLoading) return;
     if (!usuarioAtual) return;
-    if (usuarioAtual.perfil === "manutencao") {
+    if (!ehPerfilAtivo(usuarioAtual.perfil)) {
       void supabase.auth.signOut();
       setRedirecting(false);
       setErro(
-        "Perfil de manutenção foi descontinuado. Use o Sigma.",
+        "Este perfil não tem mais acesso ao app. Procure a supervisão.",
       );
       return;
     }
     setRedirecting(true);
-    const destino =
-      usuarioAtual.perfil === "operador" ? "/operador" : "/gestao";
-    navigate({ to: destino });
+    navigate({ to: ROTA_INICIAL[usuarioAtual.perfil] });
   }, [authLoading, usuarioAtual, navigate]);
 
   const entrar = async (e: React.FormEvent) => {
@@ -137,22 +155,23 @@ function LoginPage() {
         return;
       }
 
-      if (profile.perfil === "manutencao") {
+      if (!ehPerfilAtivo(profile.perfil)) {
         await supabase.auth.signOut();
-        setErro("Perfil de manutenção foi descontinuado. Use o Sigma.");
+        setErro("Este perfil não tem mais acesso ao app. Procure a supervisão.");
         return;
       }
 
       if (profile.perfil !== perfilSel) {
         await supabase.auth.signOut();
-        setErro(`Esta conta é do perfil "${profile.perfil}". Selecione o perfil correto.`);
+        setErro(
+          `Esta conta é do perfil "${PERFIL_INFO[profile.perfil].titulo}". Selecione o perfil correto.`,
+        );
         return;
       }
 
       sucesso = true;
       setRedirecting(true);
-      const destino = perfilSel === "operador" ? "/operador" : "/gestao";
-      navigate({ to: destino });
+      navigate({ to: ROTA_INICIAL[perfilSel] });
     } catch (err) {
       console.error(err);
       setErro("Erro ao entrar. Tente novamente.");
@@ -186,27 +205,23 @@ function LoginPage() {
           <p className="mt-2 text-base text-muted-foreground md:text-lg">Linha 3 — Enchedora 3</p>
         </div>
 
-        <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
+        <div className="w-full max-w-4xl rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
           <form onSubmit={entrar} className="space-y-6">
             <div>
               <Label className="mb-3 block text-base font-semibold">Selecione o perfil</Label>
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <PerfilCard
-                  icon={<HardHat className="h-7 w-7" />}
-                  titulo="Operador"
-                  descricao="Realizar checklists e registrar não conformidades"
-                  ativo={perfilSel === "operador"}
-                  onClick={() => setPerfilSel("operador")}
-                  disabled={loading || redirecting}
-                />
-                <PerfilCard
-                  icon={<Factory className="h-7 w-7" />}
-                  titulo="Gestão Industrial"
-                  descricao="Consultar checklists, NC e indicadores"
-                  ativo={perfilSel === "gestao"}
-                  onClick={() => setPerfilSel("gestao")}
-                  disabled={loading || redirecting}
-                />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {PERFIS_ATIVOS.map((p) => (
+                  <PerfilCard
+                    key={p}
+                    icon={ICONE_PERFIL[p]}
+                    titulo={PERFIL_INFO[p].titulo}
+                    descricao={PERFIL_INFO[p].descricao}
+                    etapas={PERFIL_INFO[p].etapas}
+                    ativo={perfilSel === p}
+                    onClick={() => setPerfilSel(p)}
+                    disabled={loading || redirecting}
+                  />
+                ))}
               </div>
             </div>
 
@@ -279,10 +294,37 @@ function LoginPage() {
   );
 }
 
+/** As 4 letras do PDCA, acesas conforme as etapas que o perfil executa. */
+function EtapasPDCA({ etapas, ativo }: { etapas: string; ativo: boolean }) {
+  return (
+    <div className="flex gap-1" aria-label={`Etapas do PDCA: ${etapas.split("").join(", ")}`}>
+      {["P", "D", "C", "A"].map((letra) => {
+        const on = etapas.includes(letra);
+        return (
+          <span
+            key={letra}
+            className={cn(
+              "flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold",
+              on
+                ? ativo
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-primary/15 text-primary"
+                : "bg-muted text-muted-foreground/50",
+            )}
+          >
+            {letra}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 function PerfilCard({
   icon,
   titulo,
   descricao,
+  etapas,
   ativo,
   onClick,
   disabled,
@@ -290,6 +332,7 @@ function PerfilCard({
   icon: React.ReactNode;
   titulo: string;
   descricao: string;
+  etapas: string;
   ativo: boolean;
   onClick: () => void;
   disabled?: boolean;
@@ -299,8 +342,9 @@ function PerfilCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      aria-pressed={ativo}
       className={cn(
-        "flex flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all",
+        "flex h-full flex-col items-start gap-2 rounded-xl border-2 p-4 text-left transition-all",
         ativo
           ? "border-primary bg-primary-soft shadow-sm"
           : "border-border bg-card hover:border-primary/40 hover:bg-accent",
@@ -315,10 +359,11 @@ function PerfilCard({
       >
         {icon}
       </div>
-      <div>
+      <div className="flex-1">
         <p className="text-base font-bold text-foreground">{titulo}</p>
-        <p className="text-sm text-muted-foreground">{descricao}</p>
+        <p className="mt-0.5 text-sm text-muted-foreground">{descricao}</p>
       </div>
+      <EtapasPDCA etapas={etapas} ativo={ativo} />
     </button>
   );
 }
