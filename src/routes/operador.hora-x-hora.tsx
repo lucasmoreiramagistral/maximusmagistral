@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApoioSecoes } from "@/components/producao/apoio-secoes";
+import { VersoSecoes } from "@/components/producao/verso-secoes";
 import { TelaCarregando } from "@/components/tela-carregando";
 
 import { useGuard } from "@/hooks/use-guard";
@@ -202,9 +203,10 @@ function HoraXHoraPage() {
         )}
 
         <Tabs defaultValue="producao">
-          <TabsList className="mb-4 grid w-full grid-cols-2">
+          <TabsList className="mb-4 grid w-full grid-cols-3">
             <TabsTrigger value="producao">Produção hora a hora</TabsTrigger>
             <TabsTrigger value="apoio">Apoio, assepsia e CIP</TabsTrigger>
+            <TabsTrigger value="verso">Tanques e passagem</TabsTrigger>
           </TabsList>
 
           <TabsContent value="producao" forceMount>
@@ -360,6 +362,15 @@ function HoraXHoraPage() {
 
           <TabsContent value="apoio" forceMount>
             <ApoioSecoes
+              usuario={usuario}
+              turno={turno}
+              data={data}
+              folhaDiaKey={folhaDiaKey}
+            />
+          </TabsContent>
+
+          <TabsContent value="verso" forceMount>
+            <VersoSecoes
               usuario={usuario}
               turno={turno}
               data={data}

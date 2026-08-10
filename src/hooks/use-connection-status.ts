@@ -37,6 +37,14 @@ import {
   upsertProducaoHora,
 } from "@/lib/producao/supabase-storage";
 import { upsertProducaoApoio } from "@/lib/producao/apoio-supabase";
+import {
+  upsertProducaoPassagem,
+  upsertProducaoTanque,
+} from "@/lib/producao/verso-supabase";
+import type {
+  ProducaoPassagem,
+  ProducaoTanque,
+} from "@/lib/producao/verso-types";
 import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type {
   ProducaoHora,
@@ -60,6 +68,8 @@ export type FilaItemTipo =
   | "limpeza_turno"
   | "producao_hora"
   | "producao_apoio"
+  | "producao_tanque"
+  | "producao_passagem"
   | "it_evento"
   | "it_sessao_close";
 
@@ -336,6 +346,22 @@ const store = {
         expectedUpdatedAt?: string | null;
       };
       await upsertProducaoApoio(apoio, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
+    } else if (item.tipo === "producao_tanque") {
+      const { tanque, expectedUpdatedAt } = item.payload as {
+        tanque: ProducaoTanque;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoTanque(tanque, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
+    } else if (item.tipo === "producao_passagem") {
+      const { passagem, expectedUpdatedAt } = item.payload as {
+        passagem: ProducaoPassagem;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoPassagem(passagem, {
         expectedUpdatedAt: expectedUpdatedAt ?? undefined,
       });
     } else if (item.tipo === "it_evento") {
