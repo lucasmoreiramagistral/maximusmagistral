@@ -250,11 +250,7 @@ describe("dia em andamento nao vira cobranca", () => {
       hoje: DATA, // mesmo dia = turno ainda correndo
       maquinas: MAQ,
     });
-    expect(linha.celulas.map((c) => c.estado)).toEqual([
-      "aguardando",
-      "aguardando",
-      "aguardando",
-    ]);
+    expect(linha.celulas.map((c) => c.estado)).toEqual(["aguardando", "aguardando", "aguardando"]);
   });
 
   it("dia passado sem checklist continua NR", () => {

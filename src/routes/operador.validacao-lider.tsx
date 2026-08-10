@@ -22,17 +22,11 @@ import { useChecklists } from "@/hooks/use-storage";
 import { useLimpezaTurnos } from "@/hooks/use-limpeza-turnos";
 import { storage, buildFolhaKey } from "@/lib/checklist/storage";
 import { upsertChecklist } from "@/lib/checklist/supabase-storage";
-import {
-  buildFolhaDiaKey,
-  formatarDataBR,
-} from "@/lib/operacao/data-operacional";
+import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operacional";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import { formatarDataHora } from "@/lib/checklist/format";
-import type {
-  Checklist,
-  ContextoChecklist,
-} from "@/lib/checklist/types";
+import type { Checklist, ContextoChecklist } from "@/lib/checklist/types";
 import type { LimpezaTurno } from "@/lib/verso/types";
 
 export const Route = createFileRoute("/operador/validacao-lider")({
@@ -41,8 +35,7 @@ export const Route = createFileRoute("/operador/validacao-lider")({
       { title: "Validação de Relatório pelo Líder" },
       {
         name: "description",
-        content:
-          "Tela de assinaturas finais do líder: checklist e limpeza da sala de envase.",
+        content: "Tela de assinaturas finais do líder: checklist e limpeza da sala de envase.",
       },
     ],
   }),
@@ -98,8 +91,7 @@ function ValidacaoLiderPage() {
     return limpeza.turnos.find((t) => t.turno === turno) ?? null;
   }, [turno, limpeza.turnos]);
 
-  const checklistPendente =
-    !!posSetup?.assinaturaOperador && !posSetup?.assinaturaLider;
+  const checklistPendente = !!posSetup?.assinaturaOperador && !posSetup?.assinaturaLider;
   const limpezaPendente = limpezaTurno?.status === "aguardando_validacao";
 
   // ── Estado de UI ──
@@ -109,12 +101,8 @@ function ValidacaoLiderPage() {
   // identificou", e sem isso não há assinatura.
   const [lider, setLider] = useState<IdentidadeLider | null>(null);
   const [pedindoLogin, setPedindoLogin] = useState(false);
-  const [assinaturaChecklist, setAssinaturaChecklist] = useState<string | null>(
-    null,
-  );
-  const [assinaturaLimpeza, setAssinaturaLimpeza] = useState<string | null>(
-    null,
-  );
+  const [assinaturaChecklist, setAssinaturaChecklist] = useState<string | null>(null);
+  const [assinaturaLimpeza, setAssinaturaLimpeza] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
   // Reusa a mesma assinatura para os dois quando ambos pendentes (atalho)
@@ -188,9 +176,7 @@ function ValidacaoLiderPage() {
       navigate({ to: "/operador" });
     } catch (e) {
       console.error("[validacao-lider] erro ao salvar:", e);
-      toast.error(
-        e instanceof Error ? e.message : "Erro ao salvar a validação.",
-      );
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar a validação.");
     } finally {
       setSalvando(false);
     }
@@ -219,12 +205,9 @@ function ValidacaoLiderPage() {
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-success/20 text-success">
               <Sparkles className="h-8 w-8" />
             </div>
-            <p className="text-xl font-bold text-foreground md:text-2xl">
-              Nada para validar agora
-            </p>
+            <p className="text-xl font-bold text-foreground md:text-2xl">Nada para validar agora</p>
             <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Não há checklist nem limpeza aguardando a assinatura do líder
-              neste turno.
+              Não há checklist nem limpeza aguardando a assinatura do líder neste turno.
             </p>
             <Button asChild className="mt-5">
               <Link to="/operador">Voltar para a home</Link>
@@ -237,13 +220,11 @@ function ValidacaoLiderPage() {
                 <PenLine className="mt-0.5 h-6 w-6 shrink-0 text-primary" />
                 <div>
                   <p className="text-base font-bold text-foreground md:text-lg">
-                    Líder, conferimos o que você precisa assinar para encerrar
-                    o turno.
+                    Líder, conferimos o que você precisa assinar para encerrar o turno.
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    O operador já concluiu e assinou. Sua assinatura libera o
-                    fechamento do dia. Você pode usar a mesma assinatura para
-                    os dois itens.
+                    O operador já concluiu e assinou. Sua assinatura libera o fechamento do dia.
+                    Você pode usar a mesma assinatura para os dois itens.
                   </p>
                 </div>
               </div>
@@ -281,8 +262,8 @@ function ValidacaoLiderPage() {
                       O líder precisa se identificar
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Ele entra com o próprio usuário aqui mesmo. O turno do operador
-                      continua aberto — não é preciso sair do app nem outro tablet.
+                      Ele entra com o próprio usuário aqui mesmo. O turno do operador continua
+                      aberto — não é preciso sair do app nem outro tablet.
                     </p>
                   </div>
                   <Button type="button" onClick={() => setPedindoLogin(true)}>
@@ -295,6 +276,36 @@ function ValidacaoLiderPage() {
             <AutenticarLiderDialog
               aberto={pedindoLogin}
               onFechar={() => setPedindoLogin(false)}
+              // Estes registros são gravados na sessão do LÍDER, e o banco
+              // carimba autor e horário. É o que torna a assinatura auditável:
+              // o resto desta tela é escrito pela sessão do operador.
+              validacoes={[
+                ...(checklistPendente && posSetup
+                  ? [
+                      {
+                        alvoTipo: "checklist" as const,
+                        alvoId: posSetup.id,
+                        dataOperacao: data,
+                        turno: turno ?? "",
+                      },
+                    ]
+                  : []),
+                ...(limpezaPendente && limpezaTurno
+                  ? [
+                      {
+                        alvoTipo: "limpeza" as const,
+                        alvoId: limpezaTurno.id,
+                        dataOperacao: data,
+                        turno: turno ?? "",
+                      },
+                    ]
+                  : []),
+              ]}
+              onAuditoriaIndisponivel={() =>
+                toast.warning(
+                  "Validação registrada localmente, mas a auditoria do banco ainda não está ativa (migration 06 pendente).",
+                )
+              }
               onAutenticado={(l) => {
                 setLider(l);
                 setPedindoLogin(false);
@@ -312,12 +323,9 @@ function ValidacaoLiderPage() {
                       Checklist Operacional · Pós-setup
                     </p>
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                      Operador {posSetup.assinaturaOperador?.nome ?? "—"}{" "}
-                      assinou em{" "}
+                      Operador {posSetup.assinaturaOperador?.nome ?? "—"} assinou em{" "}
                       {posSetup.assinaturaOperador?.assinadoEm
-                        ? formatarDataHora(
-                            posSetup.assinaturaOperador.assinadoEm,
-                          )
+                        ? formatarDataHora(posSetup.assinaturaOperador.assinadoEm)
                         : "—"}
                       .
                     </p>
@@ -387,8 +395,7 @@ function ValidacaoLiderPage() {
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="mr-2 h-5 w-5" /> Confirmar
-                    validação do líder
+                    <CheckCircle2 className="mr-2 h-5 w-5" /> Confirmar validação do líder
                   </>
                 )}
               </Button>

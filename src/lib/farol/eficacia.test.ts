@@ -136,10 +136,7 @@ describe("avaliarMelhorias", () => {
       checagemSaiuNc: true,
       checadoEm: "2026-06-01T10:00:00Z",
     });
-    const [m] = avaliarMelhorias(
-      [grupo(["2026-05-01", "2026-07-15"], aprovado)],
-      HOJE,
-    );
+    const [m] = avaliarMelhorias([grupo(["2026-05-01", "2026-07-15"], aprovado)], HOJE);
     expect(m.status).toBe("reincidiu");
     expect(m.antes).toBe(1);
     expect(m.depois).toBe(1);
@@ -172,6 +169,39 @@ describe("avaliarMelhorias", () => {
 
   it("DIAS_PARA_ELIMINADO e o criterio documentado", () => {
     expect(DIAS_PARA_ELIMINADO).toBe(30);
+  });
+
+  it("plano checado e sem decisao A fica marcado como ciclo aberto", () => {
+    // O plano parava no C: "o problema saiu" e ninguem decidia se aquilo
+    // virava padrao. As colunas existiam no banco desde a migration 04 e
+    // nenhuma tela as preenchia.
+    const checado = plano({
+      status: "cumprido",
+      checagemSaiuNc: true,
+      checadoEm: "2026-06-01T10:00:00Z",
+    });
+    const [m] = avaliarMelhorias([grupo(["2026-05-01"], checado)], HOJE);
+    expect(m.esperandoPadronizacao).toBe(true);
+    expect(m.plano?.id).toBe("p1");
+  });
+
+  it("depois da decisao A o ciclo deixa de cobrar", () => {
+    const fechado = plano({
+      status: "cumprido",
+      checagemSaiuNc: true,
+      checadoEm: "2026-06-01T10:00:00Z",
+      padronizacaoDecisao: "padronizar",
+      padraoRef: "FM28 rev.3 — item 2",
+      padronizadoEm: "2026-06-05T10:00:00Z",
+    });
+    const [m] = avaliarMelhorias([grupo(["2026-05-01"], fechado)], HOJE);
+    expect(m.esperandoPadronizacao).toBe(false);
+  });
+
+  it("plano ainda nao checado nao cobra o A", () => {
+    // Nao faz sentido decidir sobre padrao antes de saber se funcionou.
+    const [m] = avaliarMelhorias([grupo(["2026-05-01"], plano())], HOJE);
+    expect(m.esperandoPadronizacao).toBe(false);
   });
 });
 

@@ -120,7 +120,12 @@ describe("levantarPendencias", () => {
       checklists: [checklistComNc("c-antigo", "2026-05-20")],
       limpezas: [],
       planos: [
-        plano({ status: "cumprido", checagemCumprido: true, checagemSaiuNc: true, checadoEm: null }),
+        plano({
+          status: "cumprido",
+          checagemCumprido: true,
+          checagemSaiuNc: true,
+          checadoEm: null,
+        }),
       ],
       hoje: HOJE,
     });
@@ -214,10 +219,7 @@ describe("levantarPendencias", () => {
 
   it("ordena da mais velha para a mais nova", () => {
     const p = levantarPendencias({
-      checklists: [
-        checklistComNc("c-novo", "2026-08-09"),
-        checklistComNc("c-velho", "2026-05-20"),
-      ],
+      checklists: [checklistComNc("c-novo", "2026-08-09"), checklistComNc("c-velho", "2026-05-20")],
       limpezas: [],
       planos: [],
       hoje: HOJE,
@@ -242,6 +244,30 @@ describe("levantarPendencias", () => {
     expect(planoEncerraOcorrencia(aprovado, "2026-06-01")).toBe(true); // o proprio dia conta
     expect(planoEncerraOcorrencia(aprovado, "2026-06-02")).toBe(false); // reincidiu
     expect(planoEncerraOcorrencia(null, "2026-05-20")).toBe(false);
+  });
+
+  it("incluirEncerradas devolve o que o plano ja fechou", () => {
+    // Sem isto, "avaliar melhorias" nao consegue provar melhoria nenhuma: o
+    // problema eliminado sai da lista levando junto as ocorrencias que
+    // formam o "antes" da comparacao, e todo ganho aparece como zero.
+    const entrada = {
+      checklists: [checklistComNc("c-antigo", "2026-05-20")],
+      limpezas: [],
+      planos: [
+        plano({
+          status: "cumprido",
+          checagemCumprido: true,
+          checagemSaiuNc: true,
+          checadoEm: "2026-06-01T10:00:00Z",
+        }),
+      ],
+      hoje: HOJE,
+    };
+
+    expect(levantarPendencias(entrada)).toHaveLength(0);
+    const historico = levantarPendencias({ ...entrada, incluirEncerradas: true });
+    expect(historico).toHaveLength(1);
+    expect(historico[0].plano?.status).toBe("cumprido");
   });
 
   it("faixa de aging", () => {

@@ -49,6 +49,37 @@ export type ResultadoAutenticacao =
  */
 export const PERFIS_QUE_VALIDAM = ["lider", "supervisor", "gestao"] as const;
 
+/**
+ * O registro de validação que o BANCO carimba (tabela `validacoes_lider`,
+ * migration 06).
+ *
+ * Por que existe, se o app já autentica o líder na tela: porque a gravação de
+ * `limpeza_turnos.lider_nome` acontece na sessão do OPERADOR — é o tablet
+ * dele. Nenhuma regra de banco consegue afirmar que aquele nome é de quem
+ * assinou, e quem chamar a API direto escreve o nome que quiser.
+ *
+ * Então separamos: `lider_nome` continua sendo conveniência de exibição, e o
+ * FATO vai para uma tabela onde o trigger sobrescreve autor e horário com
+ * auth.uid()/now(). Este insert roda dentro da sessão do líder, e é a única
+ * coisa que precisa rodar lá.
+ */
+export interface ValidacaoParaRegistrar {
+  alvoTipo: "checklist" | "limpeza" | "producao_horaria";
+  alvoId: string;
+  dataOperacao: string;
+  turno: string;
+  linha?: string;
+  maquina?: string;
+  assinatura?: unknown;
+  observacao?: string | null;
+}
+
+export type ResultadoValidacao =
+  | { ok: true }
+  /** A migration 06 ainda não foi aplicada. Ver comentário em registrarValidacoes. */
+  | { ok: false; indisponivel: true; erro: string }
+  | { ok: false; indisponivel?: false; erro: string };
+
 export async function autenticarLider(
   login: string,
   senha: string,
@@ -107,6 +138,95 @@ export async function autenticarLider(
   } finally {
     // Encerra a sessão do líder de imediato. Como o cliente é
     // `persistSession: false`, nada sobra no tablet nem no localStorage.
+    await cliente.auth.signOut().catch(() => undefined);
+  }
+}
+
+/**
+ * Autentica o líder e grava as validações DENTRO da sessão dele.
+ *
+ * É a diferença entre o app dizer que o líder assinou e o banco saber disso.
+ * A sessão vive só o tempo destes inserts.
+ */
+export async function autenticarERegistrar(
+  login: string,
+  senha: string,
+  validacoes: ValidacaoParaRegistrar[],
+): Promise<
+  { ok: true; lider: IdentidadeLider; registro: ResultadoValidacao } | { ok: false; erro: string }
+> {
+  const usuario = login.trim();
+  if (!usuario || !senha) return { ok: false, erro: "Informe usuário e senha." };
+
+  const cliente = criarClienteValidacao();
+
+  try {
+    const { data, error } = await cliente.auth.signInWithPassword({
+      email: loginParaEmail(usuario),
+      password: senha,
+    });
+    if (error || !data.user) return { ok: false, erro: mensagemErroLogin(error) };
+
+    const { data: perfil, error: pErr } = await cliente
+      .from("profiles")
+      .select("perfil, active, nome, usuario")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (pErr || !perfil) return { ok: false, erro: "Perfil não encontrado. Procure o supervisor." };
+    if (!perfil.active) return { ok: false, erro: "Usuário inativo. Procure o supervisor." };
+    if (!PERFIS_QUE_VALIDAM.includes(perfil.perfil as (typeof PERFIS_QUE_VALIDAM)[number])) {
+      return { ok: false, erro: "Este usuário não tem permissão para validar. Chame o líder." };
+    }
+
+    const lider: IdentidadeLider = {
+      userId: data.user.id,
+      login: perfil.usuario ?? usuario,
+      nome: perfil.nome ?? usuario,
+      perfil: perfil.perfil,
+      autenticadoEm: new Date().toISOString(),
+    };
+
+    let registro: ResultadoValidacao = { ok: true };
+
+    if (validacoes.length > 0) {
+      const linhas = validacoes.map((v) => ({
+        alvo_tipo: v.alvoTipo,
+        alvo_id: v.alvoId,
+        data_operacao: v.dataOperacao,
+        turno: v.turno,
+        linha: v.linha ?? "Linha 3",
+        maquina: v.maquina ?? "Enchedora 3",
+        assinatura: v.assinatura ?? null,
+        observacao: v.observacao ?? null,
+        // Autor e horário NÃO vão aqui. O trigger da migration 06 os
+        // sobrescreve com auth.uid() e now(); mandar valor seria teatro.
+      }));
+
+      const { error: vErr } = await cliente
+        .from("validacoes_lider" as never)
+        .insert(linhas as never);
+
+      if (vErr) {
+        // 42P01 = relação não existe; PGRST205 = PostgREST não achou a tabela.
+        // Acontece enquanto a migration 06 não foi aplicada. Sinalizado como
+        // `indisponivel` para a tela avisar em vez de fingir que gravou.
+        const indisponivel =
+          vErr.code === "42P01" ||
+          vErr.code === "PGRST205" ||
+          /validacoes_lider/i.test(vErr.message ?? "");
+        console.error("[autenticarERegistrar] validacoes_lider:", vErr);
+        registro = indisponivel
+          ? { ok: false, indisponivel: true, erro: "Registro de auditoria ainda não disponível." }
+          : { ok: false, erro: vErr.message ?? "Falha ao registrar a validação." };
+      }
+    }
+
+    return { ok: true, lider, registro };
+  } catch (e) {
+    console.error("[autenticarERegistrar]", e);
+    return { ok: false, erro: "Erro ao validar. Tente novamente." };
+  } finally {
     await cliente.auth.signOut().catch(() => undefined);
   }
 }

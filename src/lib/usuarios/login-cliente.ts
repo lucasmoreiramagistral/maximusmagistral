@@ -22,9 +22,7 @@ export function loginParaEmail(login: string): string {
   return `${limpo}@magistral.internal`;
 }
 
-export function mensagemErroLogin(
-  error: { code?: string; message?: string } | null,
-): string {
+export function mensagemErroLogin(error: { code?: string; message?: string } | null): string {
   if (!error) return "Usuário ou senha inválidos";
 
   if (error.code === "invalid_credentials") {

@@ -163,6 +163,69 @@ export async function checarPlano(
   return { ok: true };
 }
 
+/**
+ * O A do PDCA — padronizar ou voltar a rodar.
+ *
+ * É a etapa que faltava inteira: as colunas `padronizacao_*` existiam no banco
+ * desde a migration 04 e nenhuma tela as preenchia, então todo plano parava no
+ * C. Checar se o problema saiu não é o fim do ciclo; o fim é decidir o que
+ * fazer com o que se aprendeu.
+ *
+ * As três saídas são as do PDCA, e a terceira é a que costuma ser esquecida:
+ *
+ *   padronizar  → virou regra. Vai para o procedimento, e `padraoRef` diz
+ *                 qual documento mudou — senão "padronizamos" é conversa.
+ *   monitorar   → funcionou, mas ainda não se confia. Segue observando.
+ *   girar       → não resolveu de fato. Volta para o P com o que se aprendeu.
+ *
+ * Quem decide é supervisor ou gestão, não o líder: quem executou a ação não é
+ * quem julga que ela virou padrão. A migration 06 impõe isso no banco.
+ */
+export type DecisaoPadronizacao = "padronizar" | "monitorar" | "girar";
+
+export interface Padronizacao {
+  decisao: DecisaoPadronizacao;
+  /** O que se aprendeu — a causa, não o sintoma. */
+  analise: string;
+  /** Documento/procedimento alterado. Obrigatório ao padronizar. */
+  padraoRef?: string;
+}
+
+export async function padronizarPlano(
+  plano: PlanoAcao,
+  p: Padronizacao,
+  usuario: Usuario,
+): Promise<{ ok: true } | { ok: false; erro: string }> {
+  if (!p.analise.trim()) {
+    return { ok: false, erro: "Descreva o que foi aprendido." };
+  }
+  if (p.decisao === "padronizar" && !p.padraoRef?.trim()) {
+    return {
+      ok: false,
+      erro: "Informe qual procedimento foi alterado. Padronizar sem documento não é padronizar.",
+    };
+  }
+
+  const { error } = await supabase
+    .from(TABELA as never)
+    .update({
+      padronizacao_analise: p.analise.trim(),
+      padronizacao_decisao: p.decisao,
+      padrao_ref: p.padraoRef?.trim() || null,
+      padronizado_por_nome: usuario.nome,
+      padronizado_em: new Date().toISOString(),
+    } as never)
+    .eq("id", plano.id);
+
+  if (error) {
+    console.error("[planos] padronizar:", error);
+    return { ok: false, erro: error.message };
+  }
+
+  await registrarEvento(plano.id, "padronizou", usuario, p, p.analise);
+  return { ok: true };
+}
+
 /** GI: "Disponibilizar Recursos p/ Execução PA (NC)". */
 export async function liberarRecurso(
   plano: PlanoAcao,

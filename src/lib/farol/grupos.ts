@@ -56,10 +56,7 @@ function chaveGrupo(p: Pendencia): string {
   return `${p.tipo}|${p.origemTipo}|${p.maquina}|${p.itemNumero ?? "s/item"}`;
 }
 
-export function agruparPendencias(
-  pendencias: Pendencia[],
-  planos: PlanoAcao[],
-): GrupoPendencia[] {
+export function agruparPendencias(pendencias: Pendencia[], planos: PlanoAcao[]): GrupoPendencia[] {
   const mapa = new Map<string, Pendencia[]>();
   for (const p of pendencias) {
     const k = chaveGrupo(p);
@@ -71,9 +68,7 @@ export function agruparPendencias(
   const grupos: GrupoPendencia[] = [];
 
   for (const [chave, ocorrencias] of mapa) {
-    const ordenadas = [...ocorrencias].sort((a, b) =>
-      a.dataOrigem < b.dataOrigem ? -1 : 1,
-    );
+    const ordenadas = [...ocorrencias].sort((a, b) => (a.dataOrigem < b.dataOrigem ? -1 : 1));
     const primeira = ordenadas[0];
     const ultima = ordenadas[ordenadas.length - 1];
     const idadeMaxDias = Math.max(...ocorrencias.map((o) => o.idadeDias));

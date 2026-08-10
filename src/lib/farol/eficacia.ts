@@ -48,6 +48,14 @@ export interface Melhoria {
   /** Dias desde a última ocorrência. */
   diasSemOcorrer: number;
   ultimaOcorrencia: string;
+  /** O plano por trás, para a tela poder registrar a decisão A. */
+  plano: PlanoAcao | null;
+  /**
+   * O ciclo está pronto para fechar: o plano passou na checagem e ninguém
+   * registrou ainda o que fazer com o aprendizado. Enquanto isto for true, o
+   * PDCA parou no C.
+   */
+  esperandoPadronizacao: boolean;
 }
 
 export function avaliarMelhorias(
@@ -68,9 +76,7 @@ export function avaliarMelhorias(
       const antes = aprovadoEm
         ? g.ocorrencias.filter((o) => o.dataOrigem <= aprovadoEm).length
         : g.qtd;
-      const depois = aprovadoEm
-        ? g.ocorrencias.filter((o) => o.dataOrigem > aprovadoEm).length
-        : 0;
+      const depois = aprovadoEm ? g.ocorrencias.filter((o) => o.dataOrigem > aprovadoEm).length : 0;
 
       const diasSemOcorrer = diffDias(g.ultimaData, hoje);
 
@@ -91,6 +97,8 @@ export function avaliarMelhorias(
         planoAprovadoEm: aprovadoEm,
         diasSemOcorrer,
         ultimaOcorrencia: g.ultimaData,
+        plano,
+        esperandoPadronizacao: !!aprovadoEm && !plano?.padronizadoEm,
       };
     })
     .sort((a, b) => {
@@ -122,9 +130,7 @@ export function resumirMelhorias(m: Melhoria[]): ResumoMelhorias {
     monitorando: m.filter((x) => x.status === "monitorando").length,
     reincidiram: m.filter((x) => x.status === "reincidiu").length,
     semPlano: m.filter((x) => x.status === "sem_plano").length,
-    ocorrenciasEvitadas: m
-      .filter((x) => x.status === "eliminado")
-      .reduce((s, x) => s + x.antes, 0),
+    ocorrenciasEvitadas: m.filter((x) => x.status === "eliminado").reduce((s, x) => s + x.antes, 0),
   };
 }
 
@@ -171,9 +177,7 @@ export function avaliarRotinaLideranca(
     semPlano,
     pctComPlano: grupos.length === 0 ? 0 : Math.round((comPlano / grupos.length) * 100),
     tempoMedioAberturaDias:
-      atrasos.length === 0
-        ? null
-        : Math.round(atrasos.reduce((s, d) => s + d, 0) / atrasos.length),
+      atrasos.length === 0 ? null : Math.round(atrasos.reduce((s, d) => s + d, 0) / atrasos.length),
     vencidosSemRecurso: abertos.filter((p) => p.quando < hoje && !p.recursoLiberadoEm).length,
     aguardandoChecagem: abertos.filter((p) => p.quando <= hoje).length,
     planosChecados: planos.filter((p) => p.checadoEm).length,

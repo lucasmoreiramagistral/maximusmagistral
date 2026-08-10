@@ -161,10 +161,7 @@ function contarNcDoChecklist(c: Checklist): number {
 
 /** Todas as respostas do checklist são "Não aplicável"? */
 function todoNaoAplicavel(c: Checklist): boolean {
-  return (
-    c.respostas.length > 0 &&
-    c.respostas.every((r) => r.resposta === "Não aplicável")
-  );
+  return c.respostas.length > 0 && c.respostas.every((r) => r.resposta === "Não aplicável");
 }
 
 export interface EntradaFarol {
@@ -495,9 +492,7 @@ export function calcularCumprimentoPeriodo(
   const justificadas = new Set(paradas.map((p) => `${p.data}|${p.turno}`));
 
   const detalhe: DiaCumprimento[] = dias.map((dia) => {
-    const cs = checklists.filter(
-      (c) => c.contexto.data === dia && c.contexto.maquina === maquina,
-    );
+    const cs = checklists.filter((c) => c.contexto.data === dia && c.contexto.maquina === maquina);
     const ls = limpezas.filter((l) => l.dataOperacao === dia);
 
     let esperado = 0;
@@ -513,9 +508,8 @@ export function calcularCumprimentoPeriodo(
         continue;
       }
 
-      const feitos = new Set(
-        cs.filter((c) => c.contexto.turno === turno).map((c) => c.momento),
-      ).size;
+      const feitos = new Set(cs.filter((c) => c.contexto.turno === turno).map((c) => c.momento))
+        .size;
       const temAlgumSinal = feitos > 0 || ls.some((l) => l.turno === turno);
 
       esperado += MOMENTOS_CHECKLIST.length;
@@ -550,8 +544,7 @@ export function calcularCumprimentoPeriodo(
     dias: detalhe,
     totalEsperado,
     totalRealizado,
-    percentualGeral:
-      totalEsperado === 0 ? 0 : Math.round((totalRealizado / totalEsperado) * 100),
+    percentualGeral: totalEsperado === 0 ? 0 : Math.round((totalRealizado / totalEsperado) * 100),
     totalSemInformacao: detalhe.reduce((s, d) => s + d.semInformacao, 0),
     totalJustificado: detalhe.reduce((s, d) => s + d.justificado, 0),
     diasSemNada: detalhe.filter((d) => d.realizado === 0 && d.esperado > 0).length,

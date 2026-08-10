@@ -38,8 +38,7 @@ export const Route = createFileRoute("/gestao/")({
       { title: "Gestão Industrial — Checklist Operacional" },
       {
         name: "description",
-        content:
-          "Painel da Gestão Industrial para consultar checklists e não conformidades.",
+        content: "Painel da Gestão Industrial para consultar checklists e não conformidades.",
       },
     ],
   }),
@@ -88,9 +87,7 @@ function GestaoHome() {
         setCarregandoLimpeza(false);
         return;
       }
-      setTurnosLimpeza(
-        ((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow),
-      );
+      setTurnosLimpeza(((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
       setCarregandoLimpeza(false);
     })();
     return () => {
@@ -122,11 +119,32 @@ function GestaoHome() {
     [checklists, turnosLimpeza, hoje, pendencias],
   );
 
-
   // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
   // tarefas do papel que ainda não tinham tela.
   const grupos = useMemo(() => agruparPendencias(pendencias, planos), [pendencias, planos]);
-  const melhorias = useMemo(() => avaliarMelhorias(grupos, hoje), [grupos, hoje]);
+
+  // Melhoria se mede sobre o histórico INTEIRO, incluindo o que já foi
+  // encerrado. Usando só o que está aberto, um problema eliminado some junto
+  // com a prova de que foi eliminado — o "antes" da comparação vira zero e o
+  // painel não consegue mostrar nenhum ganho.
+  const gruposHistoricos = useMemo(
+    () =>
+      agruparPendencias(
+        levantarPendencias({
+          checklists,
+          limpezas: turnosLimpeza,
+          planos,
+          hoje,
+          incluirEncerradas: true,
+        }),
+        planos,
+      ),
+    [checklists, turnosLimpeza, planos, hoje],
+  );
+  const melhorias = useMemo(
+    () => avaliarMelhorias(gruposHistoricos, hoje),
+    [gruposHistoricos, hoje],
+  );
   const rotina = useMemo(
     () => avaliarRotinaLideranca(grupos, planos, hoje),
     [grupos, planos, hoje],
@@ -164,7 +182,12 @@ function GestaoHome() {
 
         <PendenciasAbertas pendencias={pendencias} planos={planos} />
 
-        <MelhoriasERotina melhorias={melhorias} rotina={rotina} />
+        <MelhoriasERotina
+          melhorias={melhorias}
+          rotina={rotina}
+          usuario={usuario}
+          onAtualizar={() => setRecarga((n) => n + 1)}
+        />
 
         <h3 className="mb-3 mt-10 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Ferramentas de análise
@@ -184,9 +207,7 @@ function GestaoHome() {
             </p>
             <p className="mt-1 text-sm text-muted-foreground md:text-base">
               Problemas registrados no checklist e na limpeza ·{" "}
-              <span className="font-semibold text-foreground">
-                últimos {DIAS_NCNR} dias
-              </span>
+              <span className="font-semibold text-foreground">últimos {DIAS_NCNR} dias</span>
             </p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs md:text-sm">
               <Pill label="NC checklist" valor={ncnr.totalNc} tom="destructive" />

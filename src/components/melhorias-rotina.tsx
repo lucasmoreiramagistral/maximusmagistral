@@ -8,7 +8,11 @@
  * sim: depois do plano, ele voltou?
  */
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { PadronizacaoDialog } from "@/components/padronizacao-dialog";
+import type { Usuario } from "@/lib/checklist/types";
 import {
   DIAS_PARA_ELIMINADO,
   resumirMelhorias,
@@ -37,11 +41,19 @@ const COR: Record<StatusMelhoria, string> = {
 export function MelhoriasERotina({
   melhorias,
   rotina,
+  usuario,
+  onAtualizar,
 }: {
   melhorias: Melhoria[];
   rotina: RotinaLideranca;
+  /** Quando informado, habilita registrar a decisão A. */
+  usuario?: Usuario;
+  onAtualizar?: () => void;
 }) {
   const r = resumirMelhorias(melhorias);
+  const [padronizando, setPadronizando] = useState<Melhoria | null>(null);
+  const podeDecidir = !!usuario && (usuario.perfil === "supervisor" || usuario.perfil === "gestao");
+  const aguardandoA = melhorias.filter((m) => m.esperandoPadronizacao).length;
 
   return (
     <>
@@ -50,8 +62,8 @@ export function MelhoriasERotina({
           Cumprimento da rotina — Sup/Coord
         </h3>
         <p className="mb-3 text-sm text-muted-foreground">
-          A cascata do papel: o líder valida o operador, o Sup/Coord acompanha os NC-PA, e
-          a GI acompanha o Sup/Coord.
+          A cascata do papel: o líder valida o operador, o Sup/Coord acompanha os NC-PA, e a GI
+          acompanha o Sup/Coord.
         </p>
 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -64,9 +76,7 @@ export function MelhoriasERotina({
           <Cartao
             rotulo="Tempo até virar plano"
             valor={
-              rotina.tempoMedioAberturaDias === null
-                ? "—"
-                : `${rotina.tempoMedioAberturaDias}d`
+              rotina.tempoMedioAberturaDias === null ? "—" : `${rotina.tempoMedioAberturaDias}d`
             }
             nota={
               rotina.tempoMedioAberturaDias === null
@@ -90,22 +100,20 @@ export function MelhoriasERotina({
             tom={rotina.vencidosSemRecurso > 0 ? "ruim" : "bom"}
           />
           <Cartao
-            rotulo="Planos checados"
-            valor={rotina.planosChecados}
-            nota="o C do ciclo aconteceu"
-            tom={rotina.planosChecados > 0 ? "bom" : "neutro"}
+            rotulo="Aguardando o A"
+            valor={aguardandoA}
+            nota="checado, mas sem decisão de padrão"
+            tom={aguardandoA > 0 ? "atencao" : "bom"}
           />
         </div>
       </section>
 
       <section className="mt-10" aria-label="Avaliar melhorias">
-        <h3 className="text-2xl font-black tracking-tight text-foreground">
-          Avaliar melhorias
-        </h3>
+        <h3 className="text-2xl font-black tracking-tight text-foreground">Avaliar melhorias</h3>
         <p className="mb-3 text-sm text-muted-foreground">
           Melhoria é o problema parar de acontecer. Um item é dado como{" "}
-          <b className="text-foreground">eliminado</b> quando o plano foi aprovado e ele
-          não voltou por {DIAS_PARA_ELIMINADO} dias.
+          <b className="text-foreground">eliminado</b> quando o plano foi aprovado e ele não voltou
+          por {DIAS_PARA_ELIMINADO} dias.
         </p>
 
         <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -173,9 +181,7 @@ export function MelhoriasERotina({
                 <div className="flex shrink-0 items-center gap-4 text-center">
                   <div>
                     <p className="text-lg font-black text-foreground">{m.antes}</p>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                      antes
-                    </p>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">antes</p>
                   </div>
                   <span className="text-muted-foreground">→</span>
                   <div>
@@ -187,16 +193,49 @@ export function MelhoriasERotina({
                     >
                       {m.depois}
                     </p>
-                    <p className="text-[10px] font-bold uppercase text-muted-foreground">
-                      depois
-                    </p>
+                    <p className="text-[10px] font-bold uppercase text-muted-foreground">depois</p>
                   </div>
                 </div>
+
+                {/* O A do ciclo. Sem isto o plano morre no C: "o problema
+                    saiu" sem ninguém decidir se aquilo virou regra. */}
+                {m.esperandoPadronizacao && (
+                  <div className="flex w-full items-center gap-2 border-t border-border/60 pt-3">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground">
+                      A
+                    </span>
+                    <p className="flex-1 text-xs text-muted-foreground">
+                      Checado, mas ninguém registrou o que fazer com o aprendizado.
+                    </p>
+                    {podeDecidir ? (
+                      <Button type="button" size="sm" onClick={() => setPadronizando(m)}>
+                        Fechar o ciclo
+                      </Button>
+                    ) : (
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        decisão do Sup/Coord
+                      </span>
+                    )}
+                  </div>
+                )}
               </li>
             ))}
           </ul>
         )}
       </section>
+
+      {usuario && padronizando && (
+        <PadronizacaoDialog
+          plano={padronizando.plano}
+          titulo={padronizando.titulo}
+          usuario={usuario}
+          onFechar={() => setPadronizando(null)}
+          onPronto={() => {
+            setPadronizando(null);
+            onAtualizar?.();
+          }}
+        />
+      )}
     </>
   );
 }
@@ -214,9 +253,7 @@ function Cartao({
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        {rotulo}
-      </p>
+      <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</p>
       <p
         className={cn(
           "mt-1 text-3xl font-black tracking-tight",

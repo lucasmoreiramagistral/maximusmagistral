@@ -14,12 +14,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthLoading, useUsuario } from "@/hooks/use-storage";
 import type { PerfilAtivo } from "@/lib/checklist/types";
-import {
-  PERFIS_ATIVOS,
-  PERFIL_INFO,
-  ROTA_INICIAL,
-  ehPerfilAtivo,
-} from "@/lib/checklist/types";
+import { PERFIS_ATIVOS, PERFIL_INFO, ROTA_INICIAL, ehPerfilAtivo } from "@/lib/checklist/types";
 import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
 import { cn } from "@/lib/utils";
 import { TelaCarregando } from "@/components/tela-carregando";
@@ -73,9 +68,7 @@ function LoginPage() {
     if (!ehPerfilAtivo(usuarioAtual.perfil)) {
       void supabase.auth.signOut();
       setRedirecting(false);
-      setErro(
-        "Este perfil não tem mais acesso ao app. Procure a supervisão.",
-      );
+      setErro("Este perfil não tem mais acesso ao app. Procure a supervisão.");
       return;
     }
     setRedirecting(true);

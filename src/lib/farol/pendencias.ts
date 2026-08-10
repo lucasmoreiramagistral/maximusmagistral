@@ -101,6 +101,17 @@ export interface EntradaPendencias {
   planos: PlanoAcao[];
   /** Data de referência para calcular a idade. */
   hoje: string;
+  /**
+   * Inclui também as ocorrências que um plano já encerrou.
+   *
+   * O farol e as filas usam `false` (o padrão): quem já foi resolvido não é
+   * pendência. Mas "avaliar melhorias" precisa do oposto — para dizer que o
+   * dispenser de sabão parou de acontecer, é preciso ter as 151 vezes em que
+   * ele aconteceu. Medindo só o que está aberto, um problema eliminado some
+   * junto com a prova de que foi eliminado, e o "antes" da comparação vira
+   * sempre zero.
+   */
+  incluirEncerradas?: boolean;
 }
 
 /**
@@ -117,7 +128,7 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
     for (const r of c.respostas) {
       if (r.resposta !== "Não conforme") continue;
       const plano = planoDoProblema(e.planos, "checklist", r.itemNumero, c.contexto.maquina);
-      if (planoEncerraOcorrencia(plano, c.contexto.data)) continue;
+      if (!e.incluirEncerradas && planoEncerraOcorrencia(plano, c.contexto.data)) continue;
 
       out.push({
         chave: `nc:${c.id}:${r.itemNumero}`,
@@ -144,7 +155,7 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
     for (const item of l.itens ?? []) {
       if (item.status !== "nao_realizado") continue;
       const plano = planoDoProblema(e.planos, "limpeza", item.codigo, l.maquina ?? "Enchedora 3");
-      if (planoEncerraOcorrencia(plano, l.dataOperacao)) continue;
+      if (!e.incluirEncerradas && planoEncerraOcorrencia(plano, l.dataOperacao)) continue;
 
       out.push({
         chave: `nr:${l.id}:${item.codigo}`,
@@ -185,7 +196,9 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
       }`,
       detalhe: l.operadorNome
         ? `${l.operadorNome} assinou${
-            l.operadorAssinouEm ? ` em ${l.operadorAssinouEm.slice(0, 10).split("-").reverse().join("/")}` : ""
+            l.operadorAssinouEm
+              ? ` em ${l.operadorAssinouEm.slice(0, 10).split("-").reverse().join("/")}`
+              : ""
           }. Falta a sua assinatura para fechar o turno.`
         : "Operador assinou. Falta a sua assinatura para fechar o turno.",
       plano: null,

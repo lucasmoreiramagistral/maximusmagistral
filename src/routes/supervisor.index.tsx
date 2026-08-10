@@ -108,11 +108,24 @@ function SupervisorHome() {
     [checklists, limpezas, planos, hoje],
   );
 
-
   // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
   // tarefas do papel que ainda não tinham tela.
   const grupos = useMemo(() => agruparPendencias(pendencias, planos), [pendencias, planos]);
-  const melhorias = useMemo(() => avaliarMelhorias(grupos, hoje), [grupos, hoje]);
+
+  // Ver o comentário igual em gestao.index.tsx: melhoria precisa do histórico
+  // completo, senão o problema eliminado leva embora a prova de que foi.
+  const gruposHistoricos = useMemo(
+    () =>
+      agruparPendencias(
+        levantarPendencias({ checklists, limpezas, planos, hoje, incluirEncerradas: true }),
+        planos,
+      ),
+    [checklists, limpezas, planos, hoje],
+  );
+  const melhorias = useMemo(
+    () => avaliarMelhorias(gruposHistoricos, hoje),
+    [gruposHistoricos, hoje],
+  );
   const rotina = useMemo(
     () => avaliarRotinaLideranca(grupos, planos, hoje),
     [grupos, planos, hoje],
@@ -190,7 +203,12 @@ function SupervisorHome() {
               <PainelCumprimento c={cumprimento} />
             </section>
 
-            <MelhoriasERotina melhorias={melhorias} rotina={rotina} />
+            <MelhoriasERotina
+              melhorias={melhorias}
+              rotina={rotina}
+              usuario={usuario}
+              onAtualizar={() => setRecarga((n) => n + 1)}
+            />
           </>
         )}
       </main>
@@ -245,9 +263,7 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
                 key={t.turno}
                 className="flex items-center gap-3 rounded-xl border border-border bg-card p-3"
               >
-                <span className="w-32 shrink-0 text-sm font-bold text-foreground">
-                  {t.turno}
-                </span>
+                <span className="w-32 shrink-0 text-sm font-bold text-foreground">{t.turno}</span>
                 <div className="h-3 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className={cn(
@@ -262,8 +278,7 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
                   />
                 </div>
                 <span className="w-28 shrink-0 text-right text-sm text-muted-foreground">
-                  <b className="text-foreground">{t.percentual}%</b> · {t.realizado}/
-                  {t.esperado}
+                  <b className="text-foreground">{t.percentual}%</b> · {t.realizado}/{t.esperado}
                 </span>
               </div>
             ))}
@@ -323,8 +338,8 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
           </table>
         </div>
         <p className="mt-2 text-xs text-muted-foreground">
-          Dia com esperado <b>—</b> é dia sem produção: fica fora da conta em vez de contar
-          como rotina não cumprida. O gráfico usa {maxEsperado} como referência de dia cheio.
+          Dia com esperado <b>—</b> é dia sem produção: fica fora da conta em vez de contar como
+          rotina não cumprida. O gráfico usa {maxEsperado} como referência de dia cheio.
         </p>
       </div>
     </>

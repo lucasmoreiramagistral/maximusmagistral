@@ -49,10 +49,7 @@ export function GestaoRecursos({
     (a, p) => (a === null || p.idadeDias > a.idadeDias ? p : a),
     null,
   );
-  const validacaoMaisAntiga = validacoes.reduce(
-    (m, p) => Math.max(m, p.idadeDias),
-    0,
-  );
+  const validacaoMaisAntiga = validacoes.reduce((m, p) => Math.max(m, p.idadeDias), 0);
 
   return (
     <section className="mt-8" aria-label="Ciclo PDCA da linha">
@@ -96,9 +93,7 @@ export function GestaoRecursos({
         <Cartao
           rotulo="Pendência mais antiga"
           valor={maisAntiga ? `${maisAntiga.idadeDias}d` : "—"}
-          nota={
-            maisAntiga ? `desde ${formatarDataBR(maisAntiga.dataOrigem)}` : "nada em aberto"
-          }
+          nota={maisAntiga ? `desde ${formatarDataBR(maisAntiga.dataOrigem)}` : "nada em aberto"}
           letra="—"
           tom={!maisAntiga ? "bom" : maisAntiga.idadeDias > 30 ? "ruim" : "atencao"}
         />
@@ -122,8 +117,8 @@ export function GestaoRecursos({
         </>
       ) : (
         <p className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-          Nenhum plano de ação com prazo vencido. Quando um vencer, ele aparece aqui para a
-          GI liberar recurso ou cobrar.
+          Nenhum plano de ação com prazo vencido. Quando um vencer, ele aparece aqui para a GI
+          liberar recurso ou cobrar.
         </p>
       )}
     </section>
@@ -210,9 +205,7 @@ function ItemVencido({
             placeholder="Ex.: Compra da peça aprovada + 30 min de parada programada autorizados."
             className="min-h-[70px] w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
           />
-          {erro && (
-            <p className="mt-1 text-sm font-semibold text-destructive">{erro}</p>
-          )}
+          {erro && <p className="mt-1 text-sm font-semibold text-destructive">{erro}</p>}
           <div className="mt-2 flex justify-end">
             <button
               type="button"
@@ -245,9 +238,7 @@ function Cartao({
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-          {rotulo}
-        </p>
+        <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</p>
         <span className="flex h-6 w-6 items-center justify-center rounded bg-muted text-xs font-black text-muted-foreground">
           {letra}
         </span>

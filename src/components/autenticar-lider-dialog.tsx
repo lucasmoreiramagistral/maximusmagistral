@@ -14,16 +14,31 @@ import { Loader2, ShieldCheck, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { autenticarLider, type IdentidadeLider } from "@/lib/farol/autenticar-lider";
+import {
+  autenticarLider,
+  autenticarERegistrar,
+  type IdentidadeLider,
+  type ValidacaoParaRegistrar,
+} from "@/lib/farol/autenticar-lider";
 
 export function AutenticarLiderDialog({
   aberto,
   onFechar,
   onAutenticado,
+  validacoes,
+  onAuditoriaIndisponivel,
 }: {
   aberto: boolean;
   onFechar: () => void;
   onAutenticado: (lider: IdentidadeLider) => void;
+  /**
+   * Validações a gravar DENTRO da sessão do líder, para o banco carimbar a
+   * autoria (ver migration 06). Sem isto, o único registro de quem assinou é
+   * um campo de texto escrito pela sessão do operador.
+   */
+  validacoes?: ValidacaoParaRegistrar[];
+  /** Chamado quando a migration 06 ainda não está aplicada. */
+  onAuditoriaIndisponivel?: () => void;
 }) {
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
@@ -41,16 +56,41 @@ export function AutenticarLiderDialog({
   const confirmar = async () => {
     setEntrando(true);
     setErro("");
-    const r = await autenticarLider(login, senha);
-    setEntrando(false);
-    // A senha sai da memória do componente aconteça o que acontecer.
-    setSenha("");
-    if (!r.ok) {
-      setErro(r.erro);
-      return;
+
+    let lider: IdentidadeLider;
+
+    if (validacoes && validacoes.length > 0) {
+      const r = await autenticarERegistrar(login, senha, validacoes);
+      setEntrando(false);
+      setSenha(""); // a senha sai da memória do componente, dê no que der
+      if (!r.ok) {
+        setErro(r.erro);
+        return;
+      }
+      if (!r.registro.ok) {
+        if (r.registro.indisponivel) {
+          // Migration 06 pendente. Deixa passar, mas avisa — fingir que
+          // gravou seria pior do que não gravar.
+          onAuditoriaIndisponivel?.();
+        } else {
+          setErro(r.registro.erro);
+          return;
+        }
+      }
+      lider = r.lider;
+    } else {
+      const r = await autenticarLider(login, senha);
+      setEntrando(false);
+      setSenha("");
+      if (!r.ok) {
+        setErro(r.erro);
+        return;
+      }
+      lider = r.lider;
     }
+
     limpar();
-    onAutenticado(r.lider);
+    onAutenticado(lider);
   };
 
   return (

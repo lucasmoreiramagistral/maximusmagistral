@@ -48,9 +48,7 @@ export function Farol({
   return (
     <section aria-label="Farol do checklist operacional">
       <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
-        <h2 className="text-4xl font-black tracking-[0.15em] text-foreground md:text-5xl">
-          FAROL
-        </h2>
+        <h2 className="text-4xl font-black tracking-[0.15em] text-foreground md:text-5xl">FAROL</h2>
         <p className="text-sm text-muted-foreground md:text-base">
           Checklist Operacional · {formatarDataBR(data)}
           {turno ? ` · ${turno}` : ""}
@@ -69,9 +67,7 @@ export function Farol({
                   key={m}
                   className="border-b border-border bg-muted/40 px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground"
                 >
-                  <span className="text-base font-black text-foreground">
-                    {CODIGO_MOMENTO[i]}
-                  </span>
+                  <span className="text-base font-black text-foreground">{CODIGO_MOMENTO[i]}</span>
                   <span className="mt-0.5 block text-[11px] font-semibold normal-case tracking-normal">
                     {m}
                   </span>
@@ -208,8 +204,8 @@ function AcoesPdca({ linhas }: { linhas: LinhaFarol[] }) {
             D
           </span>
           <p className="text-sm font-semibold text-foreground">
-            Passivo de dias anteriores continua aberto — a mais antiga há {passivoIdade}{" "}
-            dias. A execução de hoje não apaga isto.
+            Passivo de dias anteriores continua aberto — a mais antiga há {passivoIdade} dias. A
+            execução de hoje não apaga isto.
           </p>
           <span className="ml-auto rounded-full bg-destructive px-2.5 py-0.5 text-xs font-bold text-destructive-foreground">
             {passivoTotal}
@@ -246,9 +242,7 @@ function CelulaLampada({
   const clicavel = !!onAbrir && celula.estado !== "sem_escopo";
   const conteudo = (
     <>
-      <span className="text-2xl font-black leading-none">
-        {ROTULO_ESTADO[celula.estado]}
-      </span>
+      <span className="text-2xl font-black leading-none">{ROTULO_ESTADO[celula.estado]}</span>
       <span className="mt-1 text-[11px] font-bold leading-tight">
         {DESCRICAO_ESTADO[celula.estado]}
       </span>
