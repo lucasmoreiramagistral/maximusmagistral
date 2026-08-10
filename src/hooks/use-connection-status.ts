@@ -348,6 +348,22 @@ const store = {
       await upsertProducaoApoio(apoio, {
         expectedUpdatedAt: expectedUpdatedAt ?? undefined,
       });
+    } else if (item.tipo === "producao_tanque") {
+      const { tanque, expectedUpdatedAt } = item.payload as {
+        tanque: ProducaoTanque;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoTanque(tanque, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
+    } else if (item.tipo === "producao_passagem") {
+      const { passagem, expectedUpdatedAt } = item.payload as {
+        passagem: ProducaoPassagem;
+        expectedUpdatedAt?: string | null;
+      };
+      await upsertProducaoPassagem(passagem, {
+        expectedUpdatedAt: expectedUpdatedAt ?? undefined,
+      });
     } else if (item.tipo === "it_evento") {
       const evento = item.payload as EventoIt;
       await insertItEvento(evento);
