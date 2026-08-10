@@ -58,6 +58,8 @@ import { useGuard } from "@/hooks/use-guard";
 import {
   HIERARQUIAS,
   MODULOS_ACESSO,
+  PERFIS_ATIVOS,
+  PERFIL_INFO,
   type Hierarquia,
   type ModuloAcesso,
   type Perfil,
@@ -871,12 +873,15 @@ function UsuarioFormDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="operador">Operador</SelectItem>
-                  <SelectItem value="gestao">Gestão</SelectItem>
+                  {PERFIS_ATIVOS.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {PERFIL_INFO[p].titulo}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="mt-1 text-xs text-muted-foreground">
-                Define a tela inicial após o login.
+                Define a tela inicial e a etapa do PDCA que a pessoa executa.
               </p>
             </div>
             <div>

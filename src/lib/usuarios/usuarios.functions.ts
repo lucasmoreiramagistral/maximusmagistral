@@ -5,6 +5,11 @@ import { attachSupabaseAuth } from "@/integrations/supabase/auth-client-middlewa
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { escalaExataPorTurnoEquipe } from "@/lib/operacao/escalas";
 import type { Equipe, Turno } from "@/lib/checklist/types";
+import {
+  HIERARQUIAS as HIERARQUIAS_TIPOS,
+  MODULOS_ACESSO,
+  PERFIS_ATIVOS,
+} from "@/lib/checklist/types";
 
 /**
  * DÉBITO TÉCNICO (Etapa 1):
@@ -17,20 +22,16 @@ import type { Equipe, Turno } from "@/lib/checklist/types";
 
 // ───────────────────── Constantes/utilitários ─────────────────────
 
-const HIERARQUIAS = [
-  "desenvolvedor",
-  "gerente",
-  "coordenador",
-  "supervisor",
-  "lider",
-  "assistente",
-  "operador",
-  "externo",
-] as const;
-
-const MODULOS = ["operador", "gestao", "manutencao", "admin"] as const;
-
-const PERFIS = ["operador", "gestao", "manutencao"] as const;
+/**
+ * As listas vêm de @/lib/checklist/types — NÃO duplicar aqui.
+ *
+ * Estavam repetidas neste arquivo e ficaram para trás quando os perfis
+ * `lider` e `supervisor` entraram: o Zod do servidor rejeitava "lider"
+ * mesmo com o tipo já aceitando, e o cadastro falhava sem explicar direito.
+ */
+const HIERARQUIAS = HIERARQUIAS_TIPOS as unknown as readonly [string, ...string[]];
+const MODULOS = MODULOS_ACESSO as unknown as readonly [string, ...string[]];
+const PERFIS = PERFIS_ATIVOS as unknown as readonly [string, ...string[]];
 
 const EMAIL_DOMAIN = "magistral.internal";
 
@@ -61,8 +62,19 @@ function loginParaEmail(login: string): string {
  * Verifica se o chamador é um usuário ativo do perfil "gestao".
  * Não restringe por hierarquia (decisão de produto atual).
  */
-async function assertAdminGestao(userId: string): Promise<void> {
-  const { data, error } = await supabaseAdmin
+async function assertAdminGestao(
+  userId: string,
+  /**
+   * Client a usar na checagem. Por padrão o admin (service_role).
+   *
+   * A listagem passa o client da SESSÃO do usuário de propósito: a policy
+   * "Gestão lê todos os profiles" (is_gestao) já permite essa leitura pelo
+   * RLS, então ler a lista não precisa de chave secreta. Isso mantém a tela
+   * de pé mesmo que a service_role do servidor esteja errada ou ausente.
+   */
+  client: { from: typeof supabaseAdmin.from } = supabaseAdmin,
+): Promise<void> {
+  const { data, error } = await client
     .from("profiles")
     .select("active, perfil" as string)
     .eq("id", userId)
@@ -128,7 +140,7 @@ const criarUsuarioSchema = z
     senha: z.string().min(6).max(72),
     perfil: z.enum(PERFIS),
     hierarquia: z.enum(HIERARQUIAS),
-    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
+    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(MODULOS.length),
     matricula: z.string().min(1).max(40).optional().nullable(),
     equipePadrao: z.string().max(40).optional().nullable(),
     turnoPadrao: z.string().max(40).optional().nullable(),
@@ -145,7 +157,7 @@ const editarUsuarioSchema = z
     usuario: z.string().min(2).max(60),
     perfil: z.enum(PERFIS),
     hierarquia: z.enum(HIERARQUIAS),
-    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(4),
+    modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(MODULOS.length),
     matricula: z.string().min(1).max(40).optional().nullable(),
     equipePadrao: z.string().max(40).optional().nullable(),
     turnoPadrao: z.string().max(40).optional().nullable(),
@@ -195,9 +207,12 @@ const desativarLiberarSchema = z.object({
 export const listarUsuarios = createServerFn({ method: "GET" })
   .middleware([attachSupabaseAuth, requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdminGestao(context.userId);
+    // Só leitura: usa a sessão do próprio usuário, não a service_role.
+    // O RLS ("Gestão lê todos os profiles") já autoriza, e assim a tela
+    // não depende de nenhuma chave secreta estar correta no servidor.
+    await assertAdminGestao(context.userId, context.supabase);
 
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await context.supabase
       .from("profiles")
       .select(
         "id, nome, usuario, email_interno, perfil, equipe_padrao, turno_padrao, active, created_at, matricula, hierarquia, modulos_acesso, somente_leitura, criado_por" as string,
