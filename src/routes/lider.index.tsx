@@ -174,6 +174,7 @@ function LiderHome() {
 
         <PendenciasAbertas
           pendencias={pendencias}
+          planos={planos}
           onAbrirPlano={setPendenciaAberta}
           onValidar={validando ? undefined : validar}
         />

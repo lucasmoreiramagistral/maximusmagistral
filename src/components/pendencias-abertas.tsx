@@ -1,21 +1,23 @@
 /**
- * PENDÊNCIAS ABERTAS — duas filas, porque são duas naturezas.
+ * PENDÊNCIAS ABERTAS — agrupadas por item, em duas filas.
  *
- * Eu tinha feito uma lista só, e o Lucas apontou: aparecia "sem validação"
- * com botão "Abrir plano de ação". Não faz sentido planejar uma validação —
- * o líder simplesmente valida.
+ * Duas correções que vieram de olhar a tela com dado real:
  *
- * O papel do gerente já separa as duas linhas:
- *   "VERIFICAR EXECUÇÃO / VALIDAÇÃO"  → fila 1, ação = validar
- *   "Itens NC → Plano Ação"           → fila 2, ação = planejar
+ * 1. Uma lista só, misturando "validação" e "item não conforme", com botão
+ *    "Abrir plano de ação" nos dois. Não se planeja uma validação — o líder
+ *    valida. O papel já separa: "VERIFICAR EXECUÇÃO / VALIDAÇÃO" e
+ *    "Itens NC → Plano Ação".
  *
- * E em toda linha o item aparece por extenso: o líder tem que saber o que é
- * sem precisar abrir nada.
+ * 2. Uma linha por ocorrência dava 426 linhas. Quase tudo era o mesmo item
+ *    repetido. Agora é uma linha por PROBLEMA, com a contagem de vezes.
+ *    Um plano resolve o grupo; quando for checado, o grupo inteiro sai.
  */
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { faixaIdade, type Pendencia } from "@/lib/farol/pendencias";
-import { etapaDoPlano } from "@/lib/farol/planos-types";
+import type { Pendencia } from "@/lib/farol/pendencias";
+import { agruparPendencias, ocorrenciaRepresentante, type GrupoPendencia } from "@/lib/farol/grupos";
+import { etapaDoPlano, type PlanoAcao } from "@/lib/farol/planos-types";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 
 const COR_FAIXA: Record<string, string> = {
@@ -27,15 +29,18 @@ const COR_FAIXA: Record<string, string> = {
 
 export function PendenciasAbertas({
   pendencias,
+  planos,
   onAbrirPlano,
   onValidar,
 }: {
   pendencias: Pendencia[];
+  planos: PlanoAcao[];
   onAbrirPlano?: (p: Pendencia) => void;
   onValidar?: (p: Pendencia) => void;
 }) {
-  const validacoes = pendencias.filter((p) => p.tipo === "validacao");
-  const problemas = pendencias.filter((p) => p.tipo === "nc");
+  const grupos = agruparPendencias(pendencias, planos);
+  const validacoes = grupos.filter((g) => g.tipo === "validacao");
+  const problemas = grupos.filter((g) => g.tipo === "nc");
 
   return (
     <>
@@ -43,30 +48,29 @@ export function PendenciasAbertas({
         titulo="Aguardando a sua validação"
         subtitulo="O operador fechou e assinou. Falta você conferir e assinar."
         vazio="Nada aguardando validação."
-        itens={validacoes}
-        acao={
-          onValidar
-            ? { rotulo: () => "Validar", onClick: onValidar, cor: "warning" as const }
-            : undefined
-        }
+        grupos={validacoes}
+        // Validação é por turno: cada ocorrência é uma folha diferente,
+        // então esta fila mostra as ocorrências, não o grupo.
+        expandirSempre
+        acao={onValidar ? { rotulo: () => "Validar", onClick: onValidar, cor: "warning" } : undefined}
       />
 
       <Fila
         titulo="Itens fora do padrão — precisam de plano de ação"
-        subtitulo="Não conformidade do checklist e item de limpeza não realizado."
+        subtitulo="Um item recorrente é um problema só. Resolver é eliminar a causa, não tratar cada ocorrência."
         vazio="Nenhum item fora do padrão em aberto."
-        itens={problemas}
+        grupos={problemas}
         acao={
           onAbrirPlano
             ? {
-                rotulo: (p: Pendencia) =>
-                  !p.plano
+                rotulo: (g: GrupoPendencia) =>
+                  !g.plano
                     ? "Abrir plano de ação"
-                    : p.plano.status === "nao_cumprido"
+                    : g.plano.status === "nao_cumprido" || g.reincidiuAposPlano
                       ? "Replanejar"
                       : "Checar resultado",
-                onClick: onAbrirPlano,
-                cor: "primary" as const,
+                onClick: (p) => onAbrirPlano(p),
+                cor: "primary",
               }
             : undefined
         }
@@ -75,85 +79,193 @@ export function PendenciasAbertas({
   );
 }
 
+interface Acao {
+  rotulo: (g: GrupoPendencia) => string;
+  onClick: (p: Pendencia) => void;
+  cor: "primary" | "warning";
+}
+
 function Fila({
   titulo,
   subtitulo,
   vazio,
-  itens,
+  grupos,
   acao,
+  expandirSempre,
 }: {
   titulo: string;
   subtitulo: string;
   vazio: string;
-  itens: Pendencia[];
-  acao?: {
-    rotulo: (p: Pendencia) => string;
-    onClick: (p: Pendencia) => void;
-    cor: "primary" | "warning";
-  };
+  grupos: GrupoPendencia[];
+  acao?: Acao;
+  expandirSempre?: boolean;
 }) {
-  const maisVelha = itens[0];
+  const totalOcorrencias = grupos.reduce((s, g) => s + g.qtd, 0);
 
   return (
     <section className="mt-8" aria-label={titulo}>
-      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-        <div>
-          <h3 className="text-2xl font-black tracking-tight text-foreground">
-            {titulo}
-            {itens.length > 0 && (
-              <span className="ml-2 rounded-full bg-destructive px-3 py-0.5 align-middle text-base font-black text-destructive-foreground">
-                {itens.length}
-              </span>
-            )}
-          </h3>
-          <p className="text-sm text-muted-foreground">{subtitulo}</p>
-        </div>
+      <div className="mb-3">
+        <h3 className="text-2xl font-black tracking-tight text-foreground">
+          {titulo}
+          {grupos.length > 0 && (
+            <span className="ml-2 rounded-full bg-destructive px-3 py-0.5 align-middle text-base font-black text-destructive-foreground">
+              {expandirSempre ? totalOcorrencias : grupos.length}
+            </span>
+          )}
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          {subtitulo}
+          {!expandirSempre && grupos.length > 0 && (
+            <>
+              {" "}
+              <b className="text-foreground">
+                {grupos.length} {grupos.length === 1 ? "problema" : "problemas"} em{" "}
+                {totalOcorrencias} ocorrências.
+              </b>
+            </>
+          )}
+        </p>
       </div>
 
-      {itens.length === 0 ? (
+      {grupos.length === 0 ? (
         <p className="rounded-xl border border-success/40 bg-success-soft p-4 text-sm font-semibold text-success">
           {vazio}
         </p>
       ) : (
-        <>
-          {maisVelha.idadeDias > 30 && (
-            <div className="mb-3 rounded-xl border-2 border-destructive bg-destructive-soft px-4 py-3">
-              <p className="text-sm font-bold text-destructive">
-                A mais antiga está aberta há {maisVelha.idadeDias} dias — desde{" "}
-                {formatarDataBR(maisVelha.dataOrigem)}.
-              </p>
-            </div>
-          )}
-
-          <ul className="space-y-2">
-            {itens.map((p) => (
-              <ItemPendencia key={p.chave} p={p} acao={acao} />
-            ))}
-          </ul>
-        </>
+        <ul className="space-y-2">
+          {expandirSempre
+            ? grupos.flatMap((g) =>
+                g.ocorrencias.map((o) => (
+                  <LinhaOcorrencia key={o.chave} p={o} acao={acao} grupo={g} />
+                )),
+              )
+            : grupos.map((g) => <LinhaGrupo key={g.chave} g={g} acao={acao} />)}
+        </ul>
       )}
     </section>
   );
 }
 
-function ItemPendencia({
-  p,
-  acao,
-}: {
-  p: Pendencia;
-  acao?: {
-    rotulo: (p: Pendencia) => string;
-    onClick: (p: Pendencia) => void;
-    cor: "primary" | "warning";
-  };
-}) {
-  const faixa = faixaIdade(p.idadeDias);
+/** Linha do PROBLEMA — uma por item, com a contagem de ocorrências. */
+function LinhaGrupo({ g, acao }: { g: GrupoPendencia; acao?: Acao }) {
+  const [aberto, setAberto] = useState(false);
 
   return (
     <li
       className={cn(
+        "rounded-xl border-2 p-4",
+        g.reincidiuAposPlano
+          ? "border-destructive bg-destructive-soft/60"
+          : g.faixa === "acima30"
+            ? "border-destructive/50 bg-destructive-soft/40"
+            : "border-border bg-card",
+      )}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <span
+          className={cn(
+            "flex h-12 w-14 shrink-0 flex-col items-center justify-center rounded-lg font-black leading-none",
+            COR_FAIXA[g.faixa],
+          )}
+          title={`${g.qtd} ocorrências`}
+        >
+          <span className="text-lg">{g.qtd}×</span>
+          <span className="text-[9px] font-bold opacity-80">vezes</span>
+        </span>
+
+        <div className="min-w-[240px] flex-1">
+          <p className="font-bold leading-snug text-foreground">{g.titulo}</p>
+          <p className="text-xs font-medium text-muted-foreground">{g.contexto}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {g.maquina} · {g.turnos.join(" e ")} · de {formatarDataBR(g.primeiraData)} a{" "}
+            {formatarDataBR(g.ultimaData)} · mais antiga há{" "}
+            <b className={g.idadeMaxDias > 30 ? "text-destructive" : undefined}>
+              {g.idadeMaxDias} dias
+            </b>
+          </p>
+
+          {g.reincidiuAposPlano && (
+            <p className="mt-1.5 rounded-lg bg-destructive px-3 py-1.5 text-xs font-bold text-destructive-foreground">
+              Voltou a acontecer depois do plano aprovado — a causa não foi eliminada.
+            </p>
+          )}
+
+          {g.plano && (
+            <div className="mt-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-warning-foreground">
+                Plano de ação
+              </p>
+              <p className="text-sm font-semibold text-foreground">{g.plano.oQue}</p>
+              <p className="text-xs text-muted-foreground">
+                {g.plano.quem} · prazo {formatarDataBR(g.plano.quando)}
+                {g.plano.status === "nao_cumprido" && (
+                  <b className="text-destructive"> · não cumprido, replanejar</b>
+                )}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setAberto((v) => !v)}
+            className="mt-2 text-xs font-bold text-primary underline-offset-2 hover:underline"
+          >
+            {aberto ? "Ocultar" : `Ver as ${g.qtd} ocorrências`}
+          </button>
+
+          {aberto && (
+            <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border bg-background p-2">
+              {g.ocorrencias.map((o) => (
+                <li key={o.chave} className="text-xs text-muted-foreground">
+                  <b className="text-foreground">{formatarDataBR(o.dataOrigem)}</b> · {o.turno}
+                  {o.detalhe && ` · ${o.detalhe}`}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground"
+          title="Etapa do PDCA em que está parado"
+        >
+          {etapaDoPlano(g.plano)}
+        </span>
+
+        {acao && (
+          <button
+            type="button"
+            onClick={() => acao.onClick(ocorrenciaRepresentante(g))}
+            className={cn(
+              "shrink-0 rounded-lg px-4 py-2.5 text-sm font-bold hover:brightness-110",
+              acao.cor === "warning"
+                ? "bg-warning text-warning-foreground"
+                : "bg-primary text-primary-foreground",
+            )}
+          >
+            {acao.rotulo(g)}
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
+/** Linha de OCORRÊNCIA — usada na fila de validação, que é por turno. */
+function LinhaOcorrencia({
+  p,
+  acao,
+  grupo,
+}: {
+  p: Pendencia;
+  acao?: Acao;
+  grupo: GrupoPendencia;
+}) {
+  return (
+    <li
+      className={cn(
         "flex flex-wrap items-center gap-3 rounded-xl border-2 p-4",
-        faixa === "acima30"
+        p.idadeDias > 30
           ? "border-destructive/50 bg-destructive-soft/40"
           : "border-border bg-card",
       )}
@@ -161,9 +273,8 @@ function ItemPendencia({
       <span
         className={cn(
           "flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg font-black leading-none",
-          COR_FAIXA[faixa],
+          COR_FAIXA[p.idadeDias > 30 ? "acima30" : p.idadeDias > 7 ? "ate30" : "ate7"],
         )}
-        title={`Aberta há ${p.idadeDias} dias`}
       >
         <span className="text-lg">{p.idadeDias}</span>
         <span className="text-[9px] font-bold opacity-80">
@@ -172,38 +283,13 @@ function ItemPendencia({
       </span>
 
       <div className="min-w-[240px] flex-1">
-        {/* O QUE É — sempre por extenso, sem precisar abrir nada. */}
         <p className="font-bold leading-snug text-foreground">{p.titulo}</p>
         <p className="text-xs font-medium text-muted-foreground">{p.contexto}</p>
         <p className="mt-1 text-xs text-muted-foreground">
-          {p.maquina} · {p.turno} · desde {formatarDataBR(p.dataOrigem)}
+          {p.maquina} · desde {formatarDataBR(p.dataOrigem)}
         </p>
         <p className="mt-1.5 text-sm text-foreground/80">{p.detalhe}</p>
-
-        {p.plano && (
-          <div className="mt-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
-            <p className="text-[11px] font-bold uppercase tracking-wide text-warning-foreground">
-              Plano de ação
-            </p>
-            <p className="text-sm font-semibold text-foreground">{p.plano.oQue}</p>
-            <p className="text-xs text-muted-foreground">
-              {p.plano.quem} · prazo {formatarDataBR(p.plano.quando)}
-              {p.plano.status === "nao_cumprido" && (
-                <b className="text-destructive"> · não cumprido, replanejar</b>
-              )}
-            </p>
-          </div>
-        )}
       </div>
-
-      {p.tipo === "nc" && (
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground"
-          title="Etapa do PDCA em que está parado"
-        >
-          {etapaDoPlano(p.plano)}
-        </span>
-      )}
 
       {acao && (
         <button
@@ -216,7 +302,7 @@ function ItemPendencia({
               : "bg-primary text-primary-foreground",
           )}
         >
-          {acao.rotulo(p)}
+          {acao.rotulo(grupo)}
         </button>
       )}
     </li>
