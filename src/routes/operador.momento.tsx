@@ -9,6 +9,7 @@ import {
   fetchFolhaExistenteRemota,
   fetchMomentoConcluidoRemoto,
   genId,
+  upsertChecklist,
 } from "@/lib/checklist/supabase-storage";
 import { storage } from "@/lib/checklist/storage";
 import {
@@ -44,6 +45,21 @@ interface MomentoStatusInfo {
   checklistId?: string;
   checklist?: Checklist; // checklist completo, usado para edição
 }
+
+/**
+ * O bloco Pós-setup (itens 13–20) só se aplica quando houve troca de
+ * produto, sabor ou tamanho. Nos dados: 92 folhas com o bloco de
+ * setup/paradas respondido normalmente e o pós-setup INTEIRO em "não
+ * aplicável" — 8 toques sem informação nenhuma, em 71% dos turnos.
+ *
+ * Não dá para perguntar na abertura do turno: o operador descobre a troca
+ * na hora. Então o atalho fica no card, para quando o turno fechar sem
+ * troca — um toque no lugar de oito, e o "não aplicável" passa a ter causa
+ * registrada em vez de ser mudo.
+ */
+const MOMENTO_POS_SETUP = MOMENTOS_CHECKLIST[2];
+const MOTIVO_SEM_TROCA =
+  "Não houve troca de produto, sabor ou tamanho neste turno.";
 
 function MomentoPage() {
   const navigate = useNavigate();
@@ -151,6 +167,11 @@ function MomentoPage() {
     };
   }, [contexto, usuario]);
 
+  const [semTroca, setSemTroca] = useState<{ open: boolean; salvando: boolean }>({
+    open: false,
+    salvando: false,
+  });
+
   const criarChecklist = (momento: MomentoChecklist): Checklist => {
     const itens = itensPorMomento(momento);
     return {
@@ -173,6 +194,46 @@ function MomentoPage() {
       folhaKey: buildFolhaKey(contexto!),
       verificacaoNumero: 1, // sempre 1 — compatibilidade técnica
     };
+  };
+
+  /** Fecha o pós-setup inteiro como "não aplicável", com o motivo gravado. */
+  const marcarSemTroca = async () => {
+    if (!contexto || !usuario) return;
+    setSemTroca({ open: true, salvando: true });
+    const agora = new Date().toISOString();
+    const base = criarChecklist(MOMENTO_POS_SETUP);
+    const checklist: Checklist = {
+      ...base,
+      status: "concluido",
+      concluidoEm: agora,
+      operadorResponsavel: contexto.operadorResponsavel ?? usuario.nome,
+      respostas: base.respostas.map((r) => ({
+        ...r,
+        resposta: "Não aplicável",
+        // O motivo entra em TODOS os itens: é o que faz o NA deixar de ser
+        // mudo no relatório e na análise da liderança.
+        observacao: MOTIVO_SEM_TROCA,
+        horarioVerificacao: agora,
+      })),
+    };
+    try {
+      storage.saveChecklist(checklist);
+      await upsertChecklist(checklist);
+      setStatusPorMomento((s) => ({
+        ...s,
+        [MOMENTO_POS_SETUP]: {
+          preenchido: true,
+          registradoPor: checklist.operadorResponsavel,
+          registradoPorEquipe: contexto.equipe,
+          checklistId: checklist.id,
+          checklist,
+        },
+      }));
+      setSemTroca({ open: false, salvando: false });
+    } catch (e) {
+      console.error("[momento] sem troca:", e);
+      setSemTroca({ open: false, salvando: false });
+    }
   };
 
   const iniciar = async (momento: MomentoChecklist) => {
@@ -325,8 +386,8 @@ function MomentoPage() {
               const rascunho = storage.getChecklistEmAndamentoMesmoMomento(contexto, m);
               const carregando = acaoEmAndamento === m;
               return (
+                <div key={m} className="flex flex-col">
                 <button
-                  key={m}
                   type="button"
                   disabled={carregando}
                   onClick={() => {
@@ -387,11 +448,59 @@ function MomentoPage() {
                     )}
                   </p>
                 </button>
+
+                  {/* Atalho do pós-setup: 1 toque no lugar de 8 "não aplicável" */}
+                  {m === MOMENTO_POS_SETUP && !preenchido && !rascunho && (
+                    <button
+                      type="button"
+                      onClick={() => setSemTroca({ open: true, salvando: false })}
+                      className="mt-2 w-full rounded-xl border-2 border-dashed border-border bg-muted/40 px-4 py-3 text-sm font-semibold text-muted-foreground transition-colors hover:border-primary/50 hover:text-foreground"
+                    >
+                      Não houve troca de produto neste turno
+                      <span className="mt-0.5 block text-xs font-normal">
+                        Marca os {total} itens como não aplicável, com o motivo registrado
+                      </span>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
         )}
       </main>
+
+      {/* Diálogo: pós-setup sem troca de produto */}
+      <AlertDialog
+        open={semTroca.open}
+        onOpenChange={(v) => !v && !semTroca.salvando && setSemTroca({ open: false, salvando: false })}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Não houve troca de produto?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Os itens do Pós-setup (trocar estrelas, guias, tubos de ar, bocais e guardar
+              o kit) só se aplicam quando houve troca de produto, sabor ou tamanho.
+              <br />
+              <br />
+              Confirmando, o Pós-setup é fechado com todos os itens em{" "}
+              <b>não aplicável</b> e o motivo registrado. Se a troca acontecer depois,
+              procure a liderança para reabrir.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={semTroca.salvando}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void marcarSemTroca();
+              }}
+              disabled={semTroca.salvando}
+            >
+              {semTroca.salvando ? "Salvando…" : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Diálogo: rascunho existente */}
       <AlertDialog
