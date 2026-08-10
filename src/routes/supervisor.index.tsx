@@ -16,6 +16,9 @@ import { levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
+import { MelhoriasERotina } from "@/components/melhorias-rotina";
+import { agruparPendencias } from "@/lib/farol/grupos";
+import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import type { Pendencia } from "@/lib/farol/pendencias";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
@@ -104,6 +107,16 @@ function SupervisorHome() {
     [checklists, limpezas, planos, hoje],
   );
 
+
+  // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
+  // tarefas do papel que ainda não tinham tela.
+  const grupos = useMemo(() => agruparPendencias(pendencias, planos), [pendencias, planos]);
+  const melhorias = useMemo(() => avaliarMelhorias(grupos, hoje), [grupos, hoje]);
+  const rotina = useMemo(
+    () => avaliarRotinaLideranca(grupos, planos, hoje),
+    [grupos, planos, hoje],
+  );
+
   const cumprimento = useMemo(
     () => calcularCumprimentoPeriodo(checklists, limpezas, de, hoje),
     [checklists, limpezas, de, hoje],
@@ -175,6 +188,8 @@ function SupervisorHome() {
 
               <PainelCumprimento c={cumprimento} />
             </section>
+
+            <MelhoriasERotina melhorias={melhorias} rotina={rotina} />
           </>
         )}
       </main>

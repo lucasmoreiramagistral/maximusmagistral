@@ -15,6 +15,9 @@ import { AppHeader } from "@/components/app-header";
 import { Farol } from "@/components/farol";
 import { GestaoRecursos } from "@/components/gestao-recursos";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
+import { MelhoriasERotina } from "@/components/melhorias-rotina";
+import { agruparPendencias } from "@/lib/farol/grupos";
+import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { montarFarol } from "@/lib/farol/farol";
 import { levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
@@ -102,6 +105,16 @@ function GestaoHome() {
     [checklists, turnosLimpeza, hoje, pendencias],
   );
 
+
+  // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
+  // tarefas do papel que ainda não tinham tela.
+  const grupos = useMemo(() => agruparPendencias(pendencias, planos), [pendencias, planos]);
+  const melhorias = useMemo(() => avaliarMelhorias(grupos, hoje), [grupos, hoje]);
+  const rotina = useMemo(
+    () => avaliarRotinaLideranca(grupos, planos, hoje),
+    [grupos, planos, hoje],
+  );
+
   const ncnr = useMemo(
     () => contarNcNrUltimosDias(checklists, turnosLimpeza, DIAS_NCNR),
     [checklists, turnosLimpeza],
@@ -133,6 +146,8 @@ function GestaoHome() {
         />
 
         <PendenciasAbertas pendencias={pendencias} planos={planos} />
+
+        <MelhoriasERotina melhorias={melhorias} rotina={rotina} />
 
         <h3 className="mb-3 mt-10 text-xs font-bold uppercase tracking-wider text-muted-foreground">
           Ferramentas de análise
