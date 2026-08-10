@@ -236,3 +236,119 @@ export function percentualCumprimento(resumo: ResumoFarol): number {
   const feito = resumo.totalAvaliado - resumo.nr;
   return Math.round((feito / resumo.totalAvaliado) * 100);
 }
+
+// ---------------------------------------------------------------------------
+// Cumprimento da rotina ao longo do tempo — a visão do Sup/Coord
+//
+// O líder olha o turno. O Sup/Coord olha a série: "Análise cumprimento
+// Rotina Op/Líder" do 2º papel. Não é sobre a NC de hoje, é sobre a rotina
+// estar sendo cumprida todo dia, por todo turno.
+// ---------------------------------------------------------------------------
+
+export interface DiaCumprimento {
+  data: string;
+  /** Momentos esperados no dia = turnos que rodaram × 3 momentos. */
+  esperado: number;
+  realizado: number;
+  /** Limpezas do dia que o líder nunca validou. */
+  limpezasSemValidacao: number;
+  percentual: number;
+}
+
+export interface CumprimentoPeriodo {
+  dias: DiaCumprimento[];
+  totalEsperado: number;
+  totalRealizado: number;
+  percentualGeral: number;
+  /** Dias no período sem nenhum checklist. */
+  diasSemNada: number;
+  limpezasSemValidacao: number;
+  /** Por turno: quanto do esperado foi cumprido. */
+  porTurno: Array<{ turno: string; esperado: number; realizado: number; percentual: number }>;
+}
+
+function listarDias(de: string, ate: string): string[] {
+  const out: string[] = [];
+  const d = new Date(`${de}T12:00:00Z`);
+  const fim = new Date(`${ate}T12:00:00Z`);
+  while (d <= fim) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+/**
+ * Calcula o cumprimento no período.
+ *
+ * "Esperado" é derivado do que de fato rodou: para cada dia, cada turno que
+ * apareceu (em checklist ou em limpeza) deveria ter os 3 momentos. Assim a
+ * conta não pune dia de máquina parada, que é o que aconteceria se a gente
+ * fixasse 2 turnos × 3 momentos todo dia.
+ */
+export function calcularCumprimentoPeriodo(
+  checklists: Checklist[],
+  limpezas: LimpezaTurno[],
+  de: string,
+  ate: string,
+  maquina = "Enchedora 3",
+): CumprimentoPeriodo {
+  const dias = listarDias(de, ate);
+  const porTurnoAcc = new Map<string, { esperado: number; realizado: number }>();
+
+  const detalhe: DiaCumprimento[] = dias.map((dia) => {
+    const cs = checklists.filter(
+      (c) => c.contexto.data === dia && c.contexto.maquina === maquina,
+    );
+    const ls = limpezas.filter((l) => l.dataOperacao === dia);
+
+    const turnos = new Set<string>([
+      ...cs.map((c) => c.contexto.turno as string),
+      ...ls.map((l) => l.turno as string),
+    ]);
+
+    let esperado = 0;
+    let realizado = 0;
+    for (const turno of turnos) {
+      const feitos = new Set(
+        cs.filter((c) => c.contexto.turno === turno).map((c) => c.momento),
+      ).size;
+      esperado += MOMENTOS_CHECKLIST.length;
+      realizado += feitos;
+      const acc = porTurnoAcc.get(turno) ?? { esperado: 0, realizado: 0 };
+      acc.esperado += MOMENTOS_CHECKLIST.length;
+      acc.realizado += feitos;
+      porTurnoAcc.set(turno, acc);
+    }
+
+    const semValidacao = ls.filter((l) => l.status === "aguardando_validacao").length;
+
+    return {
+      data: dia,
+      esperado,
+      realizado,
+      limpezasSemValidacao: semValidacao,
+      percentual: esperado === 0 ? 0 : Math.round((realizado / esperado) * 100),
+    };
+  });
+
+  const totalEsperado = detalhe.reduce((s, d) => s + d.esperado, 0);
+  const totalRealizado = detalhe.reduce((s, d) => s + d.realizado, 0);
+
+  return {
+    dias: detalhe,
+    totalEsperado,
+    totalRealizado,
+    percentualGeral:
+      totalEsperado === 0 ? 0 : Math.round((totalRealizado / totalEsperado) * 100),
+    diasSemNada: detalhe.filter((d) => d.esperado === 0).length,
+    limpezasSemValidacao: detalhe.reduce((s, d) => s + d.limpezasSemValidacao, 0),
+    porTurno: [...porTurnoAcc.entries()]
+      .map(([turno, v]) => ({
+        turno,
+        ...v,
+        percentual: v.esperado === 0 ? 0 : Math.round((v.realizado / v.esperado) * 100),
+      }))
+      .sort((a, b) => a.percentual - b.percentual),
+  };
+}

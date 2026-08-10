@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calcularCumprimentoPeriodo,
   montarFarol,
   resumirFarol,
   percentualCumprimento,
@@ -127,5 +128,73 @@ describe("montarFarol", () => {
     const resumo = resumirFarol(linhas);
     expect(resumo.nr).toBe(1); // só o pós-setup ficou sem
     expect(percentualCumprimento(resumo)).toBe(67); // 2 de 3
+  });
+});
+
+describe("calcularCumprimentoPeriodo", () => {
+  function noDia(dia: string, turno: string, momentos: MomentoChecklist[]): Checklist[] {
+    return momentos.map((m) => {
+      const c = checklist(m, ["Conforme"]);
+      c.contexto.data = dia;
+      c.contexto.turno = turno as never;
+      return c;
+    });
+  }
+
+  it("turno que rodou espera os 3 momentos", () => {
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B]),
+      [],
+      "2026-08-09",
+      "2026-08-09",
+    );
+    expect(r.totalEsperado).toBe(3);
+    expect(r.totalRealizado).toBe(2);
+    expect(r.percentualGeral).toBe(67);
+  });
+
+  it("dia sem nada nao entra no denominador, mas e contado", () => {
+    // Máquina parada não pode ser punida como rotina não cumprida.
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+      [],
+      "2026-08-08",
+      "2026-08-09",
+    );
+    expect(r.diasSemNada).toBe(1);
+    expect(r.totalEsperado).toBe(3);
+    expect(r.percentualGeral).toBe(100);
+  });
+
+  it("dois turnos no mesmo dia dobram o esperado", () => {
+    const r = calcularCumprimentoPeriodo(
+      [
+        ...noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+        ...noDia("2026-08-09", "12x36 Noite", [MOM_A]),
+      ],
+      [],
+      "2026-08-09",
+      "2026-08-09",
+    );
+    expect(r.totalEsperado).toBe(6);
+    expect(r.totalRealizado).toBe(4);
+    // pior turno primeiro
+    expect(r.porTurno[0].turno).toBe("12x36 Noite");
+    expect(r.porTurno[0].percentual).toBe(33);
+  });
+
+  it("conta limpeza que o lider nunca validou", () => {
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-09", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+      [
+        { dataOperacao: "2026-08-09", turno: "12x36 Dia", status: "aguardando_validacao" } as never,
+        { dataOperacao: "2026-08-09", turno: "12x36 Noite", status: "validado" } as never,
+      ],
+      "2026-08-09",
+      "2026-08-09",
+    );
+    expect(r.limpezasSemValidacao).toBe(1);
+    // a limpeza da noite revela que o turno rodou e nao fez checklist nenhum
+    expect(r.totalEsperado).toBe(6);
   });
 });

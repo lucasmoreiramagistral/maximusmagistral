@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SupervisorIndexRouteImport } from './routes/supervisor.index'
 import { Route as OperadorIndexRouteImport } from './routes/operador.index'
 import { Route as LiderIndexRouteImport } from './routes/lider.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
@@ -45,6 +46,11 @@ import { Route as GestaoVisualizarChecklistIdRouteImport } from './routes/gestao
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
+  id: '/supervisor/',
+  path: '/supervisor/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorIndexRoute = OperadorIndexRouteImport.update({
@@ -232,6 +238,7 @@ export interface FileRoutesByFullPath {
   '/gestao/': typeof GestaoIndexRoute
   '/lider/': typeof LiderIndexRoute
   '/operador/': typeof OperadorIndexRoute
+  '/supervisor/': typeof SupervisorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -266,6 +273,7 @@ export interface FileRoutesByTo {
   '/gestao': typeof GestaoIndexRoute
   '/lider': typeof LiderIndexRoute
   '/operador': typeof OperadorIndexRoute
+  '/supervisor': typeof SupervisorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -301,6 +309,7 @@ export interface FileRoutesById {
   '/gestao/': typeof GestaoIndexRoute
   '/lider/': typeof LiderIndexRoute
   '/operador/': typeof OperadorIndexRoute
+  '/supervisor/': typeof SupervisorIndexRoute
   '/operador/it/$doc': typeof OperadorItDocRoute
   '/operador/it/ata': typeof OperadorItAtaRoute
   '/operador/verso/limpeza': typeof OperadorVersoLimpezaRoute
@@ -337,6 +346,7 @@ export interface FileRouteTypes {
     | '/gestao/'
     | '/lider/'
     | '/operador/'
+    | '/supervisor/'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/gestao'
     | '/lider'
     | '/operador'
+    | '/supervisor'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/gestao/'
     | '/lider/'
     | '/operador/'
+    | '/supervisor/'
     | '/operador/it/$doc'
     | '/operador/it/ata'
     | '/operador/verso/limpeza'
@@ -440,6 +452,7 @@ export interface RootRouteChildren {
   GestaoIndexRoute: typeof GestaoIndexRoute
   LiderIndexRoute: typeof LiderIndexRoute
   OperadorIndexRoute: typeof OperadorIndexRoute
+  SupervisorIndexRoute: typeof SupervisorIndexRoute
   OperadorVersoLimpezaRoute: typeof OperadorVersoLimpezaRoute
   OperadorVersoPtpRoute: typeof OperadorVersoPtpRouteWithChildren
   GestaoVisualizarChecklistIdRoute: typeof GestaoVisualizarChecklistIdRoute
@@ -454,6 +467,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/supervisor/': {
+      id: '/supervisor/'
+      path: '/supervisor'
+      fullPath: '/supervisor/'
+      preLoaderRoute: typeof SupervisorIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/': {
@@ -726,6 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoIndexRoute: GestaoIndexRoute,
   LiderIndexRoute: LiderIndexRoute,
   OperadorIndexRoute: OperadorIndexRoute,
+  SupervisorIndexRoute: SupervisorIndexRoute,
   OperadorVersoLimpezaRoute: OperadorVersoLimpezaRoute,
   OperadorVersoPtpRoute: OperadorVersoPtpRouteWithChildren,
   GestaoVisualizarChecklistIdRoute: GestaoVisualizarChecklistIdRoute,
