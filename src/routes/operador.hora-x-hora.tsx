@@ -366,6 +366,15 @@ function HoraXHoraPage() {
               folhaDiaKey={folhaDiaKey}
             />
           </TabsContent>
+
+          <TabsContent value="verso" forceMount>
+            <VersoSecoes
+              usuario={usuario}
+              turno={turno}
+              data={data}
+              folhaDiaKey={folhaDiaKey}
+            />
+          </TabsContent>
         </Tabs>
       </main>
 
