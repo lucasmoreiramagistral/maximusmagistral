@@ -1,0 +1,112 @@
+/**
+ * AUTENTICAÇÃO RÁPIDA DO LÍDER — no mesmo tablet do operador.
+ *
+ * Hoje a validação oficial é um campo de texto: o operador (ou qualquer um)
+ * digita o nome do líder e desenha uma assinatura. O dado de produção mostra
+ * o que isso vale — os nomes gravados em `limpeza_turnos.lider_nome` são:
+ *
+ *   Bruno (47), Bruno Barbosa (9), "Bruno," , "Bruno,," , "Bruno." , "Bruno j"
+ *   Valderlan, "Valderlan rabe", "Valderlan Rabelo", "Valderlan RABELO", ...
+ *
+ * 16 grafias distintas para cerca de 5 pessoas. Não é risco teórico de
+ * auditoria: a assinatura já não identifica ninguém de forma confiável, e a
+ * cascata de responsabilidade que o gerente desenhou no papel depende
+ * exatamente de saber quem assinou.
+ *
+ * A solução não exige tablet novo. O operador termina o turno e chama o líder;
+ * o líder digita o próprio usuário e senha numa janela; o sistema autentica
+ * numa sessão isolada (ver client-validacao.ts), guarda id/login/nome/hora
+ * vindos do banco, e devolve o tablet ao operador. A sessão do operador não é
+ * tocada.
+ *
+ * A assinatura desenhada pode continuar — o formulário oficial pede. O que
+ * muda é que ela passa a estar amarrada a uma identidade verificada, em vez
+ * de a um nome digitado.
+ */
+
+import { criarClienteValidacao } from "@/integrations/supabase/client-validacao";
+import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
+
+export interface IdentidadeLider {
+  userId: string;
+  login: string;
+  nome: string;
+  perfil: string;
+  /** Carimbo do momento da autenticação. */
+  autenticadoEm: string;
+}
+
+export type ResultadoAutenticacao =
+  | { ok: true; lider: IdentidadeLider }
+  | { ok: false; erro: string };
+
+/**
+ * Quem pode validar o trabalho do operador.
+ *
+ * O operador não valida a si mesmo — é a regra inteira do papel do gerente.
+ * Supervisor e gestão entram porque cobrem a ausência do líder sem que
+ * ninguém precise emprestar senha, que é como o controle morre na prática.
+ */
+export const PERFIS_QUE_VALIDAM = ["lider", "supervisor", "gestao"] as const;
+
+export async function autenticarLider(
+  login: string,
+  senha: string,
+): Promise<ResultadoAutenticacao> {
+  const usuario = login.trim();
+  if (!usuario || !senha) {
+    return { ok: false, erro: "Informe usuário e senha." };
+  }
+
+  const cliente = criarClienteValidacao();
+
+  try {
+    const { data, error } = await cliente.auth.signInWithPassword({
+      email: loginParaEmail(usuario),
+      password: senha,
+    });
+
+    if (error || !data.user) {
+      return { ok: false, erro: mensagemErroLogin(error) };
+    }
+
+    const { data: perfil, error: pErr } = await cliente
+      .from("profiles")
+      .select("perfil, active, nome, usuario")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (pErr || !perfil) {
+      return { ok: false, erro: "Perfil não encontrado. Procure o supervisor." };
+    }
+    if (!perfil.active) {
+      return { ok: false, erro: "Usuário inativo. Procure o supervisor." };
+    }
+    if (!PERFIS_QUE_VALIDAM.includes(perfil.perfil as (typeof PERFIS_QUE_VALIDAM)[number])) {
+      return {
+        ok: false,
+        erro: "Este usuário não tem permissão para validar. Chame o líder.",
+      };
+    }
+
+    return {
+      ok: true,
+      lider: {
+        userId: data.user.id,
+        // O login e o nome vêm do BANCO, nunca do que foi digitado na tela.
+        // É essa troca que acaba com os seis "Bruno".
+        login: perfil.usuario ?? usuario,
+        nome: perfil.nome ?? usuario,
+        perfil: perfil.perfil,
+        autenticadoEm: new Date().toISOString(),
+      },
+    };
+  } catch (e) {
+    console.error("[autenticarLider]", e);
+    return { ok: false, erro: "Erro ao validar. Tente novamente." };
+  } finally {
+    // Encerra a sessão do líder de imediato. Como o cliente é
+    // `persistSession: false`, nada sobra no tablet nem no localStorage.
+    await cliente.auth.signOut().catch(() => undefined);
+  }
+}

@@ -20,6 +20,7 @@ import {
   ROTA_INICIAL,
   ehPerfilAtivo,
 } from "@/lib/checklist/types";
+import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
 import { cn } from "@/lib/utils";
 import { TelaCarregando } from "@/components/tela-carregando";
 import logoMagistral from "@/assets/logo-magistral.png";
@@ -49,29 +50,9 @@ const ICONE_PERFIL: Record<PerfilAtivo, React.ReactNode> = {
  * Supabase Auth. Mantemos esse domínio fixo para não expor e-mails reais.
  * O profile.email_interno deve seguir o mesmo padrão.
  */
-function loginParaEmail(login: string): string {
-  const limpo = login.trim().toLowerCase();
-  if (limpo.includes("@")) return limpo;
-  return `${limpo}@magistral.internal`;
-}
-
-function mensagemErroLogin(error: { code?: string; message?: string } | null): string {
-  if (!error) return "Usuário ou senha inválidos";
-
-  if (error.code === "invalid_credentials") {
-    return "Usuário ou senha inválidos";
-  }
-
-  if (error.code === "email_not_confirmed") {
-    return "E-mail ainda não confirmado. Verifique sua caixa de entrada.";
-  }
-
-  if (error.message?.toLowerCase().includes("invalid login credentials")) {
-    return "Usuário ou senha inválidos";
-  }
-
-  return "Erro ao entrar. Tente novamente.";
-}
+// loginParaEmail e mensagemErroLogin foram para lib/usuarios/login-cliente.ts:
+// a validação do líder no tablet do operador precisa exatamente do mesmo
+// comportamento, e duas cópias divergiriam na primeira correção.
 
 function LoginPage() {
   const navigate = useNavigate();

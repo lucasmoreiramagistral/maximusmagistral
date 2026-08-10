@@ -9,9 +9,12 @@ import {
   MinusCircle,
   PenLine,
   RefreshCcw,
+  ShieldCheck,
   TrendingUp,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
+import { AutenticarLiderDialog } from "@/components/autenticar-lider-dialog";
+import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -451,7 +454,11 @@ function DialogHora({
   const [sabor, setSabor] = useState(hora.produtoSabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? "");
   const [observacao, setObservacao] = useState(hora.observacao ?? "");
-  const [liderNome, setLiderNome] = useState(hora.liderNome ?? "");
+  // Mesma troca feita na validação do checklist: o líder se autentica, o nome
+  // vem do banco. Quando a hora já foi assinada antes, o nome anterior fica
+  // visível mas não é reaproveitável — reassinar exige identificar de novo.
+  const [lider, setLider] = useState<IdentidadeLider | null>(null);
+  const [pedindoLogin, setPedindoLogin] = useState(false);
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(
     hora.assinaturaLider?.dataUrl ?? null,
   );
@@ -484,8 +491,12 @@ function DialogHora({
       return;
     }
 
-    if (exigeLider && assinaturaLider && !liderNome.trim()) {
-      toast.error("Informe o nome do líder que assinou.");
+    // Assinatura nova exige líder autenticado. Assinatura que já estava
+    // gravada continua valendo como está — não vamos invalidar o histórico.
+    const assinaturaNova =
+      !!assinaturaLider && hora.assinaturaLider?.dataUrl !== assinaturaLider;
+    if (exigeLider && assinaturaNova && !lider) {
+      toast.error("O líder precisa se identificar para assinar a checagem.");
       return;
     }
 
@@ -502,12 +513,12 @@ function DialogHora({
         produtoSabor: sabor.trim() || null,
         produtoTamanho: tamanho.trim() || null,
         observacao: observacao.trim() || null,
-        liderNome: exigeLider ? liderNome.trim() || null : hora.liderNome ?? null,
+        liderNome: exigeLider ? lider?.nome ?? hora.liderNome ?? null : hora.liderNome ?? null,
         assinaturaLider:
           exigeLider && assinaturaLider
             ? {
                 dataUrl: assinaturaLider,
-                nome: liderNome.trim(),
+                nome: lider?.nome ?? hora.assinaturaLider?.nome ?? "",
                 assinadoEm:
                   hora.assinaturaLider?.dataUrl === assinaturaLider
                     ? hora.assinaturaLider.assinadoEm
@@ -672,15 +683,47 @@ function DialogHora({
                 O líder assina só nesta checagem — são 2 assinaturas por turno.
               </p>
               <div className="mb-3">
-                <Label htmlFor="lider-nome">Nome do líder</Label>
-                <Input
-                  id="lider-nome"
-                  value={liderNome}
-                  onChange={(e) => setLiderNome(e.target.value)}
-                  placeholder="Nome de quem está checando"
-                  className="mt-1 h-12 text-base"
-                />
+                {lider ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success/40 bg-success-soft/50 px-3 py-2">
+                    <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
+                    <span className="flex-1 text-sm font-bold text-foreground">
+                      {lider.nome}
+                      <span className="ml-1 font-normal text-muted-foreground">
+                        ({lider.login})
+                      </span>
+                    </span>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setLider(null)}>
+                      Trocar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-12"
+                      onClick={() => setPedindoLogin(true)}
+                    >
+                      <ShieldCheck className="mr-1 h-4 w-4" />
+                      Identificar líder
+                    </Button>
+                    {hora.liderNome && (
+                      <span className="text-xs text-muted-foreground">
+                        assinada antes por {hora.liderNome}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
+
+              <AutenticarLiderDialog
+                aberto={pedindoLogin}
+                onFechar={() => setPedindoLogin(false)}
+                onAutenticado={(l) => {
+                  setLider(l);
+                  setPedindoLogin(false);
+                }}
+              />
               <SignaturePad
                 label="Assinatura do líder"
                 ajuda="Opcional agora — pode ser assinada quando o líder passar."

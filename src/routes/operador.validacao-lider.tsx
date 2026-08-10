@@ -6,14 +6,16 @@ import {
   Loader2,
   ArrowLeft,
   ClipboardCheck,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { AppHeader } from "@/components/app-header";
+import { AutenticarLiderDialog } from "@/components/autenticar-lider-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { SignaturePad } from "@/components/signature-pad";
+import { cn } from "@/lib/utils";
+import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
 import { useChecklists } from "@/hooks/use-storage";
@@ -101,7 +103,12 @@ function ValidacaoLiderPage() {
   const limpezaPendente = limpezaTurno?.status === "aguardando_validacao";
 
   // ── Estado de UI ──
-  const [liderNome, setLiderNome] = useState("");
+  //
+  // O nome do líder deixou de ser digitado. Ele agora vem de uma autenticação
+  // real (ver autenticar-lider.ts): `null` significa "o líder ainda não se
+  // identificou", e sem isso não há assinatura.
+  const [lider, setLider] = useState<IdentidadeLider | null>(null);
+  const [pedindoLogin, setPedindoLogin] = useState(false);
   const [assinaturaChecklist, setAssinaturaChecklist] = useState<string | null>(
     null,
   );
@@ -124,8 +131,8 @@ function ValidacaoLiderPage() {
   const nadaParaValidar = !checklistPendente && !limpezaPendente;
 
   const handleSalvar = async () => {
-    if (!liderNome.trim()) {
-      toast.error("Informe o nome do líder.");
+    if (!lider) {
+      toast.error("O líder precisa entrar com o próprio usuário para validar.");
       return;
     }
     if (checklistPendente && !assinaturaChecklist) {
@@ -145,7 +152,7 @@ function ValidacaoLiderPage() {
           ...posSetup,
           assinaturaLider: {
             dataUrl: assinaturaChecklist!,
-            nome: liderNome.trim(),
+            nome: lider.nome,
             assinadoEm: agora,
           },
         };
@@ -158,13 +165,16 @@ function ValidacaoLiderPage() {
         const payload: LimpezaTurno = {
           ...limpezaTurno,
           status: "validado",
-          liderNome: liderNome.trim(),
+          liderNome: lider.nome,
           assinaturaLider: {
             dataUrl: assinaturaLimpeza!,
-            nome: liderNome.trim(),
+            nome: lider.nome,
             assinadoEm: agora,
           },
           liderAssinouEm: agora,
+          // Quem editou continua sendo a sessão do tablet (o operador), mas
+          // quem VALIDOU é o líder autenticado. São coisas diferentes e agora
+          // ficam registradas como tal.
           ultimaEdicaoPorLogin: usuario.usuario,
           ultimaEdicaoPorNome: usuario.nome,
         };
@@ -239,22 +249,58 @@ function ValidacaoLiderPage() {
               </div>
             </div>
 
-            {/* Identificação do líder */}
-            <div className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
-              <Label htmlFor="lider-nome" className="text-sm font-bold">
-                Nome do líder *
-              </Label>
-              <p className="mb-2 text-xs text-muted-foreground">
-                Será registrado nas assinaturas e no relatório oficial.
-              </p>
-              <Input
-                id="lider-nome"
-                value={liderNome}
-                onChange={(e) => setLiderNome(e.target.value)}
-                placeholder="Ex.: João Silva"
-                className="max-w-md"
-              />
+            {/* Identificação do líder — autenticada, não digitada. */}
+            <div
+              className={cn(
+                "mb-5 rounded-2xl border-2 p-5 shadow-sm md:p-6",
+                lider ? "border-success/50 bg-success-soft/40" : "border-primary/40 bg-card",
+              )}
+            >
+              {lider ? (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success text-success-foreground">
+                    <ShieldCheck className="h-6 w-6" />
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-foreground">{lider.nome}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Identificado como {lider.login} · {formatarDataHora(lider.autenticadoEm)}
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setLider(null)}>
+                    Não sou eu
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                    <ShieldCheck className="h-6 w-6" />
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-foreground">
+                      O líder precisa se identificar
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Ele entra com o próprio usuário aqui mesmo. O turno do operador
+                      continua aberto — não é preciso sair do app nem outro tablet.
+                    </p>
+                  </div>
+                  <Button type="button" onClick={() => setPedindoLogin(true)}>
+                    Identificar líder
+                  </Button>
+                </div>
+              )}
             </div>
+
+            <AutenticarLiderDialog
+              aberto={pedindoLogin}
+              onFechar={() => setPedindoLogin(false)}
+              onAutenticado={(l) => {
+                setLider(l);
+                setPedindoLogin(false);
+                toast.success(`Líder ${l.nome} identificado.`);
+              }}
+            />
 
             {/* Checklist */}
             {checklistPendente && posSetup && (
