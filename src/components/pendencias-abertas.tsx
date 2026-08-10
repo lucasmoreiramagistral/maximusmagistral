@@ -1,15 +1,20 @@
 /**
- * PENDÊNCIAS ABERTAS — o passivo, com aging.
+ * PENDÊNCIAS ABERTAS — duas filas, porque são duas naturezas.
  *
- * "O farol é você conseguir enxergar o que tem que ser resolvido e como tá
- * a situação atual da fábrica." O farol acima responde a segunda parte; esta
- * lista responde a primeira.
+ * Eu tinha feito uma lista só, e o Lucas apontou: aparecia "sem validação"
+ * com botão "Abrir plano de ação". Não faz sentido planejar uma validação —
+ * o líder simplesmente valida.
  *
- * Mais velha primeiro, de propósito: é a que envergonha e a que tem que sair.
+ * O papel do gerente já separa as duas linhas:
+ *   "VERIFICAR EXECUÇÃO / VALIDAÇÃO"  → fila 1, ação = validar
+ *   "Itens NC → Plano Ação"           → fila 2, ação = planejar
+ *
+ * E em toda linha o item aparece por extenso: o líder tem que saber o que é
+ * sem precisar abrir nada.
  */
 
 import { cn } from "@/lib/utils";
-import { agruparPorIdade, faixaIdade, type Pendencia } from "@/lib/farol/pendencias";
+import { faixaIdade, type Pendencia } from "@/lib/farol/pendencias";
 import { etapaDoPlano } from "@/lib/farol/planos-types";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 
@@ -23,124 +28,197 @@ const COR_FAIXA: Record<string, string> = {
 export function PendenciasAbertas({
   pendencias,
   onAbrirPlano,
+  onValidar,
 }: {
   pendencias: Pendencia[];
   onAbrirPlano?: (p: Pendencia) => void;
+  onValidar?: (p: Pendencia) => void;
 }) {
-  if (pendencias.length === 0) {
-    return (
-      <section className="mt-8">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Pendências abertas
-        </h3>
-        <p className="mt-2 rounded-xl border border-success/40 bg-success-soft p-4 text-sm font-semibold text-success">
-          Nenhuma pendência em aberto. Nada arrastando.
-        </p>
-      </section>
-    );
-  }
-
-  const faixas = agruparPorIdade(pendencias);
-  const maisVelha = pendencias[0];
+  const validacoes = pendencias.filter((p) => p.tipo === "validacao");
+  const problemas = pendencias.filter((p) => p.tipo === "nc");
 
   return (
-    <section className="mt-8" aria-label="Pendências abertas">
+    <>
+      <Fila
+        titulo="Aguardando a sua validação"
+        subtitulo="O operador fechou e assinou. Falta você conferir e assinar."
+        vazio="Nada aguardando validação."
+        itens={validacoes}
+        acao={
+          onValidar
+            ? { rotulo: () => "Validar", onClick: onValidar, cor: "warning" as const }
+            : undefined
+        }
+      />
+
+      <Fila
+        titulo="Itens fora do padrão — precisam de plano de ação"
+        subtitulo="Não conformidade do checklist e item de limpeza não realizado."
+        vazio="Nenhum item fora do padrão em aberto."
+        itens={problemas}
+        acao={
+          onAbrirPlano
+            ? {
+                rotulo: (p: Pendencia) =>
+                  !p.plano
+                    ? "Abrir plano de ação"
+                    : p.plano.status === "nao_cumprido"
+                      ? "Replanejar"
+                      : "Checar resultado",
+                onClick: onAbrirPlano,
+                cor: "primary" as const,
+              }
+            : undefined
+        }
+      />
+    </>
+  );
+}
+
+function Fila({
+  titulo,
+  subtitulo,
+  vazio,
+  itens,
+  acao,
+}: {
+  titulo: string;
+  subtitulo: string;
+  vazio: string;
+  itens: Pendencia[];
+  acao?: {
+    rotulo: (p: Pendencia) => string;
+    onClick: (p: Pendencia) => void;
+    cor: "primary" | "warning";
+  };
+}) {
+  const maisVelha = itens[0];
+
+  return (
+    <section className="mt-8" aria-label={titulo}>
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h3 className="text-2xl font-black tracking-tight text-foreground">
-            Pendências abertas
+            {titulo}
+            {itens.length > 0 && (
+              <span className="ml-2 rounded-full bg-destructive px-3 py-0.5 align-middle text-base font-black text-destructive-foreground">
+                {itens.length}
+              </span>
+            )}
           </h3>
-          <p className="text-sm text-muted-foreground">
-            De qualquer data — só saem quando forem resolvidas
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {faixas.map((f) => (
-            <span
-              key={f.faixa}
-              className={cn(
-                "rounded-full border px-3 py-1 text-xs font-bold",
-                COR_FAIXA[f.faixa],
-              )}
-            >
-              {f.rotulo}: {f.qtd}
-            </span>
-          ))}
+          <p className="text-sm text-muted-foreground">{subtitulo}</p>
         </div>
       </div>
 
-      {maisVelha.idadeDias > 30 && (
-        <div className="mb-3 rounded-xl border-2 border-destructive bg-destructive-soft px-4 py-3">
-          <p className="text-sm font-bold text-destructive">
-            A mais antiga está aberta há {maisVelha.idadeDias} dias — desde{" "}
-            {formatarDataBR(maisVelha.dataOrigem)}.
-          </p>
-        </div>
+      {itens.length === 0 ? (
+        <p className="rounded-xl border border-success/40 bg-success-soft p-4 text-sm font-semibold text-success">
+          {vazio}
+        </p>
+      ) : (
+        <>
+          {maisVelha.idadeDias > 30 && (
+            <div className="mb-3 rounded-xl border-2 border-destructive bg-destructive-soft px-4 py-3">
+              <p className="text-sm font-bold text-destructive">
+                A mais antiga está aberta há {maisVelha.idadeDias} dias — desde{" "}
+                {formatarDataBR(maisVelha.dataOrigem)}.
+              </p>
+            </div>
+          )}
+
+          <ul className="space-y-2">
+            {itens.map((p) => (
+              <ItemPendencia key={p.chave} p={p} acao={acao} />
+            ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+function ItemPendencia({
+  p,
+  acao,
+}: {
+  p: Pendencia;
+  acao?: {
+    rotulo: (p: Pendencia) => string;
+    onClick: (p: Pendencia) => void;
+    cor: "primary" | "warning";
+  };
+}) {
+  const faixa = faixaIdade(p.idadeDias);
+
+  return (
+    <li
+      className={cn(
+        "flex flex-wrap items-center gap-3 rounded-xl border-2 p-4",
+        faixa === "acima30"
+          ? "border-destructive/50 bg-destructive-soft/40"
+          : "border-border bg-card",
+      )}
+    >
+      <span
+        className={cn(
+          "flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg font-black leading-none",
+          COR_FAIXA[faixa],
+        )}
+        title={`Aberta há ${p.idadeDias} dias`}
+      >
+        <span className="text-lg">{p.idadeDias}</span>
+        <span className="text-[9px] font-bold opacity-80">
+          {p.idadeDias === 1 ? "dia" : "dias"}
+        </span>
+      </span>
+
+      <div className="min-w-[240px] flex-1">
+        {/* O QUE É — sempre por extenso, sem precisar abrir nada. */}
+        <p className="font-bold leading-snug text-foreground">{p.titulo}</p>
+        <p className="text-xs font-medium text-muted-foreground">{p.contexto}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {p.maquina} · {p.turno} · desde {formatarDataBR(p.dataOrigem)}
+        </p>
+        <p className="mt-1.5 text-sm text-foreground/80">{p.detalhe}</p>
+
+        {p.plano && (
+          <div className="mt-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-warning-foreground">
+              Plano de ação
+            </p>
+            <p className="text-sm font-semibold text-foreground">{p.plano.oQue}</p>
+            <p className="text-xs text-muted-foreground">
+              {p.plano.quem} · prazo {formatarDataBR(p.plano.quando)}
+              {p.plano.status === "nao_cumprido" && (
+                <b className="text-destructive"> · não cumprido, replanejar</b>
+              )}
+            </p>
+          </div>
+        )}
+      </div>
+
+      {p.tipo === "nc" && (
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground"
+          title="Etapa do PDCA em que está parado"
+        >
+          {etapaDoPlano(p.plano)}
+        </span>
       )}
 
-      <ul className="space-y-2">
-        {pendencias.map((p) => {
-          const faixa = faixaIdade(p.idadeDias);
-          const etapa = etapaDoPlano(p.plano);
-          return (
-            <li
-              key={p.chave}
-              className={cn(
-                "flex flex-wrap items-center gap-3 rounded-xl border-2 p-4",
-                faixa === "acima30"
-                  ? "border-destructive/50 bg-destructive-soft/40"
-                  : "border-border bg-card",
-              )}
-            >
-              <span
-                className={cn(
-                  "flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded-lg text-xs font-black leading-none",
-                  COR_FAIXA[faixa],
-                )}
-                title={`Aberta há ${p.idadeDias} dias`}
-              >
-                <span className="text-base">{p.idadeDias}</span>
-                <span className="text-[9px] font-bold opacity-80">dias</span>
-              </span>
-
-              <div className="min-w-[220px] flex-1">
-                <p className="font-bold text-foreground">{p.titulo}</p>
-                <p className="text-xs text-muted-foreground">
-                  {p.maquina} · {p.turno} · desde {formatarDataBR(p.dataOrigem)}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">{p.detalhe}</p>
-                {p.plano && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Plano: <b className="text-foreground">{p.plano.oQue}</b> ·{" "}
-                    {p.plano.quem} · prazo {formatarDataBR(p.plano.quando)}
-                    {p.plano.status === "nao_cumprido" && (
-                      <b className="text-destructive"> · não cumprido, replanejar</b>
-                    )}
-                  </p>
-                )}
-              </div>
-
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-black text-primary-foreground">
-                {etapa}
-              </span>
-
-              {onAbrirPlano && (
-                <button
-                  type="button"
-                  onClick={() => onAbrirPlano(p)}
-                  className="rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground hover:brightness-110"
-                >
-                  {p.plano && p.plano.status !== "nao_cumprido"
-                    ? "Checar"
-                    : p.plano
-                      ? "Replanejar"
-                      : "Abrir plano de ação"}
-                </button>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </section>
+      {acao && (
+        <button
+          type="button"
+          onClick={() => acao.onClick(p)}
+          className={cn(
+            "shrink-0 rounded-lg px-4 py-2.5 text-sm font-bold hover:brightness-110",
+            acao.cor === "warning"
+              ? "bg-warning text-warning-foreground"
+              : "bg-primary text-primary-foreground",
+          )}
+        >
+          {acao.rotulo(p)}
+        </button>
+      )}
+    </li>
   );
 }

@@ -19,6 +19,20 @@ import type { Checklist } from "@/lib/checklist/types";
 import type { LimpezaTurno } from "@/lib/verso/types";
 import type { PlanoAcao } from "./planos-types";
 
+/**
+ * Duas naturezas diferentes, que o papel do gerente já separa e eu tinha
+ * misturado:
+ *
+ *   "validacao" → o líder não planeja nada. Ele VALIDA. É a linha
+ *                 "VERIFICAR EXECUÇÃO / VALIDAÇÃO" do papel, e a ação é
+ *                 assinar, não abrir plano.
+ *
+ *   "nc"        → problema concreto num item: item do checklist respondido
+ *                 "Não conforme", ou item da limpeza marcado "não realizado".
+ *                 É a linha "Itens NC → Plano Ação".
+ *
+ * Botão de plano de ação numa validação não fazia sentido nenhum.
+ */
 export type TipoPendencia = "nc" | "validacao";
 
 export interface Pendencia {
@@ -32,6 +46,8 @@ export interface Pendencia {
   /** Dias em aberto até hoje. */
   idadeDias: number;
   titulo: string;
+  /** Linha curta de contexto: seção da limpeza, momento do checklist etc. */
+  contexto: string;
   detalhe: string;
   /** Plano de ação vigente, quando já existe. */
   plano: PlanoAcao | null;
@@ -108,7 +124,8 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
         turno: c.contexto.turno,
         dataOrigem: c.contexto.data,
         idadeDias: diffDias(c.contexto.data, e.hoje),
-        titulo: `Item ${r.itemNumero} — ${r.descricao}`,
+        titulo: `Checklist · item ${r.itemNumero} — ${r.descricao}`,
+        contexto: `${c.momento} · operador ${c.operadorResponsavel ?? c.operador}`,
         detalhe: r.observacao || "sem ação registrada pelo operador",
         plano,
         origemTipo: "checklist",
@@ -119,9 +136,37 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
   }
 
   for (const l of e.limpezas) {
+    // 2a. Itens da limpeza marcados "não realizado" — problema concreto,
+    //     precisa de plano de ação igual à NC do checklist.
+    for (const item of l.itens ?? []) {
+      if (item.status !== "nao_realizado") continue;
+      const plano = planoVigente(e.planos, "limpeza", l.id, item.codigo);
+      if (planoEncerraPendencia(plano)) continue;
+
+      out.push({
+        chave: `nr:${l.id}:${item.codigo}`,
+        tipo: "nc",
+        maquina: l.maquina ?? "Enchedora 3",
+        momento: null,
+        turno: l.turno,
+        dataOrigem: l.dataOperacao,
+        idadeDias: diffDias(l.dataOperacao, e.hoje),
+        titulo: `Limpeza · item ${item.codigo} — ${item.descricao}`,
+        contexto: `${item.grupo} · ${item.secao}`,
+        detalhe: (item.observacao ?? "").trim() || "sem observação do operador",
+        plano,
+        origemTipo: "limpeza",
+        origemId: l.id,
+        itemNumero: item.codigo,
+      });
+    }
+
+    // 2b. O turno inteiro aguardando a assinatura do líder.
+    //     Aqui não há o que planejar — há o que assinar.
     if (l.status !== "aguardando_validacao") continue;
-    const plano = planoVigente(e.planos, "limpeza", l.id, null);
-    if (planoEncerraPendencia(plano)) continue;
+
+    const totalItens = (l.itens ?? []).length;
+    const naoRealizados = (l.itens ?? []).filter((i) => i.status === "nao_realizado").length;
 
     out.push({
       chave: `val:${l.id}`,
@@ -131,11 +176,16 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
       turno: l.turno,
       dataOrigem: l.dataOperacao,
       idadeDias: diffDias(l.dataOperacao, e.hoje),
-      titulo: "Limpeza da sala de envase sem validação",
+      titulo: `Limpeza da sala de envase · ${l.turno}`,
+      contexto: `${totalItens} itens verificados${
+        naoRealizados > 0 ? ` · ${naoRealizados} não realizado(s)` : " · todos realizados"
+      }`,
       detalhe: l.operadorNome
-        ? `Operador ${l.operadorNome} assinou; o líder nunca fechou.`
-        : "O líder nunca fechou.",
-      plano,
+        ? `${l.operadorNome} assinou${
+            l.operadorAssinouEm ? ` em ${l.operadorAssinouEm.slice(0, 10).split("-").reverse().join("/")}` : ""
+          }. Falta a sua assinatura para fechar o turno.`
+        : "Operador assinou. Falta a sua assinatura para fechar o turno.",
+      plano: null,
       origemTipo: "limpeza",
       origemId: l.id,
       itemNumero: null,

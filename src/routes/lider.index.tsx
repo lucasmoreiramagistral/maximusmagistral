@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { montarFarol, type CelulaFarol } from "@/lib/farol/farol";
 import { levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
+import { validarLimpeza } from "@/lib/farol/validacao-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
@@ -40,6 +41,8 @@ function LiderHome() {
   const [planos, setPlanos] = useState<PlanoAcao[]>([]);
   const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
   const [recarga, setRecarga] = useState(0);
+  const [validando, setValidando] = useState<string | null>(null);
+  const [aviso, setAviso] = useState("");
 
   // Data operacional respeita a regra de madrugada: no turno da noite, antes
   // do fim do turno, a folha ainda é a do dia anterior.
@@ -103,6 +106,20 @@ function LiderHome() {
     [checklists, limpezas, data, hoje, pendencias],
   );
 
+  const validar = async (p: Pendencia) => {
+    if (!usuario) return;
+    setValidando(p.chave);
+    setAviso("");
+    const r = await validarLimpeza(p.origemId, usuario);
+    setValidando(null);
+    if (!r.ok) {
+      setAviso(r.erro);
+      return;
+    }
+    setAviso(`Validado por ${usuario.nome}.`);
+    setRecarga((n) => n + 1);
+  };
+
   if (loading || !usuario) return <TelaCarregando />;
 
   return (
@@ -149,7 +166,17 @@ function LiderHome() {
           <Farol linhas={linhas} data={data} onAbrirCelula={setCelulaAberta} />
         )}
 
-        <PendenciasAbertas pendencias={pendencias} onAbrirPlano={setPendenciaAberta} />
+        {aviso && (
+          <p className="mt-4 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
+            {aviso}
+          </p>
+        )}
+
+        <PendenciasAbertas
+          pendencias={pendencias}
+          onAbrirPlano={setPendenciaAberta}
+          onValidar={validando ? undefined : validar}
+        />
 
 
         {pendenciaAberta && usuario && (
