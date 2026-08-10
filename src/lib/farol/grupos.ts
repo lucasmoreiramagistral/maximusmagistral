@@ -14,8 +14,8 @@
  */
 
 import type { Pendencia } from "./pendencias";
-import { faixaIdade, planoEncerraPendencia, type FaixaIdade } from "./pendencias";
-import type { PlanoAcao } from "./planos-types";
+import { faixaIdade, planoAprovado, type FaixaIdade } from "./pendencias";
+import { planoDoProblema, type PlanoAcao } from "./planos-types";
 
 export interface GrupoPendencia {
   chave: string;
@@ -56,32 +56,6 @@ function chaveGrupo(p: Pendencia): string {
   return `${p.tipo}|${p.origemTipo}|${p.maquina}|${p.itemNumero ?? "s/item"}`;
 }
 
-/**
- * Plano que cobre o grupo.
- *
- * Casa por origem + número do item + máquina, ignorando de qual ocorrência
- * ele nasceu: um plano para "item 2 da limpeza" vale para o item 2, não só
- * para o turno em que foi aberto.
- */
-function planoDoGrupo(
-  planos: PlanoAcao[],
-  origemTipo: "checklist" | "limpeza",
-  itemNumero: number | null,
-  maquina: string,
-): PlanoAcao | null {
-  return (
-    planos
-      .filter(
-        (p) =>
-          p.origemTipo === origemTipo &&
-          p.itemNumero === itemNumero &&
-          p.maquina === maquina &&
-          p.status !== "cancelado",
-      )
-      .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))[0] ?? null
-  );
-}
-
 export function agruparPendencias(
   pendencias: Pendencia[],
   planos: PlanoAcao[],
@@ -104,7 +78,10 @@ export function agruparPendencias(
     const ultima = ordenadas[ordenadas.length - 1];
     const idadeMaxDias = Math.max(...ocorrencias.map((o) => o.idadeDias));
 
-    const plano = planoDoGrupo(
+    // Mesma função que pendencias.ts usa para decidir se a ocorrência está
+    // coberta. Duas regras diferentes aqui era a origem do grupo aparecer
+    // "com plano" enquanto as ocorrências continuavam abertas.
+    const plano = planoDoProblema(
       planos,
       primeira.origemTipo,
       primeira.itemNumero,
@@ -115,7 +92,7 @@ export function agruparPendencias(
     // foi eliminada, por mais que o plano tenha sido "cumprido".
     const reincidiuAposPlano =
       !!plano &&
-      planoEncerraPendencia(plano) &&
+      planoAprovado(plano) &&
       !!plano.checadoEm &&
       ordenadas.some((o) => o.dataOrigem > plano.checadoEm!.slice(0, 10));
 

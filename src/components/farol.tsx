@@ -94,6 +94,14 @@ export function Farol({
                   <p className="text-xs text-muted-foreground">
                     {linha.maquina.ativa ? linha.maquina.detalhe : "a implantar"}
                   </p>
+                  {/* O passivo é da MÁQUINA, não do turno de hoje. Fica aqui,
+                      na linha, e não dentro da célula do dia. */}
+                  {linha.passivoTotal > 0 && (
+                    <p className="mt-1.5 inline-block rounded-full bg-destructive-soft px-2 py-0.5 text-[11px] font-black text-destructive">
+                      {linha.passivoTotal} de outros dias · mais antiga há{" "}
+                      {linha.passivoIdadeMaxDias}d
+                    </p>
+                  )}
                 </td>
                 {linha.celulas.map((celula) => (
                   <td key={celula.momento} className="border-b border-border p-2">
@@ -177,7 +185,14 @@ function AcoesPdca({ linhas }: { linhas: LinhaFarol[] }) {
     }
   }
 
-  if (pendencias.size === 0) {
+  // O passivo saiu da cor da célula, mas NÃO pode sair daqui. Se ele sumisse
+  // desta lista, a tela voltaria a dizer "Ciclo em dia" com 55 validações
+  // abertas há 102 dias — que é literalmente a mentira que este farol existe
+  // para matar, só que por um caminho novo.
+  const passivoTotal = linhas.reduce((s, l) => s + l.passivoTotal, 0);
+  const passivoIdade = linhas.reduce((m, l) => Math.max(m, l.passivoIdadeMaxDias), 0);
+
+  if (pendencias.size === 0 && passivoTotal === 0) {
     return (
       <div className="mt-4 rounded-xl border border-success/40 bg-success-soft px-4 py-3 text-sm font-semibold text-success">
         Ciclo em dia — nada exigindo ação agora.
@@ -187,6 +202,20 @@ function AcoesPdca({ linhas }: { linhas: LinhaFarol[] }) {
 
   return (
     <div className="mt-4 space-y-2">
+      {passivoTotal > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border-2 border-destructive/40 bg-destructive-soft/50 px-4 py-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive text-base font-black text-destructive-foreground">
+            D
+          </span>
+          <p className="text-sm font-semibold text-foreground">
+            Passivo de dias anteriores continua aberto — a mais antiga há {passivoIdade}{" "}
+            dias. A execução de hoje não apaga isto.
+          </p>
+          <span className="ml-auto rounded-full bg-destructive px-2.5 py-0.5 text-xs font-bold text-destructive-foreground">
+            {passivoTotal}
+          </span>
+        </div>
+      )}
       {[...pendencias.values()]
         .sort((a, b) => b.qtd - a.qtd)
         .map((p) => (
@@ -223,18 +252,18 @@ function CelulaLampada({
       <span className="mt-1 text-[11px] font-bold leading-tight">
         {DESCRICAO_ESTADO[celula.estado]}
       </span>
-      {/* A idade é o número que ganha a reunião: NC de 60 dias tem que
-          gritar mais alto que a de ontem. */}
-      {celula.idadeMaxDias > 0 ? (
-        <span className="mt-0.5 rounded-full bg-background/60 px-2 text-[11px] font-black">
-          há {celula.idadeMaxDias} {celula.idadeMaxDias === 1 ? "dia" : "dias"}
+      {celula.totalNc > 0 && (
+        <span className="mt-0.5 text-[11px] font-semibold opacity-80">
+          {celula.totalNc} {celula.totalNc === 1 ? "item" : "itens"}
         </span>
-      ) : (
-        celula.totalNc > 0 && (
-          <span className="mt-0.5 text-[11px] font-semibold opacity-80">
-            {celula.totalNc} {celula.totalNc === 1 ? "item" : "itens"}
-          </span>
-        )
+      )}
+      {/* Passivo de outros dias. Fica FORA da cor de propósito: a cor é do
+          turno de hoje, isto aqui é herança. A idade é o número que ganha a
+          reunião — uma NC de 60 dias tem que gritar mais alto que a de ontem. */}
+      {celula.passivoAnterior > 0 && (
+        <span className="mt-1.5 rounded-full bg-background px-2 py-0.5 text-[10px] font-black text-destructive shadow-sm">
+          +{celula.passivoAnterior} de antes · {celula.idadeMaxDias}d
+        </span>
       )}
     </>
   );
@@ -245,7 +274,11 @@ function CelulaLampada({
     clicavel && "cursor-pointer hover:scale-[1.03]",
   );
 
-  const rotulo = `${celula.maquinaId}, ${celula.momento}: ${DESCRICAO_ESTADO[celula.estado]}`;
+  const rotulo =
+    `${celula.maquinaId}, ${celula.momento}: ${DESCRICAO_ESTADO[celula.estado]}` +
+    (celula.passivoAnterior > 0
+      ? `. Mais ${celula.passivoAnterior} pendência(s) de dias anteriores, a mais antiga há ${celula.idadeMaxDias} dias.`
+      : "");
 
   if (!clicavel) {
     return (

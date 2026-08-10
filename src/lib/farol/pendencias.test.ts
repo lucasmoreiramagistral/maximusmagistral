@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { levantarPendencias, planoEncerraPendencia, faixaIdade } from "./pendencias";
+import {
+  levantarPendencias,
+  planoAprovado,
+  planoEncerraOcorrencia,
+  faixaIdade,
+} from "./pendencias";
 import { montarFarol } from "./farol";
 import type { PlanoAcao } from "./planos-types";
 import type { Checklist } from "@/lib/checklist/types";
@@ -95,7 +100,72 @@ describe("levantarPendencias", () => {
     const p = levantarPendencias({
       checklists: [checklistComNc("c-antigo", "2026-05-20")],
       limpezas: [],
-      planos: [plano({ status: "cumprido", checagemCumprido: true, checagemSaiuNc: true })],
+      planos: [
+        plano({
+          status: "cumprido",
+          checagemCumprido: true,
+          checagemSaiuNc: true,
+          checadoEm: "2026-06-01T10:00:00Z",
+        }),
+      ],
+      hoje: HOJE,
+    });
+    expect(p).toHaveLength(0);
+  });
+
+  it("plano cumprido SEM data de checagem nao encerra nada", () => {
+    // Dado malformado. checarPlano sempre grava checado_em; um "cumprido" sem
+    // ela nao passou por checagem nenhuma e nao pode apagar o passivo.
+    const p = levantarPendencias({
+      checklists: [checklistComNc("c-antigo", "2026-05-20")],
+      limpezas: [],
+      planos: [
+        plano({ status: "cumprido", checagemCumprido: true, checagemSaiuNc: true, checadoEm: null }),
+      ],
+      hoje: HOJE,
+    });
+    expect(p).toHaveLength(1);
+  });
+
+  it("ocorrencia POSTERIOR a checagem nao e apagada pelo plano", () => {
+    // Reincidencia. Antes, o plano casava por item e encerrava tudo do item —
+    // entao aprovar um plano em junho apagaria a falha de agosto, e o problema
+    // sumia da tela sem ter parado na fabrica.
+    const p = levantarPendencias({
+      checklists: [
+        checklistComNc("c-antes", "2026-05-20"),
+        checklistComNc("c-depois", "2026-08-01"),
+      ],
+      limpezas: [],
+      planos: [
+        plano({
+          status: "cumprido",
+          checagemCumprido: true,
+          checagemSaiuNc: true,
+          checadoEm: "2026-06-01T10:00:00Z",
+        }),
+      ],
+      hoje: HOJE,
+    });
+    expect(p).toHaveLength(1);
+    expect(p[0].dataOrigem).toBe("2026-08-01");
+  });
+
+  it("plano casa por item+maquina, nao pela ocorrencia em que nasceu", () => {
+    // O plano nasceu de "c-antigo" mas vale para o item 5 da Enchedora 3.
+    // Pedir um plano por ocorrencia daria 151 planos para trocar um dispenser.
+    const p = levantarPendencias({
+      checklists: [checklistComNc("c-outro-turno", "2026-05-21")],
+      limpezas: [],
+      planos: [
+        plano({
+          origemId: "c-antigo",
+          status: "cumprido",
+          checagemCumprido: true,
+          checagemSaiuNc: true,
+          checadoEm: "2026-06-01T10:00:00Z",
+        }),
+      ],
       hoje: HOJE,
     });
     expect(p).toHaveLength(0);
@@ -155,12 +225,23 @@ describe("levantarPendencias", () => {
     expect(p.map((x) => x.idadeDias)).toEqual([82, 1]);
   });
 
-  it("planoEncerraPendencia so aceita cumprido + saiu da NC", () => {
-    expect(planoEncerraPendencia(null)).toBe(false);
-    expect(planoEncerraPendencia(plano({ status: "aberto" }))).toBe(false);
-    expect(
-      planoEncerraPendencia(plano({ status: "cumprido", checagemSaiuNc: true })),
-    ).toBe(true);
+  it("planoAprovado so aceita cumprido + saiu da NC", () => {
+    expect(planoAprovado(null)).toBe(false);
+    expect(planoAprovado(plano({ status: "aberto" }))).toBe(false);
+    expect(planoAprovado(plano({ status: "cumprido", checagemSaiuNc: false }))).toBe(false);
+    expect(planoAprovado(plano({ status: "cumprido", checagemSaiuNc: true }))).toBe(true);
+  });
+
+  it("planoEncerraOcorrencia corta na data da checagem", () => {
+    const aprovado = plano({
+      status: "cumprido",
+      checagemSaiuNc: true,
+      checadoEm: "2026-06-01T10:00:00Z",
+    });
+    expect(planoEncerraOcorrencia(aprovado, "2026-05-20")).toBe(true);
+    expect(planoEncerraOcorrencia(aprovado, "2026-06-01")).toBe(true); // o proprio dia conta
+    expect(planoEncerraOcorrencia(aprovado, "2026-06-02")).toBe(false); // reincidiu
+    expect(planoEncerraOcorrencia(null, "2026-05-20")).toBe(false);
   });
 
   it("faixa de aging", () => {
@@ -172,8 +253,16 @@ describe("levantarPendencias", () => {
 });
 
 describe("farol com passivo", () => {
-  it("celula fica vermelha hoje por causa de NC antiga, mesmo sem checklist hoje", () => {
-    // Este é o caso que o farol antigo mostrava como "Ciclo em dia".
+  it("NC antiga nao pinta a celula de hoje, mas continua visivel e contada", () => {
+    // Duas mentiras opostas, e o farol nao pode contar nenhuma das duas:
+    //
+    //   1. farol de EVENTO: a NC de maio sumia quando virava o dia, e a tela
+    //      dizia "Ciclo em dia" com 82 dias de pendencia escondida.
+    //   2. passivo mandando na celula: o turno de hoje, que nao errou nada,
+    //      aparecia vermelho por causa de uma NC de maio.
+    //
+    // A saida e nao empilhar os dois fatos na mesma cor: a celula responde
+    // "como foi hoje", o passivo responde "o que ficou para tras".
     const pendencias = levantarPendencias({
       checklists: [checklistComNc("c-antigo", "2026-05-20")],
       limpezas: [],
@@ -189,10 +278,37 @@ describe("farol com passivo", () => {
       maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
     });
 
-    expect(linha.celulas[0].estado).toBe("nc");
+    // hoje ainda esta correndo e ninguem preencheu: e isso que a cor diz
+    expect(linha.celulas[0].estado).toBe("aguardando");
+    // e a NC de maio NAO desapareceu
+    expect(linha.celulas[0].passivoAnterior).toBe(1);
     expect(linha.celulas[0].idadeMaxDias).toBe(82);
-    // os outros momentos seguem só com o estado do dia
+    expect(linha.passivoTotal).toBe(1);
+    expect(linha.passivoIdadeMaxDias).toBe(82);
     expect(linha.celulas[1].estado).toBe("aguardando");
+  });
+
+  it("NC de HOJE continua pintando a celula de hoje", () => {
+    // O corte e por data, nao por "passivo nunca conta": o que nasceu hoje e
+    // do turno de hoje e tem que aparecer na cor.
+    const pendencias = levantarPendencias({
+      checklists: [checklistComNc("c-hoje", HOJE)],
+      limpezas: [],
+      planos: [],
+      hoje: HOJE,
+    });
+
+    const [linha] = montarFarol({
+      checklists: [checklistComNc("c-hoje", HOJE)],
+      data: HOJE,
+      hoje: HOJE,
+      pendencias,
+      maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
+    });
+
+    expect(linha.celulas[0].estado).toBe("nc");
+    expect(linha.celulas[0].passivoAnterior).toBe(0); // nasceu hoje, nao e heranca
+    expect(linha.passivoTotal).toBe(0);
   });
 
   it("sem pendencia aberta, o dia corrente volta a mandar", () => {
@@ -207,10 +323,14 @@ describe("farol com passivo", () => {
   });
 });
 
-describe("passivo vence o estado do dia", () => {
-  it("validacao antiga nao pode aparecer como 'turno em andamento'", () => {
+describe("passivo aparece separado do estado do dia", () => {
+  it("validacao antiga nao vira 'turno em andamento · ha 108 dias'", () => {
     // Bug pego no navegador: a celula mostrava "· Turno em andamento" com
-    // "ha 108 dias" embaixo. Contraditorio.
+    // "ha 108 dias" embaixo, na mesma cor. Contraditorio.
+    //
+    // A primeira correcao foi deixar o passivo mandar na cor. Resolveu a
+    // contradicao e criou outra: dia limpo pintado de vermelho. Agora sao
+    // dois campos, e a contradicao nao tem onde nascer.
     const pendencias = levantarPendencias({
       checklists: [],
       limpezas: [
@@ -234,11 +354,12 @@ describe("passivo vence o estado do dia", () => {
       maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
     });
 
-    // validacao (sem momento) cai no ultimo momento
+    // validacao (sem momento) cai no ultimo momento, que e onde o turno fecha
     const ultima = linha.celulas[linha.celulas.length - 1];
-    expect(ultima.estado).toBe("pendente_validacao");
+    expect(ultima.estado).toBe("aguardando"); // o dia de hoje, so ele
+    expect(ultima.passivoAnterior).toBe(1); // a de 24/04, que nao sumiu
     expect(ultima.idadeMaxDias).toBe(108);
-    // as outras seguem neutras, porque o dia corre
     expect(linha.celulas[0].estado).toBe("aguardando");
+    expect(linha.celulas[0].passivoAnterior).toBe(0);
   });
 });

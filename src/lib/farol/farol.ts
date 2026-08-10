@@ -96,11 +96,24 @@ export interface CelulaFarol {
   checklists: Checklist[];
   /**
    * Pendências AINDA ABERTAS que caem nesta célula, de qualquer data.
+   * Ordenadas da mais velha para a mais nova.
    *
-   * É o que impede o farol de mentir: uma NC de maio sem tratativa continua
-   * acendendo a célula hoje. Ordenadas da mais velha para a mais nova.
+   * NÃO decidem a cor da célula. A cor responde "como foi a execução do dia
+   * mostrado"; o passivo responde "o que ficou para trás". Misturar as duas
+   * fazia um turno impecável aparecer vermelho por causa de uma NC de maio —
+   * e o operador via um vermelho que não era dele, o que é a maneira mais
+   * rápida de um farol perder a confiança de quem trabalha embaixo dele.
+   *
+   * Nada some: o passivo aparece do lado, com a idade, e continua pintando o
+   * status da máquina.
    */
   pendencias: Pendencia[];
+  /**
+   * Quantas dessas vieram de dias ANTERIORES ao mostrado. É o número do
+   * marcador de passivo, e por isso não conta o que nasceu hoje — isso a cor
+   * da célula já está dizendo.
+   */
+  passivoAnterior: number;
   /** Idade da pendência mais velha, em dias. 0 quando não há. */
   idadeMaxDias: number;
 }
@@ -108,8 +121,12 @@ export interface CelulaFarol {
 export interface LinhaFarol {
   maquina: MaquinaFarol;
   celulas: CelulaFarol[];
-  /** Pior estado da linha — usado para ordenar/destacar. */
+  /** Pior estado da EXECUÇÃO DO DIA mostrado — usado para ordenar/destacar. */
   pior: EstadoFarol;
+  /** Pendências herdadas de dias anteriores, somadas na linha inteira. */
+  passivoTotal: number;
+  /** Idade da pendência mais velha da linha, em dias. */
+  passivoIdadeMaxDias: number;
 }
 
 export interface ResumoFarol {
@@ -178,13 +195,16 @@ export interface EntradaFarol {
 /**
  * Monta o farol.
  *
- * Regra de cada célula, na ordem em que decide:
+ * A cor da célula descreve SOMENTE a execução do dia pedido, na ordem:
  *   1. máquina não implantada       → sem_escopo
  *   2. nenhum checklist no momento  → nr, ou aguardando se o dia é hoje
  *   3. tem item não conforme        → nc
  *   4. concluído mas sem validação  → pendente_validacao
  *   5. tudo "não aplicável"         → na
  *   6. resto                        → conforme
+ *
+ * O passivo de outros dias vem separado em `passivoAnterior`/`idadeMaxDias`,
+ * e é a linha da máquina que o carrega. Ver o comentário de `CelulaFarol`.
  */
 export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
   const maquinas = entrada.maquinas ?? MAQUINAS_FAROL;
@@ -214,6 +234,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
           totalNc: 0,
           checklists: [],
           pendencias: [],
+          passivoAnterior: 0,
           idadeMaxDias: 0,
         };
       }
@@ -231,25 +252,26 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         return p.momento === momento;
       });
       const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
+      const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
 
       let estado: EstadoFarol;
       const totalNc = daCelula.reduce((s, c) => s + contarNcDoChecklist(c), 0);
 
-      // O PASSIVO MANDA. Uma NC aberta de maio deixa a célula vermelha hoje,
-      // mesmo que o checklist de hoje esteja impecável. Sem isso o farol
-      // mostra "ciclo em dia" com 108 dias de pendência escondida.
-      const temNcAberta = pendencias.some((p) => p.tipo === "nc");
-      const temValidacaoAberta = pendencias.some((p) => p.tipo === "validacao");
-
-      // O passivo é avaliado ANTES do estado do dia. Se a validação de 108
-      // dias caísse depois do "aguardando", a célula mostraria "turno em
-      // andamento · há 108 dias" — contraditório, e do tipo de mentira que
-      // este farol existe para eliminar.
-      if (temNcAberta) {
-        estado = "nc";
-      } else if (temValidacaoAberta) {
-        estado = "pendente_validacao";
-      } else if (daCelula.length === 0) {
+      // A cor descreve o DIA MOSTRADO, e só ele.
+      //
+      // A versão anterior deixava o passivo mandar na célula: uma NC de maio
+      // pintava de vermelho o checklist de hoje, ainda que o turno de hoje
+      // estivesse impecável. Isso resolvia um problema real (o farol de evento
+      // escondia 108 dias de pendência) criando outro: cobrar do turno de hoje
+      // uma falha que não é dele.
+      //
+      // O passivo não sumiu — sai em `passivoAnterior`/`idadeMaxDias`, aparece
+      // do lado da célula com a idade e pinta o status da máquina. O que mudou
+      // é que agora são dois fatos separados, e cada um responde uma pergunta.
+      //
+      // O que nasceu HOJE continua na cor: NC de hoje está em `totalNc`, e
+      // limpeza de hoje sem assinatura está em `limpezaPendente`. Nada se perde.
+      if (daCelula.length === 0) {
         estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
@@ -269,6 +291,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         totalNc,
         checklists: daCelula,
         pendencias,
+        passivoAnterior,
         idadeMaxDias,
       };
     });
@@ -278,7 +301,10 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       "sem_escopo",
     );
 
-    return { maquina, celulas, pior };
+    const passivoTotal = celulas.reduce((s, c) => s + c.passivoAnterior, 0);
+    const passivoIdadeMaxDias = celulas.reduce((m, c) => Math.max(m, c.idadeMaxDias), 0);
+
+    return { maquina, celulas, pior, passivoTotal, passivoIdadeMaxDias };
   });
 }
 

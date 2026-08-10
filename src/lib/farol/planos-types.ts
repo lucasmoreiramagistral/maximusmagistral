@@ -133,6 +133,40 @@ export function planoFromRow(r: PlanoAcaoRow): PlanoAcao {
 }
 
 /**
+ * O plano que cobre um PROBLEMA.
+ *
+ * A chave é origem + número do item + máquina. O `origemId` (a ocorrência)
+ * fica deliberadamente de fora: "dispenser de sabão sem recipiente" é um
+ * problema só, ainda que tenha aparecido 151 vezes em 151 turnos. Casar por
+ * ocorrência seria pedir 151 planos de ação para trocar um dispenser.
+ *
+ * Esta é a ÚNICA regra de casamento do sistema. Antes havia duas — pendencias.ts
+ * casava por ocorrência exata, grupos.ts casava por item — e o resultado era a
+ * tela dizer "problema com plano" enquanto as ocorrências continuavam abertas
+ * e a célula do farol continuava vermelha, sem ninguém entender por quê.
+ */
+export function planoDoProblema(
+  planos: PlanoAcao[],
+  origemTipo: "checklist" | "limpeza",
+  itemNumero: number | null,
+  maquina: string,
+): PlanoAcao | null {
+  return (
+    planos
+      .filter(
+        (p) =>
+          p.origemTipo === origemTipo &&
+          p.itemNumero === itemNumero &&
+          p.maquina === maquina &&
+          p.status !== "cancelado",
+      )
+      // Mais recente primeiro: o replanejamento cria um plano novo apontando
+      // para o anterior, e é o novo que vale.
+      .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1))[0] ?? null
+  );
+}
+
+/**
  * Etapa do PDCA em que o plano está parado. É o que a célula do farol e a
  * fila da liderança usam para dizer quem tem que agir agora.
  */

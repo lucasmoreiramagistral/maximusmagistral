@@ -17,7 +17,7 @@
 
 import type { Checklist } from "@/lib/checklist/types";
 import type { LimpezaTurno } from "@/lib/verso/types";
-import type { PlanoAcao } from "./planos-types";
+import { planoDoProblema, type PlanoAcao } from "./planos-types";
 
 /**
  * Duas naturezas diferentes, que o papel do gerente já separa e eu tinha
@@ -64,32 +64,35 @@ export function diffDias(de: string, ate: string): number {
 }
 
 /**
- * Um plano encerra a pendência quando foi checado e o item saiu da NC.
- * Plano reprovado (`nao_cumprido`) NÃO encerra: volta pro vermelho, que é
- * exatamente o "Farol Sim/Não" do papel.
+ * O plano passou na checagem: foi cumprido E o item saiu da NC.
+ *
+ * Plano reprovado (`nao_cumprido`) não aprova nada — volta pro vermelho, que
+ * é exatamente o "Farol Sim/Não" do papel do gerente.
  */
-export function planoEncerraPendencia(p: PlanoAcao | null | undefined): boolean {
+export function planoAprovado(p: PlanoAcao | null | undefined): boolean {
   if (!p) return false;
   return p.status === "cumprido" && p.checagemSaiuNc === true;
 }
 
-/** O plano mais recente que aponta para esta origem. */
-function planoVigente(
-  planos: PlanoAcao[],
-  origemTipo: "checklist" | "limpeza",
-  origemId: string,
-  itemNumero: number | null,
-): PlanoAcao | null {
-  const candidatos = planos
-    .filter(
-      (p) =>
-        p.origemTipo === origemTipo &&
-        p.origemId === origemId &&
-        (itemNumero === null || p.itemNumero === itemNumero) &&
-        p.status !== "cancelado",
-    )
-    .sort((a, b) => (a.criadoEm < b.criadoEm ? 1 : -1));
-  return candidatos[0] ?? null;
+/**
+ * Este plano encerra ESTA ocorrência?
+ *
+ * Só encerra o que já existia quando a checagem foi feita. Ocorrência posterior
+ * à checagem é reincidência: o plano não a cobre, ela volta a pesar no farol e
+ * o grupo aparece como "voltou a acontecer".
+ *
+ * Sem esse corte por data, aprovar um plano hoje apagaria também as falhas de
+ * amanhã — o problema pararia de aparecer na tela sem ter parado na fábrica,
+ * que é a única coisa que este farol não pode deixar acontecer.
+ */
+export function planoEncerraOcorrencia(
+  p: PlanoAcao | null | undefined,
+  dataOcorrencia: string,
+): boolean {
+  if (!planoAprovado(p)) return false;
+  const checadoEm = p?.checadoEm;
+  if (!checadoEm) return false;
+  return dataOcorrencia <= checadoEm.slice(0, 10);
 }
 
 export interface EntradaPendencias {
@@ -113,8 +116,8 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
   for (const c of e.checklists) {
     for (const r of c.respostas) {
       if (r.resposta !== "Não conforme") continue;
-      const plano = planoVigente(e.planos, "checklist", c.id, r.itemNumero);
-      if (planoEncerraPendencia(plano)) continue;
+      const plano = planoDoProblema(e.planos, "checklist", r.itemNumero, c.contexto.maquina);
+      if (planoEncerraOcorrencia(plano, c.contexto.data)) continue;
 
       out.push({
         chave: `nc:${c.id}:${r.itemNumero}`,
@@ -140,8 +143,8 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
     //     precisa de plano de ação igual à NC do checklist.
     for (const item of l.itens ?? []) {
       if (item.status !== "nao_realizado") continue;
-      const plano = planoVigente(e.planos, "limpeza", l.id, item.codigo);
-      if (planoEncerraPendencia(plano)) continue;
+      const plano = planoDoProblema(e.planos, "limpeza", item.codigo, l.maquina ?? "Enchedora 3");
+      if (planoEncerraOcorrencia(plano, l.dataOperacao)) continue;
 
       out.push({
         chave: `nr:${l.id}:${item.codigo}`,
