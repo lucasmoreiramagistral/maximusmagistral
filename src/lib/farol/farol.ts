@@ -182,7 +182,10 @@ export interface LinhaFarol {
 }
 
 export interface ResumoFarol {
+  /** Quantas VERIFICAÇÕES (células) estão vermelhas no dia. */
   nc: number;
+  /** Quantos ITENS fora do padrão somam essas verificações. */
+  ncItens: number;
   nr: number;
   pendenteValidacao: number;
   conforme: number;
