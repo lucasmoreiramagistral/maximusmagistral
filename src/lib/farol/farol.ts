@@ -416,7 +416,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
             .map((p) => {
               const detalhes = (p.itens ?? [])
                 .filter((i) => (i.quantidade ?? 0) > 0)
-                .map((i) => `${i.descricao}: ${i.quantidade}`)
+                .map((i) => `${i.nome}: ${i.quantidade}`)
                 .join(" · ");
               return {
                 rotina: "PTP · janelas de 2h",
