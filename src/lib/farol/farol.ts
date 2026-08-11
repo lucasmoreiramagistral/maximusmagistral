@@ -133,6 +133,20 @@ export interface MaquinaFarol {
   ativa: boolean;
 }
 
+/** Um item concreto fora do padrão, para a visão rápida do líder. */
+export interface ItemNcFarol {
+  /** Rotina de origem: "Checklist · Início", "Limpeza (FM28)", "PTP". */
+  rotina: string;
+  maquinaId: string;
+  turno: string;
+  /** O que está fora do padrão (descrição do item). */
+  titulo: string;
+  /** Observação/ação registrada pelo operador, quando houver. */
+  observacao: string | null;
+  /** Horário do registro, quando houver. */
+  horario: string | null;
+}
+
 export interface CelulaFarol {
   maquinaId: string;
   coluna: ColunaFarol;
@@ -168,6 +182,8 @@ export interface CelulaFarol {
   passivoAnterior: number;
   /** Idade da pendência mais velha, em dias. 0 quando não há. */
   idadeMaxDias: number;
+  /** Itens concretos que explicam o vermelho desta célula. */
+  itensNc: ItemNcFarol[];
 }
 
 export interface LinhaFarol {
@@ -301,6 +317,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         maquinaId: maquina.id,
         coluna,
         totalNc: 0,
+        itensNc: [] as ItemNcFarol[],
         detalhe: null,
         checklists: [] as Checklist[],
         pendencias: [] as Pendencia[],
@@ -343,11 +360,24 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         const semValidacao = doDiaMaquina.filter((l) => l.status === "aguardando_validacao").length;
 
         if (naoRealizados > 0) {
+          const itensNc: ItemNcFarol[] = doDiaMaquina.flatMap((l) =>
+            (l.itens ?? [])
+              .filter((i) => i.status === "nao_realizado")
+              .map((i) => ({
+                rotina: "Limpeza da sala de envase (FM28)",
+                maquinaId: maquina.id,
+                turno: l.turno,
+                titulo: `${i.codigo} · ${i.descricao}`,
+                observacao: (i.observacao ?? "").trim() || null,
+                horario: l.operadorAssinouEm ?? null,
+              })),
+          );
           // Vermelha mesmo validada. Assinatura fecha o turno, não resolve o item.
           return {
             ...base,
             estado: "nc" as EstadoFarol,
             totalNc: naoRealizados,
+            itensNc,
             detalhe:
               `${naoRealizados} ${naoRealizados === 1 ? "item não realizado" : "itens não realizados"}` +
               (semValidacao > 0 ? " · sem validação" : " · já validada"),
@@ -381,10 +411,21 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         const detalhe = `${preenchidas} de ${JANELAS_PTP_DIA} janelas`;
 
         if (comOcorrencia > 0) {
+          const itensNc: ItemNcFarol[] = doDiaMaquina
+            .filter((p) => p.statusJanela === "houve_ocorrencia")
+            .map((p) => ({
+              rotina: "PTP · janelas de 2h",
+              maquinaId: maquina.id,
+              turno: p.turno ?? "—",
+              titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
+              observacao: null,
+              horario: null,
+            }));
           return {
             ...base,
             estado: "nc" as EstadoFarol,
             totalNc: comOcorrencia,
+            itensNc,
             detalhe: `${comOcorrencia} com ocorrência · ${detalhe}`,
           };
         }
@@ -424,10 +465,24 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         estado = "conforme";
       }
 
+      const itensNcChecklist: ItemNcFarol[] = daCelula.flatMap((c) =>
+        c.respostas
+          .filter((r) => r.resposta === "Não conforme")
+          .map((r) => ({
+            rotina: `Checklist · ${coluna.titulo}`,
+            maquinaId: maquina.id,
+            turno: c.contexto.turno,
+            titulo: `${r.itemNumero} · ${r.descricao}`,
+            observacao: (r.observacao ?? "").trim() || null,
+            horario: r.horarioVerificacao || null,
+          })),
+      );
+
       return {
         ...base,
         estado,
         totalNc,
+        itensNc: estado === "nc" ? itensNcChecklist : [],
         detalhe: totalNc > 0 ? `${totalNc} ${totalNc === 1 ? "item" : "itens"}` : null,
         checklists: daCelula,
         pendencias,
