@@ -416,7 +416,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
             .map((p) => ({
               rotina: "PTP · janelas de 2h",
               maquinaId: maquina.id,
-              turno: p.turno ?? "—",
+              turno: p.turnoCodigo ?? "—",
               titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
               observacao: null,
               horario: null,
