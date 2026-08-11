@@ -58,7 +58,12 @@ export function Farol({
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-sm">
-        <table className="w-full min-w-[760px] border-separate border-spacing-0">
+        {/* Sem largura mínima no tablet: com 5 rotinas a tabela pedia 760px e
+            o tablet em pé oferece 687, então o farol rolava de lado e as duas
+            colunas novas (Limpeza e PTP) ficavam escondidas — exatamente as
+            que o gerente precisa ver. Da largura de notebook para cima ela
+            volta a ter folga. */}
+        <table className="w-full border-separate border-spacing-0 lg:min-w-[880px]">
           <thead>
             <tr>
               <th className="border-b border-border bg-muted/40 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -68,14 +73,16 @@ export function Farol({
                 <th
                   key={col.id}
                   className={cn(
-                    "border-b border-border bg-muted/40 px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground",
+                    "border-b border-border bg-muted/40 px-1 py-2 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground lg:px-3 lg:py-3",
                     // Separa visualmente o FM09 das outras rotinas: são
                     // formulários diferentes, não momentos do mesmo checklist.
                     col.tipo !== "checklist" && "border-l-2 border-l-border",
                   )}
                 >
                   <span className="text-base font-black text-foreground">{col.codigo}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold normal-case tracking-normal">
+                  {/* O nome longo some no tablet. A letra basta — ela é a
+                      mesma do papel do gerente — e a legenda fica logo abaixo. */}
+                  <span className="mt-0.5 hidden text-[11px] font-semibold normal-case tracking-normal lg:block">
                     {col.titulo}
                   </span>
                 </th>
@@ -85,16 +92,18 @@ export function Farol({
           <tbody>
             {linhas.map((linha) => (
               <tr key={linha.maquina.id}>
-                <td className="border-b border-border px-4 py-3 align-middle">
+                <td className="border-b border-border px-2 py-3 align-middle lg:px-4">
                   <p
                     className={cn(
-                      "text-base font-bold",
+                      "text-sm font-bold leading-tight lg:text-base",
                       linha.maquina.ativa ? "text-foreground" : "text-muted-foreground",
                     )}
                   >
                     {linha.maquina.nome}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  {/* "Zegla 50V" é informação de catálogo: cede espaço no
+                      tablet para as colunas, que são o que se olha. */}
+                  <p className="hidden text-xs text-muted-foreground lg:block">
                     {linha.maquina.ativa ? linha.maquina.detalhe : "a implantar"}
                   </p>
                   {/* O passivo é da MÁQUINA, não do turno de hoje. Fica aqui,
@@ -110,7 +119,7 @@ export function Farol({
                   <td
                     key={celula.coluna.id}
                     className={cn(
-                      "border-b border-border p-2",
+                      "border-b border-border p-1 lg:p-2",
                       celula.coluna.tipo !== "checklist" && "border-l-2 border-l-border",
                     )}
                   >
@@ -141,7 +150,7 @@ export function Farol({
       <p className="mt-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">
         No dia {formatarDataBR(data)}
       </p>
-      <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Indicador
           rotulo="Não conformidades"
           valor={resumo.nc}
@@ -272,12 +281,14 @@ function CelulaLampada({
   const clicavel = !!onAbrir && celula.estado !== "sem_escopo";
   const conteudo = (
     <>
-      <span className="text-2xl font-black leading-none">{ROTULO_ESTADO[celula.estado]}</span>
-      <span className="mt-1 text-[11px] font-bold leading-tight">
+      <span className="text-xl font-black leading-none lg:text-2xl">
+        {ROTULO_ESTADO[celula.estado]}
+      </span>
+      <span className="mt-1 text-[10px] font-bold leading-tight lg:text-[11px]">
         {DESCRICAO_ESTADO[celula.estado]}
       </span>
       {celula.detalhe && (
-        <span className="mt-0.5 text-[11px] font-semibold leading-tight opacity-90">
+        <span className="mt-0.5 text-[10px] font-semibold leading-tight opacity-90 lg:text-[11px]">
           {celula.detalhe}
         </span>
       )}
@@ -293,7 +304,7 @@ function CelulaLampada({
   );
 
   const classe = cn(
-    "flex min-h-[84px] w-full flex-col items-center justify-center rounded-xl border-2 px-2 py-3 text-center transition-transform",
+    "flex min-h-[84px] w-full flex-col items-center justify-center rounded-xl border-2 px-1 py-3 text-center transition-transform lg:px-2",
     CLASSE_CELULA[celula.estado],
     clicavel && "cursor-pointer hover:scale-[1.03]",
   );

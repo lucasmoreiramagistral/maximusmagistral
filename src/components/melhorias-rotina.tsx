@@ -66,7 +66,7 @@ export function MelhoriasERotina({
           acompanha o Sup/Coord.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <Cartao
             rotulo="Problemas com plano"
             valor={`${rotina.pctComPlano}%`}
@@ -116,7 +116,7 @@ export function MelhoriasERotina({
           por {DIAS_PARA_ELIMINADO} dias.
         </p>
 
-        <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Cartao
             rotulo="Eliminados"
             valor={r.eliminados}
