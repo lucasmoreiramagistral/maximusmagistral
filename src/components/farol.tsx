@@ -153,9 +153,13 @@ export function Farol({
       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Indicador
           rotulo="Não conformidades"
-          valor={resumo.nc}
-          tom={resumo.nc > 0 ? "ruim" : "bom"}
-          nota="itens fora do padrão"
+          valor={resumo.ncItens}
+          tom={resumo.ncItens > 0 ? "ruim" : "bom"}
+          nota={
+            resumo.ncItens > 0
+              ? `${resumo.ncItens === 1 ? "item fora do padrão" : "itens fora do padrão"} em ${resumo.nc} ${resumo.nc === 1 ? "verificação" : "verificações"}`
+              : "itens fora do padrão"
+          }
         />
         <Indicador
           rotulo="Não realizado"
