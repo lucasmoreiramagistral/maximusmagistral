@@ -413,14 +413,20 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         if (comOcorrencia > 0) {
           const itensNc: ItemNcFarol[] = doDiaMaquina
             .filter((p) => p.statusJanela === "houve_ocorrencia")
-            .map((p) => ({
-              rotina: "PTP · janelas de 2h",
-              maquinaId: maquina.id,
-              turno: p.turnoCodigo ?? "—",
-              titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
-              observacao: null,
-              horario: null,
-            }));
+            .map((p) => {
+              const detalhes = (p.itens ?? [])
+                .filter((i) => (i.quantidade ?? 0) > 0)
+                .map((i) => `${i.descricao}: ${i.quantidade}`)
+                .join(" · ");
+              return {
+                rotina: "PTP · janelas de 2h",
+                maquinaId: maquina.id,
+                turno: entrada.turno ?? "—",
+                titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
+                observacao: detalhes || (p.observacao ?? null),
+                horario: `${p.janelaInicio}–${p.janelaFim}`,
+              };
+            });
           return {
             ...base,
             estado: "nc" as EstadoFarol,
