@@ -199,6 +199,47 @@ describe("montarFarol", () => {
     expect(coluna(comOcorrencia, "ptp").estado).toBe("nc");
   });
 
+  it("o numero e a lista de itens saem da MESMA fonte", () => {
+    // O cartao do farol mostra um numero e, ao ser tocado, abre a lista.
+    // Se a contagem e a lista forem calculadas por caminhos separados, elas
+    // concordam por coincidencia ate alguem mexer em um so — foi assim que o
+    // cartao passou a dizer "1" com a celula dizendo "2 itens" logo acima.
+    //
+    // Aqui totalNc e derivado de itensNc.length nas tres rotinas. Este teste
+    // existe para que a divergencia nao possa voltar em silencio.
+    const [linha] = montarFarol({
+      checklists: [checklist(MOM_A, ["Não conforme", "Conforme", "Não conforme"])],
+      limpezas: [
+        {
+          dataOperacao: DATA,
+          turno: "12x36 Dia",
+          status: "aguardando_validacao",
+          maquina: "Enchedora 3",
+          itens: [
+            { codigo: 2, status: "nao_realizado", descricao: "dispenser", observacao: "sem sabão" },
+            { codigo: 7, status: "nao_realizado", descricao: "liquidos" },
+            { codigo: 3, status: "realizado", descricao: "ok" },
+          ],
+        } as never,
+      ],
+      data: DATA,
+      maquinas: MAQ,
+    });
+
+    for (const c of linha.celulas) {
+      expect(c.itensNc.length).toBe(c.totalNc);
+    }
+
+    // e o resumo tambem: ncItens soma os ITENS, nc soma as CELULAS
+    const resumo = resumirFarol([linha]);
+    expect(resumo.nc).toBe(2); // checklist A + limpeza
+    expect(resumo.ncItens).toBe(4); // 2 no checklist + 2 na limpeza
+
+    const daLimpeza = coluna(linha, "limpeza");
+    expect(daLimpeza.itensNc[0].observacao).toBe("sem sabão");
+    expect(daLimpeza.itensNc[0].turno).toBe("12x36 Dia");
+  });
+
   it("máquina não implantada fica fora da conta", () => {
     const linhas = montarFarol({ checklists: [], data: DATA, maquinas: MAQ });
     expect(linhas[1].celulas.every((c) => c.estado === "sem_escopo")).toBe(true);

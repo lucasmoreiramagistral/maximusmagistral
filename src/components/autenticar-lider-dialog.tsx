@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import {
   autenticarLider,
   autenticarERegistrar,
+  registrarContingencia,
+  MOTIVOS_CONTINGENCIA,
   type IdentidadeLider,
   type ValidacaoParaRegistrar,
 } from "@/lib/farol/autenticar-lider";
@@ -25,12 +27,19 @@ export function AutenticarLiderDialog({
   aberto,
   onFechar,
   onAutenticado,
+  onContingencia,
   validacoes,
   onAuditoriaIndisponivel,
 }: {
   aberto: boolean;
   onFechar: () => void;
   onAutenticado: (lider: IdentidadeLider) => void;
+  /**
+   * Fechamento em contingência: o líder não pôde entrar. Recebe o nome
+   * informado de quem autorizou — que NÃO é identidade verificada, e a tela
+   * de quem chama precisa deixar isso claro.
+   */
+  onContingencia?: (autorizou: string, motivo: string) => void;
   /**
    * Validações a gravar DENTRO da sessão do líder, para o banco carimbar a
    * autoria (ver migration 06). Sem isto, o único registro de quem assinou é
@@ -45,12 +54,40 @@ export function AutenticarLiderDialog({
   const [erro, setErro] = useState("");
   const [entrando, setEntrando] = useState(false);
 
+  // Contingência. Só aparece quando alguém pede — a porta principal continua
+  // sendo o login do líder, e uma saída fácil demais vira a saída padrão.
+  const [modoContingencia, setModoContingencia] = useState(false);
+  const [autorizou, setAutorizou] = useState("");
+  const [motivo, setMotivo] = useState<string>("");
+
   if (!aberto) return null;
 
   const limpar = () => {
     setLogin("");
     setSenha("");
     setErro("");
+    setModoContingencia(false);
+    setAutorizou("");
+    setMotivo("");
+  };
+
+  const confirmarContingencia = async () => {
+    setEntrando(true);
+    setErro("");
+    const r = await registrarContingencia(validacoes ?? [], { autorizou, motivo });
+    setEntrando(false);
+    if (!r.ok) {
+      if (r.indisponivel) {
+        onAuditoriaIndisponivel?.();
+      } else {
+        setErro(r.erro);
+        return;
+      }
+    }
+    const nome = autorizou.trim();
+    const mot = motivo.trim();
+    limpar();
+    onContingencia?.(nome, mot);
   };
 
   const confirmar = async () => {
@@ -126,42 +163,100 @@ export function AutenticarLiderDialog({
           </button>
         </div>
 
-        <div className="space-y-3">
-          <div>
-            <Label htmlFor="lider-login">Usuário do líder</Label>
-            <Input
-              id="lider-login"
-              value={login}
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              onChange={(e) => setLogin(e.target.value)}
-              placeholder="ex.: bruno.barbosa"
-            />
+        {modoContingencia ? (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-warning/50 bg-warning/15 px-3 py-2 text-xs font-semibold text-warning-foreground">
+              Isto <b>não é</b> a assinatura do líder. Fica registrado que <b>você</b> fechou o
+              turno e quem autorizou — e a supervisão vê essa lista.
+            </div>
+            <div>
+              <Label htmlFor="cont-autorizou">Quem autorizou o fechamento? *</Label>
+              <Input
+                id="cont-autorizou"
+                value={autorizou}
+                onChange={(e) => setAutorizou(e.target.value)}
+                placeholder="Nome do líder ou supervisor"
+              />
+            </div>
+            <div>
+              <Label htmlFor="cont-motivo">Por que o líder não pôde validar? *</Label>
+              <select
+                id="cont-motivo"
+                value={motivo}
+                onChange={(e) => setMotivo(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">Selecione…</option>
+                {MOTIVOS_CONTINGENCIA.map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {erro && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/40 bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive"
+              >
+                {erro}
+              </p>
+            )}
           </div>
-          <div>
-            <Label htmlFor="lider-senha">Senha</Label>
-            <Input
-              id="lider-senha"
-              type="password"
-              value={senha}
-              autoComplete="off"
-              onChange={(e) => setSenha(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !entrando) void confirmar();
-              }}
-            />
-          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="lider-login">Usuário do líder</Label>
+              <Input
+                id="lider-login"
+                value={login}
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                onChange={(e) => setLogin(e.target.value)}
+                placeholder="ex.: bruno.barbosa"
+              />
+            </div>
+            <div>
+              <Label htmlFor="lider-senha">Senha</Label>
+              <Input
+                id="lider-senha"
+                type="password"
+                value={senha}
+                autoComplete="off"
+                onChange={(e) => setSenha(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !entrando) void confirmar();
+                }}
+              />
+            </div>
 
-          {erro && (
-            <p
-              role="alert"
-              className="rounded-lg border border-destructive/40 bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive"
-            >
-              {erro}
-            </p>
-          )}
-        </div>
+            {erro && (
+              <p
+                role="alert"
+                className="rounded-lg border border-destructive/40 bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive"
+              >
+                {erro}
+              </p>
+            )}
+
+            {/* Discreto de propósito: a porta principal é o login do líder.
+                Saída fácil demais vira a saída padrão, e aí a autenticação
+                não serviu para nada. */}
+            {onContingencia && (
+              <button
+                type="button"
+                onClick={() => {
+                  setErro("");
+                  setModoContingencia(true);
+                }}
+                className="text-xs font-semibold text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                O líder não consegue entrar agora?
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="mt-5 flex gap-2">
           <Button
@@ -169,20 +264,36 @@ export function AutenticarLiderDialog({
             variant="outline"
             className="flex-1"
             onClick={() => {
+              if (modoContingencia) {
+                setModoContingencia(false);
+                setErro("");
+                return;
+              }
               limpar();
               onFechar();
             }}
           >
-            Cancelar
+            {modoContingencia ? "Voltar" : "Cancelar"}
           </Button>
-          <Button
-            type="button"
-            className="flex-1"
-            disabled={entrando || !login.trim() || !senha}
-            onClick={() => void confirmar()}
-          >
-            {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar e validar"}
-          </Button>
+          {modoContingencia ? (
+            <Button
+              type="button"
+              className="flex-1 bg-warning text-warning-foreground hover:brightness-110"
+              disabled={entrando || !autorizou.trim() || !motivo}
+              onClick={() => void confirmarContingencia()}
+            >
+              {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fechar em contingência"}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              className="flex-1"
+              disabled={entrando || !login.trim() || !senha}
+              onClick={() => void confirmar()}
+            >
+              {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar e validar"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

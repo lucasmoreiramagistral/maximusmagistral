@@ -353,25 +353,26 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
           return { ...base, estado: diaEmAndamento ? "aguardando" : "nr" };
         }
 
-        const naoRealizados = doDiaMaquina.reduce(
-          (s, l) => s + (l.itens ?? []).filter((i) => i.status === "nao_realizado").length,
-          0,
+        // A lista vem primeiro e o número sai dela. Contar num lugar e listar
+        // noutro foi exatamente o que fez o cartão dizer "1" com a célula
+        // dizendo "2 itens" logo acima: dois caminhos que concordavam por
+        // coincidência até alguém mexer em um só. Há teste travando isto.
+        const itensNc: ItemNcFarol[] = doDiaMaquina.flatMap((l) =>
+          (l.itens ?? [])
+            .filter((i) => i.status === "nao_realizado")
+            .map((i) => ({
+              rotina: "Limpeza da sala de envase (FM28)",
+              maquinaId: maquina.id,
+              turno: l.turno,
+              titulo: `${i.codigo} · ${i.descricao}`,
+              observacao: (i.observacao ?? "").trim() || null,
+              horario: l.operadorAssinouEm ?? null,
+            })),
         );
+        const naoRealizados = itensNc.length;
         const semValidacao = doDiaMaquina.filter((l) => l.status === "aguardando_validacao").length;
 
         if (naoRealizados > 0) {
-          const itensNc: ItemNcFarol[] = doDiaMaquina.flatMap((l) =>
-            (l.itens ?? [])
-              .filter((i) => i.status === "nao_realizado")
-              .map((i) => ({
-                rotina: "Limpeza da sala de envase (FM28)",
-                maquinaId: maquina.id,
-                turno: l.turno,
-                titulo: `${i.codigo} · ${i.descricao}`,
-                observacao: (i.observacao ?? "").trim() || null,
-                horario: l.operadorAssinouEm ?? null,
-              })),
-          );
           // Vermelha mesmo validada. Assinatura fecha o turno, não resolve o item.
           return {
             ...base,
@@ -404,29 +405,28 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
           return { ...base, estado: diaEmAndamento ? "aguardando" : "nr" };
         }
 
-        const comOcorrencia = doDiaMaquina.filter(
-          (p) => p.statusJanela === "houve_ocorrencia",
-        ).length;
+        // Mesma regra da limpeza: a lista manda, o número sai dela.
+        const itensNc: ItemNcFarol[] = doDiaMaquina
+          .filter((p) => p.statusJanela === "houve_ocorrencia")
+          .map((p) => {
+            const detalhes = (p.itens ?? [])
+              .filter((i) => (i.quantidade ?? 0) > 0)
+              .map((i) => `${i.nome}: ${i.quantidade}`)
+              .join(" · ");
+            return {
+              rotina: "PTP · janelas de 2h",
+              maquinaId: maquina.id,
+              turno: entrada.turno ?? "—",
+              titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
+              observacao: detalhes || (p.observacao ?? null),
+              horario: `${p.janelaInicio}–${p.janelaFim}`,
+            };
+          });
+        const comOcorrencia = itensNc.length;
         const preenchidas = new Set(doDiaMaquina.map((p) => p.janelaCodigo)).size;
         const detalhe = `${preenchidas} de ${JANELAS_PTP_DIA} janelas`;
 
         if (comOcorrencia > 0) {
-          const itensNc: ItemNcFarol[] = doDiaMaquina
-            .filter((p) => p.statusJanela === "houve_ocorrencia")
-            .map((p) => {
-              const detalhes = (p.itens ?? [])
-                .filter((i) => (i.quantidade ?? 0) > 0)
-                .map((i) => `${i.nome}: ${i.quantidade}`)
-                .join(" · ");
-              return {
-                rotina: "PTP · janelas de 2h",
-                maquinaId: maquina.id,
-                turno: entrada.turno ?? "—",
-                titulo: `Janela ${p.janelaCodigo} · ocorrência registrada`,
-                observacao: detalhes || (p.observacao ?? null),
-                horario: `${p.janelaInicio}–${p.janelaFim}`,
-              };
-            });
           return {
             ...base,
             estado: "nc" as EstadoFarol,
@@ -445,7 +445,20 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       const daCelula = doDia.filter(
         (c) => c.contexto.maquina === maquina.id && c.momento === coluna.momento,
       );
-      const totalNc = daCelula.reduce((s, c) => s + contarNcDoChecklist(c), 0);
+      // Mesma regra da limpeza e do PTP: a lista manda, o número sai dela.
+      const itensNcChecklist: ItemNcFarol[] = daCelula.flatMap((c) =>
+        c.respostas
+          .filter((r) => r.resposta === "Não conforme")
+          .map((r) => ({
+            rotina: `Checklist · ${coluna.titulo}`,
+            maquinaId: maquina.id,
+            turno: c.contexto.turno,
+            titulo: `${r.itemNumero} · ${r.descricao}`,
+            observacao: (r.observacao ?? "").trim() || null,
+            horario: r.horarioVerificacao || null,
+          })),
+      );
+      const totalNc = itensNcChecklist.length;
 
       // A cor descreve o DIA MOSTRADO, e só ele.
       //
@@ -471,24 +484,11 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         estado = "conforme";
       }
 
-      const itensNcChecklist: ItemNcFarol[] = daCelula.flatMap((c) =>
-        c.respostas
-          .filter((r) => r.resposta === "Não conforme")
-          .map((r) => ({
-            rotina: `Checklist · ${coluna.titulo}`,
-            maquinaId: maquina.id,
-            turno: c.contexto.turno,
-            titulo: `${r.itemNumero} · ${r.descricao}`,
-            observacao: (r.observacao ?? "").trim() || null,
-            horario: r.horarioVerificacao || null,
-          })),
-      );
-
       return {
         ...base,
         estado,
         totalNc,
-        itensNc: estado === "nc" ? itensNcChecklist : [],
+        itensNc: itensNcChecklist,
         detalhe: totalNc > 0 ? `${totalNc} ${totalNc === 1 ? "item" : "itens"}` : null,
         checklists: daCelula,
         pendencias,
@@ -535,8 +535,7 @@ export function resumirFarol(linhas: LinhaFarol[]): ResumoFarol {
       if (c.estado === "nc") {
         r.nc += 1;
         r.ncItens += c.totalNc;
-      }
-      else if (c.estado === "nr") r.nr += 1;
+      } else if (c.estado === "nr") r.nr += 1;
       else if (c.estado === "pendente_validacao") r.pendenteValidacao += 1;
       else if (c.estado === "na") r.na += 1;
       else r.conforme += 1;

@@ -101,6 +101,15 @@ function ValidacaoLiderPage() {
   // identificou", e sem isso não há assinatura.
   const [lider, setLider] = useState<IdentidadeLider | null>(null);
   const [pedindoLogin, setPedindoLogin] = useState(false);
+  /**
+   * Fechamento em contingência: o líder não pôde entrar. O nome aqui é
+   * DECLARADO, não verificado, e a tela precisa dizer isso — senão a
+   * contingência vira indistinguível da assinatura de verdade.
+   */
+  const [contingencia, setContingencia] = useState<{
+    autorizou: string;
+    motivo: string;
+  } | null>(null);
   const [assinaturaChecklist, setAssinaturaChecklist] = useState<string | null>(null);
   const [assinaturaLimpeza, setAssinaturaLimpeza] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -119,10 +128,13 @@ function ValidacaoLiderPage() {
   const nadaParaValidar = !checklistPendente && !limpezaPendente;
 
   const handleSalvar = async () => {
-    if (!lider) {
+    if (!lider && !contingencia) {
       toast.error("O líder precisa entrar com o próprio usuário para validar.");
       return;
     }
+    // Na contingência o nome vem do que foi declarado, e vai marcado como tal
+    // no que é gravado — em nenhum lugar ele se passa por assinatura do líder.
+    const nomeParaRegistro = lider ? lider.nome : `${contingencia!.autorizou} (contingência)`;
     if (checklistPendente && !assinaturaChecklist) {
       toast.error("Líder precisa assinar o checklist.");
       return;
@@ -140,7 +152,7 @@ function ValidacaoLiderPage() {
           ...posSetup,
           assinaturaLider: {
             dataUrl: assinaturaChecklist!,
-            nome: lider.nome,
+            nome: nomeParaRegistro,
             assinadoEm: agora,
           },
         };
@@ -153,13 +165,16 @@ function ValidacaoLiderPage() {
         const payload: LimpezaTurno = {
           ...limpezaTurno,
           status: "validado",
-          liderNome: lider.nome,
+          liderNome: nomeParaRegistro,
           assinaturaLider: {
             dataUrl: assinaturaLimpeza!,
-            nome: lider.nome,
+            nome: nomeParaRegistro,
             assinadoEm: agora,
           },
           liderAssinouEm: agora,
+          observacao: contingencia
+            ? `${limpezaTurno.observacao ? `${limpezaTurno.observacao}\n` : ""}Fechado em contingência por ${usuario.nome}: ${contingencia.motivo}. Autorizado por ${contingencia.autorizou}.`
+            : limpezaTurno.observacao,
           // Quem editou continua sendo a sessão do tablet (o operador), mas
           // quem VALIDOU é o líder autenticado. São coisas diferentes e agora
           // ficam registradas como tal.
@@ -234,10 +249,35 @@ function ValidacaoLiderPage() {
             <div
               className={cn(
                 "mb-5 rounded-2xl border-2 p-5 shadow-sm md:p-6",
-                lider ? "border-success/50 bg-success-soft/40" : "border-primary/40 bg-card",
+                lider
+                  ? "border-success/50 bg-success-soft/40"
+                  : contingencia
+                    ? "border-warning bg-warning/15"
+                    : "border-primary/40 bg-card",
               )}
             >
-              {lider ? (
+              {contingencia ? (
+                /* Amarelo, nunca verde: é fechamento em contingência, e a tela
+                   não pode deixar isso passar por assinatura do líder. */
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-warning text-warning-foreground">
+                    <ShieldCheck className="h-6 w-6" />
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-base font-bold text-foreground">
+                      Fechamento em contingência
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Autorizado por <b className="text-foreground">{contingencia.autorizou}</b> ·{" "}
+                      {contingencia.motivo}. Fica registrado que quem fechou foi {usuario.nome} —
+                      não é a assinatura do líder, e a supervisão vê esta lista.
+                    </p>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => setContingencia(null)}>
+                    Desfazer
+                  </Button>
+                </div>
+              ) : lider ? (
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-success text-success-foreground">
                     <ShieldCheck className="h-6 w-6" />
@@ -308,8 +348,15 @@ function ValidacaoLiderPage() {
               }
               onAutenticado={(l) => {
                 setLider(l);
+                setContingencia(null);
                 setPedindoLogin(false);
                 toast.success(`Líder ${l.nome} identificado.`);
+              }}
+              onContingencia={(autorizou, motivo) => {
+                setContingencia({ autorizou, motivo });
+                setLider(null);
+                setPedindoLogin(false);
+                toast.warning("Fechamento em contingência registrado.");
               }}
             />
 

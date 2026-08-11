@@ -24,6 +24,7 @@
  * de a um nome digitado.
  */
 
+import { supabase } from "@/integrations/supabase/client";
 import { criarClienteValidacao } from "@/integrations/supabase/client-validacao";
 import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
 
@@ -73,6 +74,30 @@ export interface ValidacaoParaRegistrar {
   assinatura?: unknown;
   observacao?: string | null;
 }
+
+/**
+ * O segundo caminho: o líder não conseguiu entrar e o turno precisa fechar.
+ *
+ * Existe porque a alternativa real não é "todo mundo usa o caminho certo" —
+ * é o operador pedir a senha do líder emprestada. Aí a auditoria vira ficção
+ * e ninguém fica sabendo. Melhor ter a saída registrada e contada.
+ *
+ * O registro nunca diz que o líder assinou. Diz que o operador X gravou que
+ * Y autorizou, por tal motivo — e o banco carimba o operador como autor
+ * (migration 08).
+ */
+export interface Contingencia {
+  /** Nome de quem autorizou. Texto livre porque é declaração, não identidade. */
+  autorizou: string;
+  motivo: string;
+}
+
+export const MOTIVOS_CONTINGENCIA = [
+  "Líder não está na planta",
+  "Líder não lembra a senha",
+  "Líder ainda não tem login",
+  "Problema de conexão no tablet",
+] as const;
 
 export type ResultadoValidacao =
   | { ok: true }
@@ -140,6 +165,53 @@ export async function autenticarLider(
     // `persistSession: false`, nada sobra no tablet nem no localStorage.
     await cliente.auth.signOut().catch(() => undefined);
   }
+}
+
+/**
+ * Fecha o turno EM CONTINGÊNCIA, na sessão de quem está no tablet.
+ *
+ * Usa o cliente normal de propósito: quem grava é o operador logado, e é isso
+ * que o banco vai carimbar. Nada aqui tenta parecer assinatura do líder.
+ */
+export async function registrarContingencia(
+  validacoes: ValidacaoParaRegistrar[],
+  c: Contingencia,
+): Promise<ResultadoValidacao> {
+  if (!c.autorizou.trim()) {
+    return { ok: false, erro: "Informe quem autorizou o fechamento." };
+  }
+  if (!c.motivo.trim()) {
+    return { ok: false, erro: "Informe por que o líder não pôde validar." };
+  }
+  if (validacoes.length === 0) return { ok: true };
+
+  const linhas = validacoes.map((v) => ({
+    alvo_tipo: v.alvoTipo,
+    alvo_id: v.alvoId,
+    data_operacao: v.dataOperacao,
+    turno: v.turno,
+    linha: v.linha ?? "Linha 3",
+    maquina: v.maquina ?? "Enchedora 3",
+    assinatura: v.assinatura ?? null,
+    observacao: v.observacao ?? null,
+    contingencia: true,
+    contingencia_autorizou: c.autorizou.trim(),
+    contingencia_motivo: c.motivo.trim(),
+  }));
+
+  const { error } = await supabase.from("validacoes_lider" as never).insert(linhas as never);
+
+  if (error) {
+    const indisponivel =
+      error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      /contingencia|validacoes_lider/i.test(error.message ?? "");
+    console.error("[registrarContingencia]", error);
+    return indisponivel
+      ? { ok: false, indisponivel: true, erro: "Registro de contingência ainda não disponível." }
+      : { ok: false, erro: error.message ?? "Falha ao registrar a contingência." };
+  }
+  return { ok: true };
 }
 
 /**
