@@ -365,13 +365,18 @@ describe("farol com passivo", () => {
       maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
     });
 
-    // nenhuma celula do checklist recebeu a pendencia de limpeza
-    expect(linha.celulas.every((c) => c.pendencias.length === 0)).toBe(true);
-    expect(linha.celulas.every((c) => c.passivoAnterior === 0)).toBe(true);
-    // ela esta na linha da maquina, com a idade
-    expect(linha.pendenciasSemMomento).toHaveLength(1);
+    const doChecklist = linha.celulas.filter((c) => c.coluna.tipo === "checklist");
+    const daLimpeza = linha.celulas.find((c) => c.coluna.tipo === "limpeza")!;
+
+    // nenhuma coluna do FM09 recebeu a pendencia de limpeza
+    expect(doChecklist.every((c) => c.pendencias.length === 0)).toBe(true);
+    expect(doChecklist.every((c) => c.passivoAnterior === 0)).toBe(true);
+
+    // ela esta na coluna que e dela, com a idade
+    expect(daLimpeza.pendencias).toHaveLength(1);
+    expect(daLimpeza.passivoAnterior).toBe(1);
+    expect(daLimpeza.idadeMaxDias).toBe(108);
     expect(linha.passivoTotal).toBe(1);
-    expect(linha.passivoIdadeMaxDias).toBe(108);
   });
 
   it("sem pendencia aberta, o dia corrente volta a mandar", () => {
@@ -417,12 +422,19 @@ describe("passivo aparece separado do estado do dia", () => {
       maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
     });
 
-    // Nenhuma celula do FM09 fica contraditoria, porque a validacao nem entra
-    // nelas: ela e do turno, nao de um momento do checklist.
-    expect(linha.celulas.every((c) => c.estado === "aguardando")).toBe(true);
-    expect(linha.celulas.every((c) => c.passivoAnterior === 0)).toBe(true);
+    // Nenhuma coluna do FM09 fica contraditoria: a validacao nem entra nelas,
+    // porque e do turno de limpeza, nao de um momento do checklist.
+    const doChecklist = linha.celulas.filter((c) => c.coluna.tipo === "checklist");
+    expect(doChecklist.every((c) => c.estado === "aguardando")).toBe(true);
+    expect(doChecklist.every((c) => c.passivoAnterior === 0)).toBe(true);
 
-    // E continua visivel, na linha da maquina, com a idade que envergonha.
+    // A cor da coluna Limpeza tambem e do DIA (hoje nao teve limpeza ainda),
+    // e o passivo de 108 dias aparece do lado, sem contradizer.
+    const limpeza = linha.celulas.find((c) => c.coluna.tipo === "limpeza")!;
+    expect(limpeza.estado).toBe("aguardando");
+    expect(limpeza.passivoAnterior).toBe(1);
+    expect(limpeza.idadeMaxDias).toBe(108);
+
     expect(linha.passivoTotal).toBe(1);
     expect(linha.passivoIdadeMaxDias).toBe(108);
   });

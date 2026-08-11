@@ -28,9 +28,9 @@ import { useGuard } from "@/hooks/use-guard";
 import { contarNcNrUltimosDias } from "@/lib/checklist/nao-conformidades";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import type { LimpezaTurnoRow } from "@/lib/verso/mappers";
-import { limpezaTurnoFromRow } from "@/lib/verso/mappers";
-import type { LimpezaTurno } from "@/lib/verso/types";
+import type { LimpezaTurnoRow, PtpJanelaRow } from "@/lib/verso/mappers";
+import { limpezaTurnoFromRow, ptpJanelaFromRow } from "@/lib/verso/mappers";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 
 export const Route = createFileRoute("/gestao/")({
   head: () => ({
@@ -66,6 +66,9 @@ function GestaoHome() {
   // atualiza sem piscar a tela inteira.
   const [carregandoLimpeza, setCarregandoLimpeza] = useState(true);
   const [carregandoPlanos, setCarregandoPlanos] = useState(true);
+
+  const [ptp, setPtp] = useState<PtpJanela[]>([]);
+  const [carregandoPtp, setCarregandoPtp] = useState(true);
 
   const hoje = calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao);
 
@@ -108,6 +111,29 @@ function GestaoHome() {
     };
   }, [recarga]);
 
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      // Só o dia mostrado: a coluna PTP do farol é do dia, e o PTP não
+      // acumula passivo como a limpeza.
+      const { data, error } = await supabase
+        .from("ptp_janelas" as never)
+        .select("*")
+        .eq("data_operacao", hoje);
+      if (cancelado) return;
+      if (error) {
+        console.error("[gestao.index] ptp:", error);
+        setCarregandoPtp(false);
+        return;
+      }
+      setPtp(((data ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
+      setCarregandoPtp(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [hoje]);
+
   // O passivo da linha — o mesmo que o líder vê, para a conversa ser a mesma.
   const pendencias = useMemo(
     () => levantarPendencias({ checklists, limpezas: turnosLimpeza, planos, hoje }),
@@ -115,8 +141,8 @@ function GestaoHome() {
   );
 
   const linhasFarol = useMemo(
-    () => montarFarol({ checklists, limpezas: turnosLimpeza, data: hoje, hoje, pendencias }),
-    [checklists, turnosLimpeza, hoje, pendencias],
+    () => montarFarol({ checklists, limpezas: turnosLimpeza, ptp, data: hoje, hoje, pendencias }),
+    [checklists, turnosLimpeza, ptp, hoje, pendencias],
   );
 
   // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
@@ -155,7 +181,14 @@ function GestaoHome() {
     [checklists, turnosLimpeza],
   );
 
-  if (loading || !usuario || carregandoChecklists || carregandoLimpeza || carregandoPlanos) {
+  if (
+    loading ||
+    !usuario ||
+    carregandoChecklists ||
+    carregandoLimpeza ||
+    carregandoPlanos ||
+    carregandoPtp
+  ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

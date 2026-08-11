@@ -2,7 +2,9 @@
  * FAROL — o quadro que o gerente desenhou no papel.
  *
  * Linhas  = máquinas
- * Colunas = os 3 momentos do checklist (A, B, C)
+ * Colunas = as ROTINAS da máquina: os 3 momentos do FM09 (A, B, C), a
+ *           limpeza FM28 e o PTP. Ver COLUNAS_FAROL para o porquê de não
+ *           serem só os três momentos.
  * Célula  = C / NC / NA / NR, na legenda do próprio FM09
  *
  * Por que NR ("não realizado") pesa igual a NC:
@@ -15,7 +17,7 @@
 
 import type { Checklist, MomentoChecklist } from "@/lib/checklist/types";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
-import type { LimpezaTurno } from "@/lib/verso/types";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import type { Pendencia } from "./pendencias";
 
 /** Estado de uma célula, na ordem de gravidade (pior primeiro). */
@@ -77,6 +79,52 @@ export const ETAPA_PDCA: Record<EstadoFarol, { letra: string; acao: string } | n
 /** Código curto do momento, como no desenho: A, B, C. */
 export const CODIGO_MOMENTO = ["A", "B", "C"] as const;
 
+/**
+ * COLUNAS DO FAROL — uma por ROTINA, não uma por momento do checklist.
+ *
+ * O farol nasceu com três colunas, os três momentos do FM09. Aí o Lucas
+ * perguntou o óbvio: "no farol tá conforme no início, no setup e no pós-setup,
+ * mas nas limpezas tem vários não realizados — como a gente enxerga isso?".
+ *
+ * Não enxergava. O dado do dia 11/08 é o exemplo perfeito: checklist com zero
+ * não conformidades nos três momentos, e a limpeza do mesmo turno com o
+ * dispenser de sabão e o acúmulo de líquidos em aberto. Farol todo verde, dois
+ * itens abertos.
+ *
+ * A limpeza é o FM28: outro formulário, 21 itens próprios, que não pertence a
+ * nenhum momento do FM09. Empurrá-la para a coluna "Pós-setup" — que foi o que
+ * eu fiz antes — só fazia a coluna mentir sobre o que ela mede.
+ *
+ * Então cada rotina ganha coluna. É o que o escopo do v2 já dizia (checklist,
+ * PTP, limpeza e relatório) e o que faltava aparecer no quadro.
+ */
+export type TipoRotina = "checklist" | "limpeza" | "ptp";
+
+export interface ColunaFarol {
+  id: string;
+  /** Rótulo curto do cabeçalho: A, B, C, L, P. */
+  codigo: string;
+  titulo: string;
+  tipo: TipoRotina;
+  /** Só para as colunas de checklist. */
+  momento?: MomentoChecklist;
+}
+
+/** Janelas de 2h que o PTP espera num dia completo (J01..J12). */
+export const JANELAS_PTP_DIA = 12;
+
+export const COLUNAS_FAROL: ReadonlyArray<ColunaFarol> = [
+  ...MOMENTOS_CHECKLIST.map((m, i) => ({
+    id: m,
+    codigo: CODIGO_MOMENTO[i],
+    titulo: m,
+    tipo: "checklist" as const,
+    momento: m,
+  })),
+  { id: "limpeza", codigo: "L", titulo: "Limpeza da sala de envase", tipo: "limpeza" },
+  { id: "ptp", codigo: "P", titulo: "PTP · janelas de 2h", tipo: "ptp" },
+];
+
 export interface MaquinaFarol {
   id: string;
   nome: string;
@@ -87,11 +135,15 @@ export interface MaquinaFarol {
 
 export interface CelulaFarol {
   maquinaId: string;
-  momento: MomentoChecklist;
-  momentoIndice: number;
+  coluna: ColunaFarol;
   estado: EstadoFarol;
-  /** Quantos itens NC existem nos checklists daquele momento. */
+  /** Itens fora do padrão nesta rotina, no dia mostrado. */
   totalNc: number;
+  /**
+   * Frase curta com o número que explica a cor: "2 itens não realizados",
+   * "5 de 12 janelas". Sem isso a célula obriga a clicar para saber o porquê.
+   */
+  detalhe: string | null;
   /** Checklists encontrados para a célula (pode ser mais de um por turno). */
   checklists: Checklist[];
   /**
@@ -123,12 +175,6 @@ export interface LinhaFarol {
   celulas: CelulaFarol[];
   /** Pior estado da EXECUÇÃO DO DIA mostrado — usado para ordenar/destacar. */
   pior: EstadoFarol;
-  /**
-   * Pendências da máquina que não pertencem a momento nenhum do FM09:
-   * limpeza FM28 e validação de fechamento de turno. São outras rotinas, e
-   * enfiá-las numa coluna do checklist só faz a coluna mentir.
-   */
-  pendenciasSemMomento: Pendencia[];
   /** Pendências herdadas de dias anteriores, somadas na linha inteira. */
   passivoTotal: number;
   /** Idade da pendência mais velha da linha, em dias. */
@@ -172,8 +218,10 @@ function todoNaoAplicavel(c: Checklist): boolean {
 
 export interface EntradaFarol {
   checklists: Checklist[];
-  /** Limpezas do dia — alimentam o estado "aguarda o líder". */
+  /** Limpezas — alimentam a coluna Limpeza (FM28). */
   limpezas?: LimpezaTurno[];
+  /** Janelas de PTP — alimentam a coluna PTP. */
+  ptp?: PtpJanela[];
   /** Data operacional (YYYY-MM-DD) que o farol representa. */
   data: string;
   /** Quando informado, considera só este turno. */
@@ -198,16 +246,35 @@ export interface EntradaFarol {
 /**
  * Monta o farol.
  *
- * A cor da célula descreve SOMENTE a execução do dia pedido, na ordem:
- *   1. máquina não implantada       → sem_escopo
- *   2. nenhum checklist no momento  → nr, ou aguardando se o dia é hoje
- *   3. tem item não conforme        → nc
- *   4. concluído mas sem validação  → pendente_validacao
- *   5. tudo "não aplicável"         → na
- *   6. resto                        → conforme
+ * A cor de cada célula descreve SOMENTE a execução do dia pedido, e cada
+ * rotina tem a sua regra:
  *
- * O passivo de outros dias vem separado em `passivoAnterior`/`idadeMaxDias`,
- * e é a linha da máquina que o carrega. Ver o comentário de `CelulaFarol`.
+ *   CHECKLIST (A, B, C)
+ *     sem checklist no momento     → nr, ou aguardando se o dia é hoje
+ *     tem item não conforme        → nc
+ *     tudo "não aplicável"         → na
+ *     resto                        → conforme
+ *
+ *   LIMPEZA (FM28)
+ *     nenhum registro no dia       → nr, ou aguardando se o dia é hoje
+ *     tem item não realizado       → NC, MESMO validada pelo líder
+ *     falta a assinatura do líder  → pendente_validacao
+ *     resto                        → conforme
+ *
+ *   PTP
+ *     nenhuma janela               → nr, ou aguardando se o dia é hoje
+ *     alguma janela com ocorrência → nc
+ *     menos de 12 janelas          → nr, ou aguardando se o dia é hoje
+ *     resto                        → conforme
+ *
+ * A regra da limpeza é a que o Lucas decidiu, e é a mais importante: no dia
+ * 11/08 a limpeza estava `validado` com dois itens em aberto. Assinatura fecha
+ * o turno, não resolve o item. Tratar validado como verde seria o farol dizendo
+ * que está tudo certo enquanto o dispenser de sabão segue quebrado — que é
+ * literalmente o "Farol Sim/Não" do papel do gerente.
+ *
+ * O passivo de outros dias vem separado em `passivoAnterior`/`idadeMaxDias`.
+ * Ver o comentário de `CelulaFarol`.
  */
 export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
   const maquinas = entrada.maquinas ?? MAQUINAS_FAROL;
@@ -219,48 +286,115 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
     return true;
   });
 
-  const limpezaPendente = (entrada.limpezas ?? []).some(
-    (l) =>
-      l.dataOperacao === entrada.data &&
-      (!entrada.turno || l.turno === entrada.turno) &&
-      l.status === "aguardando_validacao",
+  const limpezasDoDia = (entrada.limpezas ?? []).filter(
+    (l) => l.dataOperacao === entrada.data && (!entrada.turno || l.turno === entrada.turno),
   );
 
+  const ptpDoDia = (entrada.ptp ?? []).filter((p) => p.dataOperacao === entrada.data);
+
   return maquinas.map((maquina) => {
-    const celulas: CelulaFarol[] = MOMENTOS_CHECKLIST.map((momento, i) => {
+    const celulas: CelulaFarol[] = COLUNAS_FAROL.map((coluna) => {
+      const vazia = {
+        maquinaId: maquina.id,
+        coluna,
+        totalNc: 0,
+        detalhe: null,
+        checklists: [] as Checklist[],
+        pendencias: [] as Pendencia[],
+        passivoAnterior: 0,
+        idadeMaxDias: 0,
+      };
+
       if (!maquina.ativa) {
+        return { ...vazia, estado: "sem_escopo" as EstadoFarol };
+      }
+
+      // Pendências abertas desta rotina, de qualquer data. Cada uma agora tem
+      // coluna própria: as da limpeza param na coluna Limpeza em vez de serem
+      // empurradas para o Pós-setup, que era o que fazia a coluna mentir.
+      const pendencias = (entrada.pendencias ?? []).filter((p) => {
+        if (p.maquina !== maquina.id) return false;
+        if (coluna.tipo === "checklist") {
+          return p.origemTipo === "checklist" && p.momento === coluna.momento;
+        }
+        if (coluna.tipo === "limpeza") return p.origemTipo === "limpeza";
+        return false; // PTP ainda não gera pendência
+      });
+      const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
+      const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
+      const base = { ...vazia, pendencias, idadeMaxDias, passivoAnterior };
+
+      // ── LIMPEZA ────────────────────────────────────────────────────────
+      if (coluna.tipo === "limpeza") {
+        const doDiaMaquina = limpezasDoDia.filter(
+          (l) => (l.maquina ?? "Enchedora 3") === maquina.id,
+        );
+        if (doDiaMaquina.length === 0) {
+          return { ...base, estado: diaEmAndamento ? "aguardando" : "nr" };
+        }
+
+        const naoRealizados = doDiaMaquina.reduce(
+          (s, l) => s + (l.itens ?? []).filter((i) => i.status === "nao_realizado").length,
+          0,
+        );
+        const semValidacao = doDiaMaquina.filter((l) => l.status === "aguardando_validacao").length;
+
+        if (naoRealizados > 0) {
+          // Vermelha mesmo validada. Assinatura fecha o turno, não resolve o item.
+          return {
+            ...base,
+            estado: "nc" as EstadoFarol,
+            totalNc: naoRealizados,
+            detalhe:
+              `${naoRealizados} ${naoRealizados === 1 ? "item não realizado" : "itens não realizados"}` +
+              (semValidacao > 0 ? " · sem validação" : " · já validada"),
+          };
+        }
+        if (semValidacao > 0) {
+          return {
+            ...base,
+            estado: "pendente_validacao" as EstadoFarol,
+            detalhe: `${semValidacao} turno(s) sem assinatura do líder`,
+          };
+        }
         return {
-          maquinaId: maquina.id,
-          momento,
-          momentoIndice: i,
-          estado: "sem_escopo" as EstadoFarol,
-          totalNc: 0,
-          checklists: [],
-          pendencias: [],
-          passivoAnterior: 0,
-          idadeMaxDias: 0,
+          ...base,
+          estado: "conforme" as EstadoFarol,
+          detalhe: `${doDiaMaquina.length} turno(s) · 21 itens`,
         };
       }
 
+      // ── PTP ────────────────────────────────────────────────────────────
+      if (coluna.tipo === "ptp") {
+        const doDiaMaquina = ptpDoDia.filter((p) => p.maquina === maquina.id);
+        if (doDiaMaquina.length === 0) {
+          return { ...base, estado: diaEmAndamento ? "aguardando" : "nr" };
+        }
+
+        const comOcorrencia = doDiaMaquina.filter(
+          (p) => p.statusJanela === "houve_ocorrencia",
+        ).length;
+        const preenchidas = new Set(doDiaMaquina.map((p) => p.janelaCodigo)).size;
+        const detalhe = `${preenchidas} de ${JANELAS_PTP_DIA} janelas`;
+
+        if (comOcorrencia > 0) {
+          return {
+            ...base,
+            estado: "nc" as EstadoFarol,
+            totalNc: comOcorrencia,
+            detalhe: `${comOcorrencia} com ocorrência · ${detalhe}`,
+          };
+        }
+        if (preenchidas < JANELAS_PTP_DIA) {
+          return { ...base, estado: diaEmAndamento ? "aguardando" : "nr", detalhe };
+        }
+        return { ...base, estado: "conforme" as EstadoFarol, detalhe };
+      }
+
+      // ── CHECKLIST (A, B, C) ────────────────────────────────────────────
       const daCelula = doDia.filter(
-        (c) => c.contexto.maquina === maquina.id && c.momento === momento,
+        (c) => c.contexto.maquina === maquina.id && c.momento === coluna.momento,
       );
-
-      // Pendências abertas que pertencem a ESTA célula, de qualquer data.
-      //
-      // Só entram as que têm momento de checklist. As sem momento (limpeza
-      // FM28 e validação de turno) ficam na linha da máquina — ver
-      // `pendenciasSemMomento`. Antes elas caíam no último momento, e com o
-      // dado real isso pintava "+479 de antes" na coluna Pós-setup: 479 itens
-      // de limpeza, que não têm relação nenhuma com pós-setup. Uma coluna do
-      // FM09 dizendo respeito a outro formulário não informa, confunde.
-      const pendencias = (entrada.pendencias ?? []).filter(
-        (p) => p.maquina === maquina.id && p.momento === momento,
-      );
-      const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
-      const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
-
-      let estado: EstadoFarol;
       const totalNc = daCelula.reduce((s, c) => s + contarNcDoChecklist(c), 0);
 
       // A cor descreve o DIA MOSTRADO, e só ele.
@@ -272,17 +406,15 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       // uma falha que não é dele.
       //
       // O passivo não sumiu — sai em `passivoAnterior`/`idadeMaxDias`, aparece
-      // do lado da célula com a idade e pinta o status da máquina. O que mudou
-      // é que agora são dois fatos separados, e cada um responde uma pergunta.
+      // do lado da célula com a idade e pinta o status da máquina.
       //
-      // O que nasceu HOJE continua na cor: NC de hoje está em `totalNc`, e
-      // limpeza de hoje sem assinatura está em `limpezaPendente`. Nada se perde.
+      // A limpeza saiu daqui de vez: ela tem coluna própria agora, e o estado
+      // dela não contamina mais a coluna do checklist.
+      let estado: EstadoFarol;
       if (daCelula.length === 0) {
         estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
-      } else if (daCelula.every((c) => c.status === "concluido") && limpezaPendente) {
-        estado = "pendente_validacao";
       } else if (daCelula.every(todoNaoAplicavel)) {
         estado = "na";
       } else {
@@ -290,11 +422,10 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       }
 
       return {
-        maquinaId: maquina.id,
-        momento,
-        momentoIndice: i,
+        ...base,
         estado,
         totalNc,
+        detalhe: totalNc > 0 ? `${totalNc} ${totalNc === 1 ? "item" : "itens"}` : null,
         checklists: daCelula,
         pendencias,
         passivoAnterior,
@@ -307,30 +438,13 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       "sem_escopo",
     );
 
-    // Pendências da máquina que não pertencem a nenhum momento do FM09:
-    // limpeza FM28 e validação de fechamento de turno. São rotinas próprias,
-    // então moram na linha da máquina e não numa coluna do checklist.
-    const semMomento = maquina.ativa
-      ? (entrada.pendencias ?? []).filter((p) => p.maquina === maquina.id && p.momento === null)
-      : [];
+    // Agora toda pendência tem coluna: a da limpeza mora na coluna Limpeza.
+    // O `pendenciasSemMomento` da versão anterior deixou de existir — era o
+    // remendo de quando a limpeza não tinha onde aparecer.
+    const passivoTotal = celulas.reduce((s, c) => s + c.passivoAnterior, 0);
+    const passivoIdadeMaxDias = celulas.reduce((m, c) => Math.max(m, c.idadeMaxDias), 0);
 
-    const passivoTotal =
-      celulas.reduce((s, c) => s + c.passivoAnterior, 0) +
-      semMomento.filter((p) => p.dataOrigem < entrada.data).length;
-
-    const passivoIdadeMaxDias = Math.max(
-      celulas.reduce((m, c) => Math.max(m, c.idadeMaxDias), 0),
-      semMomento.reduce((m, p) => Math.max(m, p.idadeDias), 0),
-    );
-
-    return {
-      maquina,
-      celulas,
-      pior,
-      pendenciasSemMomento: semMomento,
-      passivoTotal,
-      passivoIdadeMaxDias,
-    };
+    return { maquina, celulas, pior, passivoTotal, passivoIdadeMaxDias };
   });
 }
 

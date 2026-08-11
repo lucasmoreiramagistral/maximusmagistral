@@ -14,8 +14,19 @@ import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
-import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
-import type { LimpezaTurno } from "@/lib/verso/types";
+import {
+  limpezaTurnoFromRow,
+  ptpJanelaFromRow,
+  type LimpezaTurnoRow,
+  type PtpJanelaRow,
+} from "@/lib/verso/mappers";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
+
+function somarDiasISO(data: string, passos: number): string {
+  const d = new Date(`${data}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + passos);
+  return d.toISOString().slice(0, 10);
+}
 
 export const Route = createFileRoute("/lider/")({
   head: () => ({
@@ -50,6 +61,10 @@ function LiderHome() {
   // Só travam a primeira carga; recarregar não pisca a tela.
   const [carregandoLimpezas, setCarregandoLimpezas] = useState(true);
   const [carregandoPlanos, setCarregandoPlanos] = useState(true);
+
+  // PTP alimenta a coluna própria no farol.
+  const [ptp, setPtp] = useState<PtpJanela[]>([]);
+  const [carregandoPtp, setCarregandoPtp] = useState(true);
 
   // Data operacional respeita a regra de madrugada: no turno da noite, antes
   // do fim do turno, a folha ainda é a do dia anterior.
@@ -104,6 +119,30 @@ function LiderHome() {
     };
   }, [recarga]);
 
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      // Só a janela navegável do farol: o PTP não tem passivo para arrastar,
+      // e puxar 742 janelas de 4 meses seria peso à toa no tablet.
+      const { data: linhasPtp, error } = await supabase
+        .from("ptp_janelas" as never)
+        .select("*")
+        .gte("data_operacao", somarDiasISO(data, -1))
+        .lte("data_operacao", data);
+      if (cancelado) return;
+      if (error) {
+        console.error("[lider] ptp:", error);
+        setCarregandoPtp(false);
+        return;
+      }
+      setPtp(((linhasPtp ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
+      setCarregandoPtp(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [data, recarga]);
+
   // O passivo: tudo que continua aberto hoje, de qualquer data.
   const pendencias = useMemo(
     () => levantarPendencias({ checklists, limpezas, planos, hoje }),
@@ -111,8 +150,8 @@ function LiderHome() {
   );
 
   const linhas = useMemo(
-    () => montarFarol({ checklists, limpezas, data, hoje, pendencias }),
-    [checklists, limpezas, data, hoje, pendencias],
+    () => montarFarol({ checklists, limpezas, ptp, data, hoje, pendencias }),
+    [checklists, limpezas, ptp, data, hoje, pendencias],
   );
 
   const validar = async (p: Pendencia) => {
@@ -172,7 +211,7 @@ function LiderHome() {
         {/* O gate cobre o farol E as filas. Antes cobria só o farol, então as
             filas renderizavam com lista vazia e a tela dizia "Nada aguardando
             validação" enquanto 55 validações carregavam. */}
-        {carregandoChecklists || carregandoLimpezas || carregandoPlanos ? (
+        {carregandoChecklists || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
           <p className="text-sm text-muted-foreground">Carregando o farol…</p>
         ) : (
           <>
@@ -228,7 +267,10 @@ function DetalheCelula({ celula, onFechar }: { celula: CelulaFarol; onFechar: ()
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <div>
             <p className="font-bold text-foreground">{celula.maquinaId}</p>
-            <p className="text-xs text-muted-foreground">{celula.momento}</p>
+            <p className="text-xs text-muted-foreground">
+              {celula.coluna.titulo}
+              {celula.detalhe ? ` · ${celula.detalhe}` : ""}
+            </p>
           </div>
           <button
             type="button"
@@ -240,11 +282,22 @@ function DetalheCelula({ celula, onFechar }: { celula: CelulaFarol; onFechar: ()
           </button>
         </div>
         <div className="space-y-3 p-4">
-          {celula.checklists.length === 0 && (
+          {/* A limpeza e o PTP têm coluna própria agora, e não guardam
+              `checklists`. Explicar o porquê da cor com o texto do checklist
+              seria falar do formulário errado. */}
+          {celula.coluna.tipo !== "checklist" ? (
             <p className="text-sm text-muted-foreground">
-              Nenhum checklist registrado para este momento hoje. É isso que deixa a célula marcada
-              como <b className="text-destructive">NR — não realizado</b>.
+              {celula.pendencias.length > 0
+                ? `${celula.pendencias.length} pendência(s) desta rotina em aberto — a lista completa está logo abaixo do farol.`
+                : "Sem pendência aberta nesta rotina."}
             </p>
+          ) : (
+            celula.checklists.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Nenhum checklist registrado para este momento hoje. É isso que deixa a célula
+                marcada como <b className="text-destructive">NR — não realizado</b>.
+              </p>
+            )
           )}
           {naoConformes.map(({ checklist, resposta }) => (
             <div

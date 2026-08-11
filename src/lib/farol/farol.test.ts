@@ -4,6 +4,8 @@ import {
   montarFarol,
   resumirFarol,
   percentualCumprimento,
+  type CelulaFarol,
+  type EstadoFarol,
   type MaquinaFarol,
 } from "./farol";
 import type { Checklist, MomentoChecklist, Resposta } from "@/lib/checklist/types";
@@ -49,10 +51,19 @@ function checklist(
 
 const [MOM_A, MOM_B, MOM_C] = MOMENTOS_CHECKLIST;
 
+/** Só as colunas do FM09 — o farol tem cinco, contando Limpeza e PTP. */
+function estadosDoChecklist(linha: { celulas: CelulaFarol[] }): EstadoFarol[] {
+  return linha.celulas.filter((c) => c.coluna.tipo === "checklist").map((c) => c.estado);
+}
+
+function coluna(linha: { celulas: CelulaFarol[] }, tipo: string): CelulaFarol {
+  return linha.celulas.find((c) => c.coluna.tipo === tipo)!;
+}
+
 describe("montarFarol", () => {
   it("marca NR quando o checklist do momento não existe", () => {
     const [linha] = montarFarol({ checklists: [], data: DATA, maquinas: MAQ });
-    expect(linha.celulas.map((c) => c.estado)).toEqual(["nr", "nr", "nr"]);
+    expect(estadosDoChecklist(linha)).toEqual(["nr", "nr", "nr"]);
   });
 
   it("NC vence conforme na mesma célula", () => {
@@ -84,23 +95,115 @@ describe("montarFarol", () => {
     expect(linha.celulas[1].estado).toBe("conforme");
   });
 
-  it("limpeza aguardando validação deixa a célula pendente do líder", () => {
+  it("limpeza sem validação acende a COLUNA DA LIMPEZA, não a do checklist", () => {
+    // Antes o estado da limpeza vazava para a coluna do FM09. São formulários
+    // diferentes: o checklist do momento A estava conforme e continua conforme.
     const [linha] = montarFarol({
       checklists: [checklist(MOM_A, ["Conforme"])],
       limpezas: [
-        { dataOperacao: DATA, turno: "12x36 Dia", status: "aguardando_validacao" } as never,
+        {
+          dataOperacao: DATA,
+          turno: "12x36 Dia",
+          status: "aguardando_validacao",
+          maquina: "Enchedora 3",
+          itens: [],
+        } as never,
       ],
       data: DATA,
       maquinas: MAQ,
     });
-    expect(linha.celulas[0].estado).toBe("pendente_validacao");
+    expect(linha.celulas[0].estado).toBe("conforme");
+    expect(coluna(linha, "limpeza").estado).toBe("pendente_validacao");
+  });
+
+  it("limpeza VALIDADA com item não realizado fica vermelha", () => {
+    // A regra que o Lucas decidiu, e o caso real do dia 11/08: a limpeza estava
+    // `validado` com o dispenser de sabão e o acúmulo de líquidos em aberto.
+    // Assinatura fecha o turno, não resolve o item. Verde aqui seria o farol
+    // dizendo que está tudo certo com dois itens quebrados.
+    const [linha] = montarFarol({
+      checklists: [],
+      limpezas: [
+        {
+          dataOperacao: DATA,
+          turno: "12x36 Noite",
+          status: "validado",
+          maquina: "Enchedora 3",
+          itens: [
+            { codigo: 2, status: "nao_realizado", descricao: "dispenser de sabão" },
+            { codigo: 7, status: "nao_realizado", descricao: "acúmulo de líquidos" },
+            { codigo: 3, status: "realizado", descricao: "ok" },
+          ],
+        } as never,
+      ],
+      data: DATA,
+      maquinas: MAQ,
+    });
+    const limpeza = coluna(linha, "limpeza");
+    expect(limpeza.estado).toBe("nc");
+    expect(limpeza.totalNc).toBe(2);
+    expect(limpeza.detalhe).toContain("2 itens não realizados");
+    expect(limpeza.detalhe).toContain("já validada");
+  });
+
+  it("limpeza sem item em aberto e validada fica conforme", () => {
+    const [linha] = montarFarol({
+      checklists: [],
+      limpezas: [
+        {
+          dataOperacao: DATA,
+          turno: "12x36 Dia",
+          status: "validado",
+          maquina: "Enchedora 3",
+          itens: [{ codigo: 1, status: "realizado", descricao: "ok" }],
+        } as never,
+      ],
+      data: DATA,
+      maquinas: MAQ,
+    });
+    expect(coluna(linha, "limpeza").estado).toBe("conforme");
+  });
+
+  it("PTP incompleto num dia fechado é NR, e completo é conforme", () => {
+    const janela = (codigo: string, status = "sem_ocorrencia") =>
+      ({
+        dataOperacao: DATA,
+        maquina: "Enchedora 3",
+        janelaCodigo: codigo,
+        statusJanela: status,
+      }) as never;
+
+    const parcial = montarFarol({
+      checklists: [],
+      ptp: [janela("J01"), janela("J02"), janela("J03")],
+      data: DATA,
+      maquinas: MAQ,
+    })[0];
+    expect(coluna(parcial, "ptp").estado).toBe("nr");
+    expect(coluna(parcial, "ptp").detalhe).toBe("3 de 12 janelas");
+
+    const completo = montarFarol({
+      checklists: [],
+      ptp: Array.from({ length: 12 }, (_, i) => janela(`J${String(i + 1).padStart(2, "0")}`)),
+      data: DATA,
+      maquinas: MAQ,
+    })[0];
+    expect(coluna(completo, "ptp").estado).toBe("conforme");
+
+    const comOcorrencia = montarFarol({
+      checklists: [],
+      ptp: [janela("J01", "houve_ocorrencia")],
+      data: DATA,
+      maquinas: MAQ,
+    })[0];
+    expect(coluna(comOcorrencia, "ptp").estado).toBe("nc");
   });
 
   it("máquina não implantada fica fora da conta", () => {
     const linhas = montarFarol({ checklists: [], data: DATA, maquinas: MAQ });
     expect(linhas[1].celulas.every((c) => c.estado === "sem_escopo")).toBe(true);
-    // 1 máquina ativa x 3 momentos = 3 células avaliadas
-    expect(resumirFarol(linhas).totalAvaliado).toBe(3);
+    // 1 máquina ativa x 5 rotinas (A, B, C, Limpeza, PTP)
+    expect(resumirFarol(linhas).totalAvaliado).toBe(5);
   });
 
   it("ignora checklist de outro dia e de outro turno", () => {
@@ -126,8 +229,9 @@ describe("montarFarol", () => {
       maquinas: MAQ,
     });
     const resumo = resumirFarol(linhas);
-    expect(resumo.nr).toBe(1); // só o pós-setup ficou sem
-    expect(percentualCumprimento(resumo)).toBe(67); // 2 de 3
+    // pós-setup + limpeza + PTP ficaram sem registro nenhum
+    expect(resumo.nr).toBe(3);
+    expect(percentualCumprimento(resumo)).toBe(40); // 2 de 5
   });
 });
 
@@ -272,7 +376,9 @@ describe("dia em andamento nao vira cobranca", () => {
       hoje: DATA, // mesmo dia = turno ainda correndo
       maquinas: MAQ,
     });
-    expect(linha.celulas.map((c) => c.estado)).toEqual(["aguardando", "aguardando", "aguardando"]);
+    // Vale para as cinco rotinas: nada venceu ainda hoje.
+    expect(linha.celulas.every((c) => c.estado === "aguardando")).toBe(true);
+    expect(estadosDoChecklist(linha)).toEqual(["aguardando", "aguardando", "aguardando"]);
   });
 
   it("dia passado sem checklist continua NR", () => {
@@ -293,7 +399,8 @@ describe("dia em andamento nao vira cobranca", () => {
       maquinas: MAQ,
     });
     const resumo = resumirFarol(linhas);
-    expect(resumo.aguardando).toBe(2);
+    // B, C, Limpeza e PTP ainda nao venceram hoje
+    expect(resumo.aguardando).toBe(4);
     expect(resumo.totalAvaliado).toBe(1); // so o momento ja feito conta
     expect(percentualCumprimento(resumo)).toBe(100);
   });

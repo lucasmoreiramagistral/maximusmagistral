@@ -23,8 +23,13 @@ import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import type { Pendencia } from "@/lib/farol/pendencias";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
-import { limpezaTurnoFromRow, type LimpezaTurnoRow } from "@/lib/verso/mappers";
-import type { LimpezaTurno } from "@/lib/verso/types";
+import {
+  limpezaTurnoFromRow,
+  ptpJanelaFromRow,
+  type LimpezaTurnoRow,
+  type PtpJanelaRow,
+} from "@/lib/verso/mappers";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 
 export const Route = createFileRoute("/supervisor/")({
   head: () => ({
@@ -66,6 +71,9 @@ function SupervisorHome() {
   // checklists e as filas aparecem vazias antes de limpezas e planos chegarem.
   const [carregandoLimpezas, setCarregandoLimpezas] = useState(true);
   const [carregandoPlanos, setCarregandoPlanos] = useState(true);
+
+  const [ptp, setPtp] = useState<PtpJanela[]>([]);
+  const [carregandoPtp, setCarregandoPtp] = useState(true);
 
   const hoje = useMemo(
     () => calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao),
@@ -109,6 +117,28 @@ function SupervisorHome() {
       cancelado = true;
     };
   }, [recarga]);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const { data: linhasPtp, error } = await supabase
+        .from("ptp_janelas" as never)
+        .select("*")
+        .gte("data_operacao", de)
+        .lte("data_operacao", hoje);
+      if (cancelado) return;
+      if (error) {
+        console.error("[supervisor] ptp:", error);
+        setCarregandoPtp(false);
+        return;
+      }
+      setPtp(((linhasPtp ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
+      setCarregandoPtp(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [de, hoje, recarga]);
 
   // Mesmo passivo que o lider e a GI enxergam. As tres telas TEM que contar
   // a mesma verdade: e o supervisor quem apresenta o farol para a GI.
@@ -156,8 +186,8 @@ function SupervisorHome() {
   );
 
   const farolHoje = useMemo(
-    () => montarFarol({ checklists, limpezas, data: hoje, hoje, pendencias }),
-    [checklists, limpezas, hoje, pendencias],
+    () => montarFarol({ checklists, limpezas, ptp, data: hoje, hoje, pendencias }),
+    [checklists, limpezas, ptp, hoje, pendencias],
   );
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -169,7 +199,7 @@ function SupervisorHome() {
         subtitulo={`Linha 3 · cumprimento da rotina · ${formatarDataBR(de)} a ${formatarDataBR(hoje)}`}
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
-        {carregando || carregandoLimpezas || carregandoPlanos ? (
+        {carregando || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>

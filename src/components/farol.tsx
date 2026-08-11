@@ -8,7 +8,7 @@
 
 import { cn } from "@/lib/utils";
 import {
-  CODIGO_MOMENTO,
+  COLUNAS_FAROL,
   ETAPA_PDCA,
   DESCRICAO_ESTADO,
   ROTULO_ESTADO,
@@ -64,14 +64,19 @@ export function Farol({
               <th className="border-b border-border bg-muted/40 px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 Máquina
               </th>
-              {MOMENTOS_CHECKLIST.map((m, i) => (
+              {COLUNAS_FAROL.map((col) => (
                 <th
-                  key={m}
-                  className="border-b border-border bg-muted/40 px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground"
+                  key={col.id}
+                  className={cn(
+                    "border-b border-border bg-muted/40 px-3 py-3 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground",
+                    // Separa visualmente o FM09 das outras rotinas: são
+                    // formulários diferentes, não momentos do mesmo checklist.
+                    col.tipo !== "checklist" && "border-l-2 border-l-border",
+                  )}
                 >
-                  <span className="text-base font-black text-foreground">{CODIGO_MOMENTO[i]}</span>
+                  <span className="text-base font-black text-foreground">{col.codigo}</span>
                   <span className="mt-0.5 block text-[11px] font-semibold normal-case tracking-normal">
-                    {m}
+                    {col.titulo}
                   </span>
                 </th>
               ))}
@@ -102,7 +107,13 @@ export function Farol({
                   )}
                 </td>
                 {linha.celulas.map((celula) => (
-                  <td key={celula.momento} className="border-b border-border p-2">
+                  <td
+                    key={celula.coluna.id}
+                    className={cn(
+                      "border-b border-border p-2",
+                      celula.coluna.tipo !== "checklist" && "border-l-2 border-l-border",
+                    )}
+                  >
                     <CelulaLampada celula={celula} onAbrir={onAbrirCelula} />
                   </td>
                 ))}
@@ -265,9 +276,9 @@ function CelulaLampada({
       <span className="mt-1 text-[11px] font-bold leading-tight">
         {DESCRICAO_ESTADO[celula.estado]}
       </span>
-      {celula.totalNc > 0 && (
-        <span className="mt-0.5 text-[11px] font-semibold opacity-80">
-          {celula.totalNc} {celula.totalNc === 1 ? "item" : "itens"}
+      {celula.detalhe && (
+        <span className="mt-0.5 text-[11px] font-semibold leading-tight opacity-90">
+          {celula.detalhe}
         </span>
       )}
       {/* Passivo de outros dias. Fica FORA da cor de propósito: a cor é do
@@ -288,7 +299,8 @@ function CelulaLampada({
   );
 
   const rotulo =
-    `${celula.maquinaId}, ${celula.momento}: ${DESCRICAO_ESTADO[celula.estado]}` +
+    `${celula.maquinaId}, ${celula.coluna.titulo}: ${DESCRICAO_ESTADO[celula.estado]}` +
+    (celula.detalhe ? `, ${celula.detalhe}` : "") +
     (celula.passivoAnterior > 0
       ? `. Mais ${celula.passivoAnterior} pendência(s) de dias anteriores, a mais antiga há ${celula.idadeMaxDias} dias.`
       : "");
