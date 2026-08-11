@@ -213,7 +213,9 @@ function GestaoHome() {
           onAtualizar={() => setRecarga((n) => n + 1)}
         />
 
-        <PendenciasAbertas pendencias={pendencias} planos={planos} />
+        {/* Modo executivo: a GI vê o que exige decisão dela, não a fila de
+            55 validações que é cobrança de rotina do líder. */}
+        <PendenciasAbertas pendencias={pendencias} planos={planos} modo="executivo" />
 
         <MelhoriasERotina
           melhorias={melhorias}
