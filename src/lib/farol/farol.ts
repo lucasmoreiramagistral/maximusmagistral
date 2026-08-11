@@ -475,6 +475,8 @@ export interface CumprimentoPeriodo {
    */
   totalSemInformacao: number;
   totalJustificado: number;
+  /** O dia corrente ficou de fora por ainda estar em andamento. */
+  excluiuDiaEmAndamento: boolean;
   /** Dias no período sem nenhum checklist. */
   diasSemNada: number;
   limpezasSemValidacao: number;
@@ -514,8 +516,22 @@ export function calcularCumprimentoPeriodo(
   rotina: RotinaEsperada,
   maquina = "Enchedora 3",
   paradas: ParadaJustificada[] = [],
+  /**
+   * Dia operacional ainda em andamento. Fica FORA da conta.
+   *
+   * Sem isto, o turno que ainda nem começou já entra como "sem informação":
+   * às 8h da manhã o turno da noite daquele dia apareceria como buraco, e o
+   * painel cobraria uma rotina cuja janela não passou. É o mesmo cuidado que
+   * `montarFarol` toma com o estado `aguardando` — indicador que acusa falha
+   * antes da hora perde a credibilidade, e farol em que ninguém confia deixa
+   * de ser olhado.
+   *
+   * Cumprimento é medido sobre dia FECHADO. O dia de hoje quem mostra é o
+   * farol, que existe exatamente para isso.
+   */
+  diaEmAndamento: string | null = null,
 ): CumprimentoPeriodo {
-  const dias = listarDias(de, ate).filter((d) => d >= rotina.vigenteDesde);
+  const dias = listarDias(de, ate).filter((d) => d >= rotina.vigenteDesde && d !== diaEmAndamento);
   const porTurnoAcc = new Map<string, { esperado: number; realizado: number }>();
 
   const justificadas = new Set(paradas.map((p) => `${p.data}|${p.turno}`));
@@ -576,6 +592,7 @@ export function calcularCumprimentoPeriodo(
     percentualGeral: totalEsperado === 0 ? 0 : Math.round((totalRealizado / totalEsperado) * 100),
     totalSemInformacao: detalhe.reduce((s, d) => s + d.semInformacao, 0),
     totalJustificado: detalhe.reduce((s, d) => s + d.justificado, 0),
+    excluiuDiaEmAndamento: !!diaEmAndamento && diaEmAndamento >= de && diaEmAndamento <= ate,
     diasSemNada: detalhe.filter((d) => d.realizado === 0 && d.esperado > 0).length,
     limpezasSemValidacao: detalhe.reduce((s, d) => s + d.limpezasSemValidacao, 0),
     porTurno: [...porTurnoAcc.entries()]

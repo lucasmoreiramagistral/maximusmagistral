@@ -141,7 +141,17 @@ function SupervisorHome() {
   );
 
   const cumprimento = useMemo(
-    () => calcularCumprimentoPeriodo(checklists, limpezas, de, hoje, ROTINA_ENCHEDORA_3),
+    () =>
+      calcularCumprimentoPeriodo(
+        checklists,
+        limpezas,
+        de,
+        hoje,
+        ROTINA_ENCHEDORA_3,
+        "Enchedora 3",
+        [],
+        hoje, // dia corrente fica fora: cumprimento é de dia fechado
+      ),
     [checklists, limpezas, de, hoje],
   );
 
@@ -346,9 +356,16 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
             </tbody>
           </table>
         </div>
+        {/* A legenda antiga dizia que dia sem produção ficava fora da conta.
+            Passou a ser o oposto — e legenda contradizendo o número logo acima
+            é pior do que legenda nenhuma. */}
         <p className="mt-2 text-xs text-muted-foreground">
-          Dia com esperado <b>—</b> é dia sem produção: fica fora da conta em vez de contar como
-          rotina não cumprida. O gráfico usa {maxEsperado} como referência de dia cheio.
+          O esperado vem da rotina programada ({ROTINA_ENCHEDORA_3.turnos.length} turnos × 3
+          momentos), não dos registros encontrados: turno que não deu sinal nenhum conta como{" "}
+          <b className="text-foreground">sem informação</b> e continua no denominador — se esquecer
+          não doer no número, esquecer compensa. Só sai da conta parada com motivo registrado.
+          {c.excluiuDiaEmAndamento && " O dia de hoje fica de fora enquanto não fecha."} O gráfico
+          usa {maxEsperado} como referência de dia cheio.
         </p>
       </div>
     </>

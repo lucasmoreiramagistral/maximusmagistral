@@ -208,6 +208,28 @@ describe("calcularCumprimentoPeriodo", () => {
     expect(r.percentualGeral).toBe(100);
   });
 
+  it("dia em andamento fica fora da conta", () => {
+    // Senao, as 8h da manha o turno da noite daquele dia — que nem comecou —
+    // ja aparece como "sem informacao", e o painel cobra rotina cuja janela
+    // nao passou. Cumprimento e de dia FECHADO; o dia de hoje quem mostra e
+    // o farol.
+    const r = calcularCumprimentoPeriodo(
+      noDia("2026-08-08", "12x36 Dia", [MOM_A, MOM_B, MOM_C]),
+      [],
+      "2026-08-08",
+      "2026-08-09",
+      ROTINA,
+      "Enchedora 3",
+      [],
+      "2026-08-09", // hoje, ainda correndo
+    );
+    expect(r.dias).toHaveLength(1);
+    expect(r.dias[0].data).toBe("2026-08-08");
+    expect(r.excluiuDiaEmAndamento).toBe(true);
+    expect(r.totalEsperado).toBe(6); // so o dia fechado
+    expect(r.totalSemInformacao).toBe(3); // o turno da noite de 08, esse sim
+  });
+
   it("nao cobra periodo anterior a entrada do v2", () => {
     // Senao o app nasce com 4 meses de vermelho que ninguem tem como responder.
     const r = calcularCumprimentoPeriodo(
