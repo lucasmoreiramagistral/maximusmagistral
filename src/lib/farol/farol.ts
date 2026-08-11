@@ -454,6 +454,7 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
 export function resumirFarol(linhas: LinhaFarol[]): ResumoFarol {
   const r: ResumoFarol = {
     nc: 0,
+    ncItens: 0,
     nr: 0,
     pendenteValidacao: 0,
     conforme: 0,
@@ -470,7 +471,10 @@ export function resumirFarol(linhas: LinhaFarol[]): ResumoFarol {
         continue;
       }
       r.totalAvaliado += 1;
-      if (c.estado === "nc") r.nc += 1;
+      if (c.estado === "nc") {
+        r.nc += 1;
+        r.ncItens += c.totalNc;
+      }
       else if (c.estado === "nr") r.nr += 1;
       else if (c.estado === "pendente_validacao") r.pendenteValidacao += 1;
       else if (c.estado === "na") r.na += 1;
