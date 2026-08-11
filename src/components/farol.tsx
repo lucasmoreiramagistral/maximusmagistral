@@ -216,6 +216,13 @@ export function Farol({
           }
         />
       </div>
+
+      <DetalheNcDialog
+        aberto={verNc}
+        onFechar={() => setVerNc(false)}
+        data={data}
+        itens={itensNc}
+      />
     </section>
   );
 }
