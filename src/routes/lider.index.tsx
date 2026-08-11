@@ -44,6 +44,13 @@ function LiderHome() {
   const [validando, setValidando] = useState<string | null>(null);
   const [aviso, setAviso] = useState("");
 
+  // Mesma armadilha já corrigida na tela da GI, e que eu tinha deixado passar
+  // aqui: enquanto limpezas e planos não chegam, as duas filas renderizam
+  // vazias e a tela anuncia "Nada aguardando validação" — com 55 em aberto.
+  // Só travam a primeira carga; recarregar não pisca a tela.
+  const [carregandoLimpezas, setCarregandoLimpezas] = useState(true);
+  const [carregandoPlanos, setCarregandoPlanos] = useState(true);
+
   // Data operacional respeita a regra de madrugada: no turno da noite, antes
   // do fim do turno, a folha ainda é a do dia anterior.
   const hoje = useMemo(
@@ -73,11 +80,11 @@ function LiderHome() {
       if (cancelado) return;
       if (error) {
         console.error("[lider] limpezas:", error);
+        setCarregandoLimpezas(false);
         return;
       }
-      setLimpezas(
-        ((linhasLimpeza ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow),
-      );
+      setLimpezas(((linhasLimpeza ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
+      setCarregandoLimpezas(false);
     })();
     return () => {
       cancelado = true;
@@ -88,7 +95,9 @@ function LiderHome() {
     let cancelado = false;
     void (async () => {
       const p = await buscarPlanos();
-      if (!cancelado) setPlanos(p);
+      if (cancelado) return;
+      setPlanos(p);
+      setCarregandoPlanos(false);
     })();
     return () => {
       cancelado = true;
@@ -160,25 +169,29 @@ function LiderHome() {
           )}
         </div>
 
-        {carregandoChecklists ? (
+        {/* O gate cobre o farol E as filas. Antes cobria só o farol, então as
+            filas renderizavam com lista vazia e a tela dizia "Nada aguardando
+            validação" enquanto 55 validações carregavam. */}
+        {carregandoChecklists || carregandoLimpezas || carregandoPlanos ? (
           <p className="text-sm text-muted-foreground">Carregando o farol…</p>
         ) : (
-          <Farol linhas={linhas} data={data} onAbrirCelula={setCelulaAberta} />
+          <>
+            <Farol linhas={linhas} data={data} onAbrirCelula={setCelulaAberta} />
+
+            {aviso && (
+              <p className="mt-4 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
+                {aviso}
+              </p>
+            )}
+
+            <PendenciasAbertas
+              pendencias={pendencias}
+              planos={planos}
+              onAbrirPlano={setPendenciaAberta}
+              onValidar={validando ? undefined : validar}
+            />
+          </>
         )}
-
-        {aviso && (
-          <p className="mt-4 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
-            {aviso}
-          </p>
-        )}
-
-        <PendenciasAbertas
-          pendencias={pendencias}
-          planos={planos}
-          onAbrirPlano={setPendenciaAberta}
-          onValidar={validando ? undefined : validar}
-        />
-
 
         {pendenciaAberta && usuario && (
           <PlanoAcaoDialog
@@ -197,13 +210,7 @@ function LiderHome() {
   );
 }
 
-function DetalheCelula({
-  celula,
-  onFechar,
-}: {
-  celula: CelulaFarol;
-  onFechar: () => void;
-}) {
+function DetalheCelula({ celula, onFechar }: { celula: CelulaFarol; onFechar: () => void }) {
   const naoConformes = celula.checklists.flatMap((c) =>
     c.respostas
       .filter((r) => r.resposta === "Não conforme")
@@ -235,8 +242,8 @@ function DetalheCelula({
         <div className="space-y-3 p-4">
           {celula.checklists.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Nenhum checklist registrado para este momento hoje. É isso que deixa a célula
-              marcada como <b className="text-destructive">NR — não realizado</b>.
+              Nenhum checklist registrado para este momento hoje. É isso que deixa a célula marcada
+              como <b className="text-destructive">NR — não realizado</b>.
             </p>
           )}
           {naoConformes.map(({ checklist, resposta }) => (
@@ -253,8 +260,7 @@ function DetalheCelula({
                 </p>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                {checklist.operadorResponsavel ?? checklist.operador} ·{" "}
-                {checklist.contexto.turno}
+                {checklist.operadorResponsavel ?? checklist.operador} · {checklist.contexto.turno}
               </p>
             </div>
           ))}

@@ -123,6 +123,12 @@ export interface LinhaFarol {
   celulas: CelulaFarol[];
   /** Pior estado da EXECUÇÃO DO DIA mostrado — usado para ordenar/destacar. */
   pior: EstadoFarol;
+  /**
+   * Pendências da máquina que não pertencem a momento nenhum do FM09:
+   * limpeza FM28 e validação de fechamento de turno. São outras rotinas, e
+   * enfiá-las numa coluna do checklist só faz a coluna mentir.
+   */
+  pendenciasSemMomento: Pendencia[];
   /** Pendências herdadas de dias anteriores, somadas na linha inteira. */
   passivoTotal: number;
   /** Idade da pendência mais velha da linha, em dias. */
@@ -240,14 +246,17 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         (c) => c.contexto.maquina === maquina.id && c.momento === momento,
       );
 
-      // Pendências abertas que pertencem a esta célula, de qualquer data.
-      // Validação (sem momento) cai no último momento, que é onde o
-      // fechamento do turno acontece.
-      const pendencias = (entrada.pendencias ?? []).filter((p) => {
-        if (p.maquina !== maquina.id) return false;
-        if (p.momento === null) return i === MOMENTOS_CHECKLIST.length - 1;
-        return p.momento === momento;
-      });
+      // Pendências abertas que pertencem a ESTA célula, de qualquer data.
+      //
+      // Só entram as que têm momento de checklist. As sem momento (limpeza
+      // FM28 e validação de turno) ficam na linha da máquina — ver
+      // `pendenciasSemMomento`. Antes elas caíam no último momento, e com o
+      // dado real isso pintava "+479 de antes" na coluna Pós-setup: 479 itens
+      // de limpeza, que não têm relação nenhuma com pós-setup. Uma coluna do
+      // FM09 dizendo respeito a outro formulário não informa, confunde.
+      const pendencias = (entrada.pendencias ?? []).filter(
+        (p) => p.maquina === maquina.id && p.momento === momento,
+      );
       const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
       const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
 
@@ -298,10 +307,30 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       "sem_escopo",
     );
 
-    const passivoTotal = celulas.reduce((s, c) => s + c.passivoAnterior, 0);
-    const passivoIdadeMaxDias = celulas.reduce((m, c) => Math.max(m, c.idadeMaxDias), 0);
+    // Pendências da máquina que não pertencem a nenhum momento do FM09:
+    // limpeza FM28 e validação de fechamento de turno. São rotinas próprias,
+    // então moram na linha da máquina e não numa coluna do checklist.
+    const semMomento = maquina.ativa
+      ? (entrada.pendencias ?? []).filter((p) => p.maquina === maquina.id && p.momento === null)
+      : [];
 
-    return { maquina, celulas, pior, passivoTotal, passivoIdadeMaxDias };
+    const passivoTotal =
+      celulas.reduce((s, c) => s + c.passivoAnterior, 0) +
+      semMomento.filter((p) => p.dataOrigem < entrada.data).length;
+
+    const passivoIdadeMaxDias = Math.max(
+      celulas.reduce((m, c) => Math.max(m, c.idadeMaxDias), 0),
+      semMomento.reduce((m, p) => Math.max(m, p.idadeDias), 0),
+    );
+
+    return {
+      maquina,
+      celulas,
+      pior,
+      pendenciasSemMomento: semMomento,
+      passivoTotal,
+      passivoIdadeMaxDias,
+    };
   });
 }
 

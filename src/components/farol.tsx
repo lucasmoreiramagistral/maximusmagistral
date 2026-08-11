@@ -44,6 +44,8 @@ export function Farol({
 }) {
   const resumo = resumirFarol(linhas);
   const cumprimento = percentualCumprimento(resumo);
+  const passivoTotal = linhas.reduce((s, l) => s + l.passivoTotal, 0);
+  const passivoIdade = linhas.reduce((m, l) => Math.max(m, l.passivoIdadeMaxDias), 0);
 
   return (
     <section aria-label="Farol do checklist operacional">
@@ -121,7 +123,14 @@ export function Farol({
 
       <AcoesPdca linhas={linhas} />
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Estes números são do DIA mostrado. O passivo entra como cartão
+          próprio porque, sem ele, a tela exibia "Aguarda o líder: 0" logo
+          acima de uma fila com 55 validações abertas — verdade pela metade
+          lida como mentira inteira. */}
+      <p className="mt-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        No dia {formatarDataBR(data)}
+      </p>
+      <div className="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Indicador
           rotulo="Não conformidades"
           valor={resumo.nc}
@@ -156,6 +165,16 @@ export function Farol({
             resumo.totalAvaliado === 0
               ? `turno em andamento · ${resumo.aguardando} a vencer`
               : `${resumo.totalAvaliado - resumo.nr} de ${resumo.totalAvaliado} verificações`
+          }
+        />
+        <Indicador
+          rotulo="Passivo aberto"
+          valor={passivoTotal}
+          tom={passivoTotal > 0 ? "ruim" : "bom"}
+          nota={
+            passivoTotal > 0
+              ? `de outros dias · mais antiga há ${passivoIdade}d`
+              : "nada vindo de trás"
           }
         />
       </div>

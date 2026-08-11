@@ -337,6 +337,43 @@ describe("farol com passivo", () => {
     expect(linha.passivoTotal).toBe(0);
   });
 
+  it("limpeza e validacao nao entram em coluna do FM09", () => {
+    // Com dado real isto pintava "+479 de antes" na coluna Pos-setup: 479
+    // itens de limpeza FM28, que nao tem relacao nenhuma com pos-setup. Uma
+    // coluna do FM09 falando de outro formulario nao informa, atrapalha.
+    // Elas pertencem a maquina, nao a um momento do checklist.
+    const pendencias = levantarPendencias({
+      checklists: [],
+      limpezas: [
+        {
+          id: "l-velha",
+          dataOperacao: "2026-04-24",
+          turno: "12x36 Dia",
+          status: "aguardando_validacao",
+          maquina: "Enchedora 3",
+        } as never,
+      ],
+      planos: [],
+      hoje: HOJE,
+    });
+
+    const [linha] = montarFarol({
+      checklists: [],
+      data: HOJE,
+      hoje: HOJE,
+      pendencias,
+      maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
+    });
+
+    // nenhuma celula do checklist recebeu a pendencia de limpeza
+    expect(linha.celulas.every((c) => c.pendencias.length === 0)).toBe(true);
+    expect(linha.celulas.every((c) => c.passivoAnterior === 0)).toBe(true);
+    // ela esta na linha da maquina, com a idade
+    expect(linha.pendenciasSemMomento).toHaveLength(1);
+    expect(linha.passivoTotal).toBe(1);
+    expect(linha.passivoIdadeMaxDias).toBe(108);
+  });
+
   it("sem pendencia aberta, o dia corrente volta a mandar", () => {
     const [linha] = montarFarol({
       checklists: [],
@@ -380,12 +417,13 @@ describe("passivo aparece separado do estado do dia", () => {
       maquinas: [{ id: "Enchedora 3", nome: "Enchedora 3", detalhe: "", ativa: true }],
     });
 
-    // validacao (sem momento) cai no ultimo momento, que e onde o turno fecha
-    const ultima = linha.celulas[linha.celulas.length - 1];
-    expect(ultima.estado).toBe("aguardando"); // o dia de hoje, so ele
-    expect(ultima.passivoAnterior).toBe(1); // a de 24/04, que nao sumiu
-    expect(ultima.idadeMaxDias).toBe(108);
-    expect(linha.celulas[0].estado).toBe("aguardando");
-    expect(linha.celulas[0].passivoAnterior).toBe(0);
+    // Nenhuma celula do FM09 fica contraditoria, porque a validacao nem entra
+    // nelas: ela e do turno, nao de um momento do checklist.
+    expect(linha.celulas.every((c) => c.estado === "aguardando")).toBe(true);
+    expect(linha.celulas.every((c) => c.passivoAnterior === 0)).toBe(true);
+
+    // E continua visivel, na linha da maquina, com a idade que envergonha.
+    expect(linha.passivoTotal).toBe(1);
+    expect(linha.passivoIdadeMaxDias).toBe(108);
   });
 });

@@ -62,6 +62,11 @@ function SupervisorHome() {
   const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
   const [recarga, setRecarga] = useState(0);
 
+  // Ver o comentário em lider.index.tsx: sem estes dois, o gate cobre só os
+  // checklists e as filas aparecem vazias antes de limpezas e planos chegarem.
+  const [carregandoLimpezas, setCarregandoLimpezas] = useState(true);
+  const [carregandoPlanos, setCarregandoPlanos] = useState(true);
+
   const hoje = useMemo(
     () => calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao),
     [usuario?.equipePadrao, usuario?.turnoPadrao],
@@ -81,9 +86,11 @@ function SupervisorHome() {
       if (cancelado) return;
       if (error) {
         console.error("[supervisor] limpezas:", error);
+        setCarregandoLimpezas(false);
         return;
       }
       setLimpezas(((linhas ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
+      setCarregandoLimpezas(false);
     })();
     return () => {
       cancelado = true;
@@ -94,7 +101,9 @@ function SupervisorHome() {
     let cancelado = false;
     void (async () => {
       const p = await buscarPlanos();
-      if (!cancelado) setPlanos(p);
+      if (cancelado) return;
+      setPlanos(p);
+      setCarregandoPlanos(false);
     })();
     return () => {
       cancelado = true;
@@ -150,7 +159,7 @@ function SupervisorHome() {
         subtitulo={`Linha 3 · cumprimento da rotina · ${formatarDataBR(de)} a ${formatarDataBR(hoje)}`}
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
-        {carregando ? (
+        {carregando || carregandoLimpezas || carregandoPlanos ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>
