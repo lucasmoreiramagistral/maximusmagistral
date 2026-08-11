@@ -16,8 +16,17 @@ import {
   resumirFarol,
   type CelulaFarol,
   type EstadoFarol,
+  type ItemNcFarol,
   type LinhaFarol,
 } from "@/lib/farol/farol";
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 
@@ -42,7 +51,11 @@ export function Farol({
   turno?: string | null;
   onAbrirCelula?: (celula: CelulaFarol) => void;
 }) {
+  const [verNc, setVerNc] = useState(false);
   const resumo = resumirFarol(linhas);
+  const itensNc: ItemNcFarol[] = linhas.flatMap((l) =>
+    l.celulas.flatMap((c) => c.itensNc),
+  );
   const cumprimento = percentualCumprimento(resumo);
   const passivoTotal = linhas.reduce((s, l) => s + l.passivoTotal, 0);
   const passivoIdade = linhas.reduce((m, l) => Math.max(m, l.passivoIdadeMaxDias), 0);
@@ -157,9 +170,10 @@ export function Farol({
           tom={resumo.ncItens > 0 ? "ruim" : "bom"}
           nota={
             resumo.ncItens > 0
-              ? `${resumo.ncItens === 1 ? "item fora do padrão" : "itens fora do padrão"} em ${resumo.nc} ${resumo.nc === 1 ? "verificação" : "verificações"}`
+              ? `${resumo.ncItens === 1 ? "item fora do padrão" : "itens fora do padrão"} em ${resumo.nc} ${resumo.nc === 1 ? "verificação" : "verificações"} · toque para ver`
               : "itens fora do padrão"
           }
+          onClick={itensNc.length > 0 ? () => setVerNc(true) : undefined}
         />
         <Indicador
           rotulo="Não realizado"
@@ -202,6 +216,13 @@ export function Farol({
           }
         />
       </div>
+
+      <DetalheNcDialog
+        aberto={verNc}
+        onFechar={() => setVerNc(false)}
+        data={data}
+        itens={itensNc}
+      />
     </section>
   );
 }
@@ -344,19 +365,76 @@ function Legenda({ estado }: { estado: EstadoFarol }) {
   );
 }
 
+function DetalheNcDialog({
+  aberto,
+  onFechar,
+  data,
+  itens,
+}: {
+  aberto: boolean;
+  onFechar: () => void;
+  data: string;
+  itens: ItemNcFarol[];
+}) {
+  return (
+    <Dialog open={aberto} onOpenChange={(o) => (!o ? onFechar() : undefined)}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>
+            {itens.length} {itens.length === 1 ? "item" : "itens"} fora do padrão
+          </DialogTitle>
+          <DialogDescription>No dia {formatarDataBR(data)}</DialogDescription>
+        </DialogHeader>
+        <ul className="space-y-3">
+          {itens.map((i, idx) => (
+            <li
+              key={`${i.rotina}-${i.titulo}-${idx}`}
+              className="rounded-xl border border-destructive/30 bg-destructive-soft/40 p-3"
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wide text-destructive">
+                {i.rotina}
+              </p>
+              <p className="mt-1 text-sm font-bold text-foreground">{i.titulo}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {i.maquinaId} · {i.turno}
+                {i.horario ? ` · ${i.horario}` : ""}
+              </p>
+              {i.observacao && (
+                <p className="mt-2 rounded-lg bg-card p-2 text-xs text-foreground">
+                  {i.observacao}
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function Indicador({
   rotulo,
   valor,
   nota,
   tom,
+  onClick,
 }: {
   rotulo: string;
   valor: number | string;
   nota: string;
   tom: "bom" | "atencao" | "ruim" | "neutro";
+  onClick?: () => void;
 }) {
+  const Tag = onClick ? "button" : "div";
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      className={cn(
+        "rounded-xl border border-border bg-card p-4 text-left shadow-sm",
+        onClick && "transition-all hover:border-destructive/50 hover:shadow-md",
+      )}
+    >
       <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{rotulo}</p>
       <p
         className={cn(
@@ -370,6 +448,6 @@ function Indicador({
         {valor}
       </p>
       <p className="text-xs text-muted-foreground">{nota}</p>
-    </div>
+    </Tag>
   );
 }
