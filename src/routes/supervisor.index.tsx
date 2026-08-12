@@ -18,6 +18,7 @@ import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { MelhoriasERotina } from "@/components/melhorias-rotina";
+import { PainelContingencias } from "@/components/painel-contingencias";
 import { agruparPendencias } from "@/lib/farol/grupos";
 import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
@@ -251,6 +252,10 @@ function SupervisorHome() {
 
               <PainelCumprimento c={cumprimento} />
             </section>
+
+            {/* A contingência tem que ser contada por quem cobra a rotina.
+                Remendo invisível vira o processo. */}
+            <PainelContingencias de={de} ate={hoje} />
 
             <MelhoriasERotina
               melhorias={melhorias}
