@@ -4,6 +4,35 @@ import type { AssinaturaDigital, Turno } from "@/lib/checklist/types";
 export type MotivoReinicio = "troca_sabor" | "troca_tamanho" | "cip";
 
 /**
+ * SETUP não é um evento ao lado dos outros: setup É uma destas três coisas.
+ *
+ * Foi o Lucas quem corrigiu — eu tinha modelado "setup" como um item irmão de
+ * "troca de sabor", o que criaria a pergunta idiota "teve setup? e foi troca
+ * de sabor?" para a mesma informação. Na Enchedora, houve setup exatamente
+ * quando houve uma destas.
+ *
+ * É também o que o FM09 já dizia e eu não tinha lido direito: o momento B é
+ * "Setup / longas paradas / PCM" e o C é "Pós-setup".
+ */
+export type TipoSetup = "troca_sabor" | "troca_tamanho" | "cip_assepsia";
+
+/** O que ocupa a janela sem ser setup. */
+export type OutroEventoHora = "pcm" | "refeicao" | "rendendo_linha";
+
+/**
+ * O que ocupou a janela de uma hora.
+ *
+ * Sem isto, uma hora com produção baixa é indistinguível de uma hora em que
+ * a equipe estava almoçando — e é essa distinção que separa "rotina não
+ * cumprida" de "parada justificada" no farol.
+ *
+ * Multivalorado de propósito: a refeição cai no meio de um CIP, e uma troca
+ * de sabor pode vir junto com troca de tamanho. Um valor só obrigaria o
+ * operador a escolher qual verdade contar.
+ */
+export type EventoHora = TipoSetup | OutroEventoHora;
+
+/**
  * Uma linha horária do Relatório Operacional Horário da Enchedora
  * (FM08 PSGQ07 — frente).
  *
@@ -29,6 +58,8 @@ export interface ProducaoHora {
   /** Marca o início de um novo bloco de acumulado. */
   reiniciaAcumulado: boolean;
   motivoReinicio: MotivoReinicio | null;
+  /** O que ocupou a janela. Vazio = hora de produção normal. */
+  eventos: EventoHora[];
   produtoSabor: string | null;
   produtoTamanho: string | null;
   observacao: string | null;

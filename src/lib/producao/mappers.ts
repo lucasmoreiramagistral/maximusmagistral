@@ -1,5 +1,5 @@
 import type { AssinaturaDigital, Turno } from "@/lib/checklist/types";
-import type { MotivoReinicio, ProducaoHora } from "./types";
+import type { EventoHora, MotivoReinicio, ProducaoHora } from "./types";
 
 export interface ProducaoHoraRow {
   id: string;
@@ -19,6 +19,7 @@ export interface ProducaoHoraRow {
   tempo_parada_min: number | null;
   reinicia_acumulado: boolean;
   motivo_reinicio: MotivoReinicio | null;
+  eventos?: string[] | null;
   produto_sabor: string | null;
   produto_tamanho: string | null;
   observacao: string | null;
@@ -53,6 +54,9 @@ export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
     tempoParadaMin: r.tempo_parada_min,
     reiniciaAcumulado: Boolean(r.reinicia_acumulado),
     motivoReinicio: r.motivo_reinicio,
+    // Linhas gravadas antes da migration 10 não têm a coluna; `?? []` evita
+    // que uma hora antiga apareça como se tivesse eventos desconhecidos.
+    eventos: (r.eventos ?? []) as EventoHora[],
     produtoSabor: r.produto_sabor,
     produtoTamanho: r.produto_tamanho,
     observacao: r.observacao,
@@ -84,11 +88,12 @@ export function producaoHoraToRow(h: ProducaoHora, userId: string | null): Produ
     hora_fim: h.horaFim,
     meta: h.meta ?? null,
     // "Não rodou" força quantidade 0 — o CHECK do banco exige isso.
-    quantidade: h.naoRodou ? 0 : h.quantidade ?? null,
+    quantidade: h.naoRodou ? 0 : (h.quantidade ?? null),
     nao_rodou: h.naoRodou,
     tempo_parada_min: h.tempoParadaMin ?? null,
     reinicia_acumulado: h.reiniciaAcumulado,
     motivo_reinicio: h.reiniciaAcumulado ? h.motivoReinicio : null,
+    eventos: h.eventos ?? [],
     produto_sabor: h.produtoSabor ?? null,
     produto_tamanho: h.produtoTamanho ?? null,
     observacao: h.observacao ?? null,

@@ -64,9 +64,7 @@ export async function upsertProducaoHora(
   return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
 }
 
-export async function insertProducaoHoraEdicao(
-  p: ProducaoHoraEdicaoPayload,
-): Promise<void> {
+export async function insertProducaoHoraEdicao(p: ProducaoHoraEdicaoPayload): Promise<void> {
   const { error } = await supabase.from("producao_horaria_edicoes" as never).insert({
     producao_horaria_id: p.producaoHorariaId,
     folha_dia_key: p.folhaDiaKey,
@@ -113,6 +111,7 @@ export function createProducaoHorasPadrao(
     tempoParadaMin: null,
     reiniciaAcumulado: false,
     motivoReinicio: null,
+    eventos: [],
     produtoSabor: null,
     produtoTamanho: null,
     observacao: null,

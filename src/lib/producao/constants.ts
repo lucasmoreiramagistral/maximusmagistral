@@ -1,6 +1,6 @@
 import type { Turno } from "@/lib/checklist/types";
 import { escalaPorTurnoEquipe, type Escala } from "@/lib/operacao/escalas";
-import type { MotivoReinicio } from "./types";
+import type { EventoHora, MotivoReinicio, OutroEventoHora, TipoSetup } from "./types";
 
 // ─── Contexto fixo (mesmo equipamento do verso) ─────────────────────
 export const PRODUCAO_CONTEXTO_FIXO = {
@@ -96,6 +96,50 @@ export const LABEL_MOTIVO_REINICIO: Record<MotivoReinicio, string> = {
   troca_sabor: "Troca de sabor",
   troca_tamanho: "Troca de tamanho",
   cip: "CIP",
+};
+
+/**
+ * Os três que SÃO setup. Marcar qualquer um deles significa que houve setup
+ * naquela janela — e é isso que faz o Pós-setup do FM09 deixar de ser "não
+ * aplicável".
+ */
+export const EVENTOS_SETUP: ReadonlyArray<TipoSetup> = [
+  "troca_sabor",
+  "troca_tamanho",
+  "cip_assepsia",
+];
+
+/** O que ocupa a hora sem ser setup. */
+export const EVENTOS_OUTROS: ReadonlyArray<OutroEventoHora> = ["pcm", "refeicao", "rendendo_linha"];
+
+export const EVENTOS_HORA: ReadonlyArray<EventoHora> = [...EVENTOS_SETUP, ...EVENTOS_OUTROS];
+
+export const LABEL_EVENTO_HORA: Record<EventoHora, string> = {
+  troca_sabor: "Troca de sabor",
+  troca_tamanho: "Troca de tamanho",
+  cip_assepsia: "CIP / assepsia",
+  pcm: "PCM",
+  refeicao: "Refeição",
+  rendendo_linha: "Rendendo a linha",
+};
+
+/** Houve setup nesta janela? É a pergunta que o Pós-setup depende. */
+export function houveSetup(eventos: ReadonlyArray<EventoHora>): boolean {
+  return eventos.some((e) => (EVENTOS_SETUP as ReadonlyArray<string>).includes(e));
+}
+
+/**
+ * Eventos que zeram o acumulado — a mesma regra do `motivo_reinicio`.
+ *
+ * Existe para o operador tocar UMA vez: ao marcar troca de sabor no evento,
+ * o app já liga o reinício e escolhe o motivo. Pedir as duas coisas seria
+ * pedir a mesma informação duas vezes, e é assim que formulário ganha campo
+ * preenchido no automático sem ninguém ler.
+ */
+export const EVENTO_REINICIA_ACUMULADO: Partial<Record<EventoHora, MotivoReinicio>> = {
+  troca_sabor: "troca_sabor",
+  troca_tamanho: "troca_tamanho",
+  cip_assepsia: "cip",
 };
 
 export const TAMANHOS_SUGERIDOS = ["300ml", "500ml", "1L", "1,5L", "2L", "2,5L"];

@@ -47,6 +47,10 @@ import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operaciona
 import {
   HORA_X_HORA_FAIXAS,
   LABEL_MOTIVO_REINICIO,
+  EVENTOS_SETUP,
+  EVENTOS_OUTROS,
+  EVENTO_REINICIA_ACUMULADO,
+  LABEL_EVENTO_HORA,
   PRODUCAO_CONTEXTO_FIXO,
   TAMANHOS_SUGERIDOS,
   checagensLiderDoTurno,
@@ -55,7 +59,7 @@ import {
 } from "@/lib/producao/constants";
 import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
-import type { MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
+import type { EventoHora, MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
 
 export const Route = createFileRoute("/operador/hora-x-hora")({
   head: () => ({
@@ -310,6 +314,18 @@ function HoraXHoraPage() {
                       />
                     </dl>
 
+                    {h.eventos && h.eventos.length > 0 && (
+                      <p className="mt-2 flex flex-wrap gap-1">
+                        {h.eventos.map((ev) => (
+                          <span
+                            key={ev}
+                            className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-semibold text-foreground"
+                          >
+                            {LABEL_EVENTO_HORA[ev]}
+                          </span>
+                        ))}
+                      </p>
+                    )}
                     {h.reiniciaAcumulado && h.motivoReinicio && (
                       <p className="mt-2 inline-flex items-center gap-1 rounded-md bg-primary-soft px-2 py-0.5 text-[11px] font-semibold text-primary">
                         <RefreshCcw className="h-3 w-3" />
@@ -407,6 +423,32 @@ function Campo({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
+/** Chip de toque. Alvo grande porque o operador usa de luva, em pé. */
+function BotaoEvento({
+  rotulo,
+  marcado,
+  onClick,
+}: {
+  rotulo: string;
+  marcado: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={marcado}
+      className={
+        marcado
+          ? "rounded-lg border-2 border-primary bg-primary px-3 py-2 text-sm font-bold text-primary-foreground"
+          : "rounded-lg border-2 border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:border-primary/50"
+      }
+    >
+      {rotulo}
+    </button>
+  );
+}
+
 function DialogHora({
   hora,
   metaSugerida,
@@ -428,8 +470,19 @@ function DialogHora({
   const [parada, setParada] = useState<string>(
     hora.tempoParadaMin !== null ? String(hora.tempoParadaMin) : "",
   );
-  const [reinicia, setReinicia] = useState(hora.reiniciaAcumulado);
-  const [motivo, setMotivo] = useState<MotivoReinicio>(hora.motivoReinicio ?? "troca_sabor");
+  // Os eventos substituem o par "Reiniciar acumulado + Motivo": aquele motivo
+  // era exatamente os três tipos de setup. Manter os dois pediria a mesma
+  // informação duas vezes, e permitiria que se contradissessem.
+  const [eventos, setEventos] = useState<EventoHora[]>(hora.eventos ?? []);
+  const alternarEvento = (e: EventoHora) =>
+    setEventos((atual) => (atual.includes(e) ? atual.filter((x) => x !== e) : [...atual, e]));
+
+  // Reinício do acumulado deixa de ser digitado e passa a ser consequência.
+  const setupEscolhido = eventos.find((e) => EVENTO_REINICIA_ACUMULADO[e]);
+  const reinicia = !!setupEscolhido;
+  const motivo: MotivoReinicio | null = setupEscolhido
+    ? (EVENTO_REINICIA_ACUMULADO[setupEscolhido] ?? null)
+    : null;
   const [sabor, setSabor] = useState(hora.produtoSabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? "");
   const [observacao, setObservacao] = useState(hora.observacao ?? "");
@@ -475,6 +528,8 @@ function DialogHora({
     const saborFinal = sabor.trim() || null;
     const tamanhoFinal = tamanho.trim() || null;
     const observacaoFinal = observacao.trim() || null;
+    const eventosFinal = [...eventos].sort();
+    const eventosAnteriores = [...(hora.eventos ?? [])].sort();
     const dadosAlterados =
       metaNum !== hora.meta ||
       quantidadeFinal !== hora.quantidade ||
@@ -482,6 +537,9 @@ function DialogHora({
       paradaNum !== hora.tempoParadaMin ||
       reinicia !== hora.reiniciaAcumulado ||
       motivoFinal !== hora.motivoReinicio ||
+      // Mudar o evento muda o que o líder aprovou: uma hora que virou "CIP"
+      // depois de assinada não é a mesma hora.
+      eventosFinal.join(",") !== eventosAnteriores.join(",") ||
       saborFinal !== hora.produtoSabor ||
       tamanhoFinal !== hora.produtoTamanho ||
       observacaoFinal !== hora.observacao;
@@ -529,6 +587,7 @@ function DialogHora({
         tempoParadaMin: paradaNum,
         reiniciaAcumulado: reinicia,
         motivoReinicio: motivoFinal,
+        eventos: eventosFinal,
         produtoSabor: saborFinal,
         produtoTamanho: tamanhoFinal,
         observacao: observacaoFinal,
@@ -611,33 +670,48 @@ function DialogHora({
           </div>
 
           <div className="rounded-xl border border-border p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  Reiniciar acumulado nesta hora
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Troca de sabor, troca de tamanho ou CIP.
-                </p>
-              </div>
-              <Switch checked={reinicia} onCheckedChange={setReinicia} />
+            <p className="text-sm font-semibold text-foreground">O que aconteceu nesta janela?</p>
+            <p className="text-xs text-muted-foreground">
+              Pode marcar mais de um. Deixe em branco se foi hora de produção normal.
+            </p>
+
+            {/* Setup É uma destas três — não é um item separado. Marcar
+                qualquer uma já reinicia o acumulado, então o operador não
+                precisa preencher a mesma coisa duas vezes. */}
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Setup
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {EVENTOS_SETUP.map((ev) => (
+                <BotaoEvento
+                  key={ev}
+                  rotulo={LABEL_EVENTO_HORA[ev]}
+                  marcado={eventos.includes(ev)}
+                  onClick={() => alternarEvento(ev)}
+                />
+              ))}
+            </div>
+
+            <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              Outras paradas
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              {EVENTOS_OUTROS.map((ev) => (
+                <BotaoEvento
+                  key={ev}
+                  rotulo={LABEL_EVENTO_HORA[ev]}
+                  marcado={eventos.includes(ev)}
+                  onClick={() => alternarEvento(ev)}
+                />
+              ))}
             </div>
 
             {reinicia && (
               <div className="mt-3 grid gap-3">
-                <div>
-                  <Label>Motivo</Label>
-                  <Select value={motivo} onValueChange={(v) => setMotivo(v as MotivoReinicio)}>
-                    <SelectTrigger className="mt-1 h-12">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="troca_sabor">Troca de sabor</SelectItem>
-                      <SelectItem value="troca_tamanho">Troca de tamanho</SelectItem>
-                      <SelectItem value="cip">CIP</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                <p className="rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
+                  Houve setup: o acumulado reinicia nesta hora, e o Pós-setup do checklist passa a
+                  ser exigido.
+                </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label htmlFor="sabor">Sabor</Label>
