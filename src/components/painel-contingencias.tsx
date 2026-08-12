@@ -8,26 +8,36 @@
 
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
-import { buscarContingencias, contarPorMotivo, type Contingencia } from "@/lib/farol/contingencias";
+import {
+  agruparFechamentos,
+  buscarContingencias,
+  contarPorMotivo,
+  type Contingencia,
+} from "@/lib/farol/contingencias";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 
 export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
   const [itens, setItens] = useState<Contingencia[]>([]);
   const [indisponivel, setIndisponivel] = useState(false);
+  const [erro, setErro] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [aberto, setAberto] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
+    setCarregando(true);
+    setErro("");
     void (async () => {
       const r = await buscarContingencias(de, ate);
       if (cancelado) return;
       if (r.ok) {
         setItens(r.itens);
         setIndisponivel(false);
+        setErro("");
       } else {
         setItens([]);
         setIndisponivel(!!r.indisponivel);
+        setErro(r.indisponivel ? "" : r.erro);
       }
       setCarregando(false);
     })();
@@ -44,14 +54,26 @@ export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
     return (
       <section className="mt-8" aria-label="Fechamentos em contingência">
         <p className="rounded-xl border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-          Contagem de fechamentos em contingência indisponível — a migration 08 ainda não foi
-          aplicada.
+          Contagem de fechamentos em contingência indisponível — a estrutura de auditoria ainda não
+          está instalada no banco.
         </p>
       </section>
     );
   }
 
-  const porMotivo = contarPorMotivo(itens);
+  if (erro) {
+    return (
+      <section className="mt-8" aria-label="Fechamentos em contingência">
+        <p className="rounded-xl border border-destructive/40 bg-destructive-soft p-4 text-sm font-semibold text-destructive">
+          Não foi possível consultar os fechamentos em contingência. O total não será mostrado como
+          zero. Tente recarregar a página.
+        </p>
+      </section>
+    );
+  }
+
+  const fechamentos = agruparFechamentos(itens);
+  const porMotivo = contarPorMotivo(fechamentos);
 
   return (
     <section className="mt-8" aria-label="Fechamentos em contingência">
@@ -64,7 +86,7 @@ export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
         aqui para não virar o normal.
       </p>
 
-      {itens.length === 0 ? (
+      {fechamentos.length === 0 ? (
         <p className="rounded-xl border border-success/40 bg-success-soft p-4 text-sm font-semibold text-success">
           Nenhum turno fechado em contingência no período. Toda validação teve líder autenticado.
         </p>
@@ -72,7 +94,7 @@ export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
         <div
           className={cn(
             "rounded-2xl border-2 p-5",
-            itens.length >= 10
+            fechamentos.length >= 10
               ? "border-destructive/50 bg-destructive-soft/40"
               : "border-warning/50 bg-warning/10",
           )}
@@ -81,10 +103,10 @@ export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
             <span
               className={cn(
                 "flex h-14 w-16 shrink-0 flex-col items-center justify-center rounded-xl text-white",
-                itens.length >= 10 ? "bg-destructive" : "bg-warning",
+                fechamentos.length >= 10 ? "bg-destructive" : "bg-warning",
               )}
             >
-              <span className="text-2xl font-black leading-none">{itens.length}</span>
+              <span className="text-2xl font-black leading-none">{fechamentos.length}</span>
               <span className="text-[9px] font-bold opacity-90">turnos</span>
             </span>
             <div className="min-w-[240px] flex-1">
@@ -109,7 +131,7 @@ export function PainelContingencias({ de, ate }: { de: string; ate: string }) {
 
           {aberto && (
             <ul className="mt-4 max-h-96 space-y-1.5 overflow-y-auto border-t border-border/40 pt-4">
-              {itens.map((c) => (
+              {fechamentos.map((c) => (
                 <li key={c.id} className="rounded-lg bg-card px-3 py-2 text-sm">
                   <p className="font-semibold text-foreground">
                     {formatarDataBR(c.dataOperacao)} · {c.turno}

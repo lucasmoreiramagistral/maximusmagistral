@@ -7,11 +7,12 @@
  */
 
 export type StatusPlano = "aberto" | "cumprido" | "nao_cumprido" | "cancelado";
+export type OrigemPlano = "checklist" | "limpeza" | "ptp";
 
 export interface PlanoAcao {
   id: string;
 
-  origemTipo: "checklist" | "limpeza";
+  origemTipo: OrigemPlano;
   origemId: string;
   itemNumero: number | null;
 
@@ -58,7 +59,7 @@ export interface PlanoAcao {
 /** Linha crua da tabela, para o mapper. */
 export interface PlanoAcaoRow {
   id: string;
-  origem_tipo: "checklist" | "limpeza";
+  origem_tipo: OrigemPlano;
   origem_id: string;
   item_numero: number | null;
   data_operacao: string;
@@ -147,7 +148,7 @@ export function planoFromRow(r: PlanoAcaoRow): PlanoAcao {
  */
 export function planoDoProblema(
   planos: PlanoAcao[],
-  origemTipo: "checklist" | "limpeza",
+  origemTipo: OrigemPlano,
   itemNumero: number | null,
   maquina: string,
 ): PlanoAcao | null {

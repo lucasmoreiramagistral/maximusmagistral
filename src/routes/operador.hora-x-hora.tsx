@@ -470,43 +470,76 @@ function DialogHora({
       return;
     }
 
-    // Assinatura nova exige líder autenticado. Assinatura que já estava
-    // gravada continua valendo como está — não vamos invalidar o histórico.
+    const quantidadeFinal = naoRodou ? 0 : qtd;
+    const motivoFinal = reinicia ? motivo : null;
+    const saborFinal = sabor.trim() || null;
+    const tamanhoFinal = tamanho.trim() || null;
+    const observacaoFinal = observacao.trim() || null;
+    const dadosAlterados =
+      metaNum !== hora.meta ||
+      quantidadeFinal !== hora.quantidade ||
+      naoRodou !== hora.naoRodou ||
+      paradaNum !== hora.tempoParadaMin ||
+      reinicia !== hora.reiniciaAcumulado ||
+      motivoFinal !== hora.motivoReinicio ||
+      saborFinal !== hora.produtoSabor ||
+      tamanhoFinal !== hora.produtoTamanho ||
+      observacaoFinal !== hora.observacao;
+
+    // A assinatura aprova o conteudo que existia naquele instante. Se a hora
+    // for editada, ela nao pode continuar carimbando os numeros novos.
     const assinaturaNova = !!assinaturaLider && hora.assinaturaLider?.dataUrl !== assinaturaLider;
     if (exigeLider && assinaturaNova && !lider) {
       toast.error("O líder precisa se identificar para assinar a checagem.");
       return;
     }
+    if (
+      exigeLider &&
+      dadosAlterados &&
+      !!hora.assinaturaLider?.dataUrl &&
+      hora.assinaturaLider.dataUrl === assinaturaLider
+    ) {
+      toast.error(
+        "Os dados mudaram. Limpe a assinatura anterior ou identifique o líder e assine novamente.",
+      );
+      return;
+    }
 
     setSalvando(true);
     try {
+      const agora = new Date().toISOString();
+      const manterAssinaturaAnterior =
+        !dadosAlterados &&
+        !!hora.assinaturaLider?.dataUrl &&
+        hora.assinaturaLider.dataUrl === assinaturaLider;
+      const assinaturaFinal =
+        exigeLider && assinaturaNova && assinaturaLider
+          ? { dataUrl: assinaturaLider, nome: lider!.nome, assinadoEm: agora }
+          : exigeLider && manterAssinaturaAnterior
+            ? hora.assinaturaLider
+            : exigeLider
+              ? null
+              : hora.assinaturaLider;
+
       await onSalvar({
         ...hora,
         meta: metaNum,
-        quantidade: naoRodou ? 0 : qtd,
+        quantidade: quantidadeFinal,
         naoRodou,
         tempoParadaMin: paradaNum,
         reiniciaAcumulado: reinicia,
-        motivoReinicio: reinicia ? motivo : null,
-        produtoSabor: sabor.trim() || null,
-        produtoTamanho: tamanho.trim() || null,
-        observacao: observacao.trim() || null,
-        liderNome: exigeLider ? (lider?.nome ?? hora.liderNome ?? null) : (hora.liderNome ?? null),
-        assinaturaLider:
-          exigeLider && assinaturaLider
-            ? {
-                dataUrl: assinaturaLider,
-                nome: lider?.nome ?? hora.assinaturaLider?.nome ?? "",
-                assinadoEm:
-                  hora.assinaturaLider?.dataUrl === assinaturaLider
-                    ? hora.assinaturaLider.assinadoEm
-                    : new Date().toISOString(),
-              }
-            : exigeLider
-              ? null
-              : (hora.assinaturaLider ?? null),
+        motivoReinicio: motivoFinal,
+        produtoSabor: saborFinal,
+        produtoTamanho: tamanhoFinal,
+        observacao: observacaoFinal,
+        liderNome: assinaturaFinal?.nome ?? null,
+        assinaturaLider: assinaturaFinal,
         liderAssinouEm:
-          exigeLider && assinaturaLider ? new Date().toISOString() : (hora.liderAssinouEm ?? null),
+          exigeLider && assinaturaNova
+            ? agora
+            : manterAssinaturaAnterior
+              ? (hora.liderAssinouEm ?? null)
+              : null,
       });
     } finally {
       setSalvando(false);

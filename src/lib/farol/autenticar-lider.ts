@@ -24,7 +24,6 @@
  * de a um nome digitado.
  */
 
-import { supabase } from "@/integrations/supabase/client";
 import { criarClienteValidacao } from "@/integrations/supabase/client-validacao";
 import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
 
@@ -64,17 +63,6 @@ export const PERFIS_QUE_VALIDAM = ["lider", "supervisor", "gestao"] as const;
  * auth.uid()/now(). Este insert roda dentro da sessão do líder, e é a única
  * coisa que precisa rodar lá.
  */
-export interface ValidacaoParaRegistrar {
-  alvoTipo: "checklist" | "limpeza" | "producao_horaria";
-  alvoId: string;
-  dataOperacao: string;
-  turno: string;
-  linha?: string;
-  maquina?: string;
-  assinatura?: unknown;
-  observacao?: string | null;
-}
-
 /**
  * O segundo caminho: o líder não conseguiu entrar e o turno precisa fechar.
  *
@@ -96,14 +84,7 @@ export const MOTIVOS_CONTINGENCIA = [
   "Líder não está na planta",
   "Líder não lembra a senha",
   "Líder ainda não tem login",
-  "Problema de conexão no tablet",
 ] as const;
-
-export type ResultadoValidacao =
-  | { ok: true }
-  /** A migration 06 ainda não foi aplicada. Ver comentário em registrarValidacoes. */
-  | { ok: false; indisponivel: true; erro: string }
-  | { ok: false; indisponivel?: false; erro: string };
 
 export async function autenticarLider(
   login: string,
@@ -163,142 +144,6 @@ export async function autenticarLider(
   } finally {
     // Encerra a sessão do líder de imediato. Como o cliente é
     // `persistSession: false`, nada sobra no tablet nem no localStorage.
-    await cliente.auth.signOut().catch(() => undefined);
-  }
-}
-
-/**
- * Fecha o turno EM CONTINGÊNCIA, na sessão de quem está no tablet.
- *
- * Usa o cliente normal de propósito: quem grava é o operador logado, e é isso
- * que o banco vai carimbar. Nada aqui tenta parecer assinatura do líder.
- */
-export async function registrarContingencia(
-  validacoes: ValidacaoParaRegistrar[],
-  c: Contingencia,
-): Promise<ResultadoValidacao> {
-  if (!c.autorizou.trim()) {
-    return { ok: false, erro: "Informe quem autorizou o fechamento." };
-  }
-  if (!c.motivo.trim()) {
-    return { ok: false, erro: "Informe por que o líder não pôde validar." };
-  }
-  if (validacoes.length === 0) return { ok: true };
-
-  const linhas = validacoes.map((v) => ({
-    alvo_tipo: v.alvoTipo,
-    alvo_id: v.alvoId,
-    data_operacao: v.dataOperacao,
-    turno: v.turno,
-    linha: v.linha ?? "Linha 3",
-    maquina: v.maquina ?? "Enchedora 3",
-    assinatura: v.assinatura ?? null,
-    observacao: v.observacao ?? null,
-    contingencia: true,
-    contingencia_autorizou: c.autorizou.trim(),
-    contingencia_motivo: c.motivo.trim(),
-  }));
-
-  const { error } = await supabase.from("validacoes_lider" as never).insert(linhas as never);
-
-  if (error) {
-    const indisponivel =
-      error.code === "42P01" ||
-      error.code === "PGRST205" ||
-      /contingencia|validacoes_lider/i.test(error.message ?? "");
-    console.error("[registrarContingencia]", error);
-    return indisponivel
-      ? { ok: false, indisponivel: true, erro: "Registro de contingência ainda não disponível." }
-      : { ok: false, erro: error.message ?? "Falha ao registrar a contingência." };
-  }
-  return { ok: true };
-}
-
-/**
- * Autentica o líder e grava as validações DENTRO da sessão dele.
- *
- * É a diferença entre o app dizer que o líder assinou e o banco saber disso.
- * A sessão vive só o tempo destes inserts.
- */
-export async function autenticarERegistrar(
-  login: string,
-  senha: string,
-  validacoes: ValidacaoParaRegistrar[],
-): Promise<
-  { ok: true; lider: IdentidadeLider; registro: ResultadoValidacao } | { ok: false; erro: string }
-> {
-  const usuario = login.trim();
-  if (!usuario || !senha) return { ok: false, erro: "Informe usuário e senha." };
-
-  const cliente = criarClienteValidacao();
-
-  try {
-    const { data, error } = await cliente.auth.signInWithPassword({
-      email: loginParaEmail(usuario),
-      password: senha,
-    });
-    if (error || !data.user) return { ok: false, erro: mensagemErroLogin(error) };
-
-    const { data: perfil, error: pErr } = await cliente
-      .from("profiles")
-      .select("perfil, active, nome, usuario")
-      .eq("id", data.user.id)
-      .maybeSingle();
-
-    if (pErr || !perfil) return { ok: false, erro: "Perfil não encontrado. Procure o supervisor." };
-    if (!perfil.active) return { ok: false, erro: "Usuário inativo. Procure o supervisor." };
-    if (!PERFIS_QUE_VALIDAM.includes(perfil.perfil as (typeof PERFIS_QUE_VALIDAM)[number])) {
-      return { ok: false, erro: "Este usuário não tem permissão para validar. Chame o líder." };
-    }
-
-    const lider: IdentidadeLider = {
-      userId: data.user.id,
-      login: perfil.usuario ?? usuario,
-      nome: perfil.nome ?? usuario,
-      perfil: perfil.perfil,
-      autenticadoEm: new Date().toISOString(),
-    };
-
-    let registro: ResultadoValidacao = { ok: true };
-
-    if (validacoes.length > 0) {
-      const linhas = validacoes.map((v) => ({
-        alvo_tipo: v.alvoTipo,
-        alvo_id: v.alvoId,
-        data_operacao: v.dataOperacao,
-        turno: v.turno,
-        linha: v.linha ?? "Linha 3",
-        maquina: v.maquina ?? "Enchedora 3",
-        assinatura: v.assinatura ?? null,
-        observacao: v.observacao ?? null,
-        // Autor e horário NÃO vão aqui. O trigger da migration 06 os
-        // sobrescreve com auth.uid() e now(); mandar valor seria teatro.
-      }));
-
-      const { error: vErr } = await cliente
-        .from("validacoes_lider" as never)
-        .insert(linhas as never);
-
-      if (vErr) {
-        // 42P01 = relação não existe; PGRST205 = PostgREST não achou a tabela.
-        // Acontece enquanto a migration 06 não foi aplicada. Sinalizado como
-        // `indisponivel` para a tela avisar em vez de fingir que gravou.
-        const indisponivel =
-          vErr.code === "42P01" ||
-          vErr.code === "PGRST205" ||
-          /validacoes_lider/i.test(vErr.message ?? "");
-        console.error("[autenticarERegistrar] validacoes_lider:", vErr);
-        registro = indisponivel
-          ? { ok: false, indisponivel: true, erro: "Registro de auditoria ainda não disponível." }
-          : { ok: false, erro: vErr.message ?? "Falha ao registrar a validação." };
-      }
-    }
-
-    return { ok: true, lider, registro };
-  } catch (e) {
-    console.error("[autenticarERegistrar]", e);
-    return { ok: false, erro: "Erro ao validar. Tente novamente." };
-  } finally {
     await cliente.auth.signOut().catch(() => undefined);
   }
 }

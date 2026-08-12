@@ -199,6 +199,63 @@ describe("montarFarol", () => {
     expect(coluna(comOcorrencia, "ptp").estado).toBe("nc");
   });
 
+  it("PTP em rascunho não conta como janela concluída", () => {
+    const rascunhos = Array.from({ length: 12 }, (_, i) => ({
+      dataOperacao: DATA,
+      maquina: "Enchedora 3",
+      janelaCodigo: `J${String(i + 1).padStart(2, "0")}`,
+      statusJanela: "rascunho",
+    })) as never;
+    const [linha] = montarFarol({ checklists: [], ptp: rascunhos, data: DATA, maquinas: MAQ });
+    expect(coluna(linha, "ptp").estado).toBe("nr");
+    expect(coluna(linha, "ptp").detalhe).toBe("0 de 12 janelas");
+  });
+
+  it("PTP todo justificado como não rodou fica NA e respeita as janelas do turno", () => {
+    const ptp = ["J01", "J02", "J07"].map((janelaCodigo) => ({
+      dataOperacao: DATA,
+      maquina: "Enchedora 3",
+      janelaCodigo,
+      statusJanela: "nao_rodou",
+    })) as never;
+    const [linha] = montarFarol({
+      checklists: [],
+      ptp,
+      data: DATA,
+      maquinas: MAQ,
+      ptpJanelasEsperadas: ["J01", "J02"],
+    });
+    expect(coluna(linha, "ptp").estado).toBe("na");
+    expect(coluna(linha, "ptp").detalhe).toContain("2 janela(s)");
+  });
+
+  it("fechamento Pós-setup assinado só pelo operador aguarda o líder", () => {
+    const pos = checklist(MOM_C, ["Conforme"]);
+    pos.assinaturaOperador = {
+      nome: "Operador Teste",
+      dataUrl: "data:image/png;base64,op",
+      assinadoEm: `${DATA}T18:00:00Z`,
+    };
+    const [linha] = montarFarol({ checklists: [pos], data: DATA, maquinas: MAQ });
+    expect(linha.celulas[2].estado).toBe("pendente_validacao");
+
+    pos.assinaturaLider = {
+      nome: "Líder Teste",
+      dataUrl: "data:image/png;base64,lider",
+      assinadoEm: `${DATA}T18:05:00Z`,
+    };
+    const [validada] = montarFarol({ checklists: [pos], data: DATA, maquinas: MAQ });
+    expect(validada.celulas[2].estado).toBe("conforme");
+  });
+
+  it("rascunho nunca deixa o farol verde nem cria fechamento falso", () => {
+    const rascunho = checklist(MOM_A, ["Conforme"]);
+    rascunho.status = "rascunho";
+    const [linha] = montarFarol({ checklists: [rascunho], data: DATA, maquinas: MAQ });
+    expect(linha.celulas[0].estado).toBe("nr");
+    expect(linha.celulas[0].checklists).toHaveLength(0);
+  });
+
   it("o numero e a lista de itens saem da MESMA fonte", () => {
     // O cartao do farol mostra um numero e, ao ser tocado, abre a lista.
     // Se a contagem e a lista forem calculadas por caminhos separados, elas

@@ -245,6 +245,12 @@ export interface EntradaFarol {
   data: string;
   /** Quando informado, considera só este turno. */
   turno?: string | null;
+  /** Quando informado, considera só esta equipe nos registros que a possuem. */
+  equipe?: string | null;
+  /** IDs dos operadores da equipe do Líder, para rotinas sem coluna `equipe`. */
+  operadorUserIds?: ReadonlySet<string>;
+  /** Janelas esperadas para o turno/equipe do Líder. Sem filtro, usa o dia inteiro. */
+  ptpJanelasEsperadas?: ReadonlyArray<string>;
   maquinas?: ReadonlyArray<MaquinaFarol>;
   /**
    * Pendências abertas de QUALQUER data (ver pendencias.ts). São elas que
@@ -300,16 +306,27 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
   const diaEmAndamento = !!entrada.hoje && entrada.hoje === entrada.data;
 
   const doDia = entrada.checklists.filter((c) => {
+    if (c.status !== "concluido") return false;
     if (c.contexto.data !== entrada.data) return false;
     if (entrada.turno && c.contexto.turno !== entrada.turno) return false;
+    if (entrada.equipe && c.contexto.equipe !== entrada.equipe) return false;
     return true;
   });
 
   const limpezasDoDia = (entrada.limpezas ?? []).filter(
-    (l) => l.dataOperacao === entrada.data && (!entrada.turno || l.turno === entrada.turno),
+    (l) =>
+      l.dataOperacao === entrada.data &&
+      (!entrada.turno || l.turno === entrada.turno) &&
+      (!entrada.operadorUserIds ||
+        (!!l.operadorUserId && entrada.operadorUserIds.has(l.operadorUserId))),
   );
 
-  const ptpDoDia = (entrada.ptp ?? []).filter((p) => p.dataOperacao === entrada.data);
+  const ptpDoDia = (entrada.ptp ?? []).filter(
+    (p) =>
+      p.dataOperacao === entrada.data &&
+      (!entrada.operadorUserIds ||
+        (!!p.operadorUserId && entrada.operadorUserIds.has(p.operadorUserId))),
+  );
 
   return maquinas.map((maquina) => {
     const celulas: CelulaFarol[] = COLUNAS_FAROL.map((coluna) => {
@@ -338,7 +355,8 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
           return p.origemTipo === "checklist" && p.momento === coluna.momento;
         }
         if (coluna.tipo === "limpeza") return p.origemTipo === "limpeza";
-        return false; // PTP ainda não gera pendência
+        if (coluna.tipo === "ptp") return p.origemTipo === "ptp";
+        return false;
       });
       const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
       const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
@@ -400,13 +418,23 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
 
       // ── PTP ────────────────────────────────────────────────────────────
       if (coluna.tipo === "ptp") {
-        const doDiaMaquina = ptpDoDia.filter((p) => p.maquina === maquina.id);
+        const esperadas =
+          entrada.ptpJanelasEsperadas && entrada.ptpJanelasEsperadas.length > 0
+            ? new Set(entrada.ptpJanelasEsperadas)
+            : null;
+        const totalEsperado = esperadas?.size ?? JANELAS_PTP_DIA;
+        const doDiaMaquina = ptpDoDia.filter(
+          (p) => p.maquina === maquina.id && (!esperadas || esperadas.has(p.janelaCodigo)),
+        );
         if (doDiaMaquina.length === 0) {
           return { ...base, estado: diaEmAndamento ? "aguardando" : "nr" };
         }
 
         // Mesma regra da limpeza: a lista manda, o número sai dela.
-        const itensNc: ItemNcFarol[] = doDiaMaquina
+        const finalizadas = doDiaMaquina.filter((p) =>
+          ["sem_ocorrencia", "houve_ocorrencia", "nao_rodou"].includes(p.statusJanela),
+        );
+        const itensNc: ItemNcFarol[] = finalizadas
           .filter((p) => p.statusJanela === "houve_ocorrencia")
           .map((p) => {
             const detalhes = (p.itens ?? [])
@@ -423,8 +451,11 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
             };
           });
         const comOcorrencia = itensNc.length;
-        const preenchidas = new Set(doDiaMaquina.map((p) => p.janelaCodigo)).size;
-        const detalhe = `${preenchidas} de ${JANELAS_PTP_DIA} janelas`;
+        const preenchidas = new Set(finalizadas.map((p) => p.janelaCodigo)).size;
+        const naoRodou = new Set(
+          finalizadas.filter((p) => p.statusJanela === "nao_rodou").map((p) => p.janelaCodigo),
+        ).size;
+        const detalhe = `${preenchidas} de ${totalEsperado} janelas`;
 
         if (comOcorrencia > 0) {
           return {
@@ -435,10 +466,21 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
             detalhe: `${comOcorrencia} com ocorrência · ${detalhe}`,
           };
         }
-        if (preenchidas < JANELAS_PTP_DIA) {
+        if (preenchidas < totalEsperado) {
           return { ...base, estado: diaEmAndamento ? "aguardando" : "nr", detalhe };
         }
-        return { ...base, estado: "conforme" as EstadoFarol, detalhe };
+        if (naoRodou === totalEsperado) {
+          return {
+            ...base,
+            estado: "na" as EstadoFarol,
+            detalhe: `${naoRodou} janela(s) justificadas como não rodou`,
+          };
+        }
+        return {
+          ...base,
+          estado: "conforme" as EstadoFarol,
+          detalhe: naoRodou > 0 ? `${detalhe} · ${naoRodou} não rodou` : detalhe,
+        };
       }
 
       // ── CHECKLIST (A, B, C) ────────────────────────────────────────────
@@ -478,6 +520,14 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
         estado = diaEmAndamento ? "aguardando" : "nr";
       } else if (totalNc > 0) {
         estado = "nc";
+      } else if (
+        coluna.momento === MOMENTOS_CHECKLIST[2] &&
+        daCelula.some((c) => c.assinaturaOperador && !c.assinaturaLider)
+      ) {
+        // O fechamento do FM09 só termina depois da validação do líder. A
+        // assinatura do operador prova que o checklist foi encerrado; sem a
+        // segunda validação ele não pode aparecer verde no farol.
+        estado = "pendente_validacao";
       } else if (daCelula.every(todoNaoAplicavel)) {
         estado = "na";
       } else {

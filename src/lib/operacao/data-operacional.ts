@@ -15,27 +15,37 @@ import { escalaPorTurnoEquipe } from "./escalas";
 export function calcularDataOperacional(
   equipe: Equipe | null | undefined,
   turno: Turno | null | undefined,
+  agora: Date = new Date(),
 ): string {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const manaus = new Date(utcMs - 4 * 60 * 60_000);
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Manaus",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(agora);
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((p) => p.type === tipo)?.value ?? "";
+
+  let dataManaus = `${parte("year")}-${parte("month")}-${parte("day")}`;
+  const horaMin = Number(parte("hour")) * 60 + Number(parte("minute"));
 
   const escala = escalaPorTurnoEquipe(turno, equipe);
 
   if (escala?.atravessaMeiaNoite) {
-    const horaMin = manaus.getUTCHours() * 60 + manaus.getUTCMinutes();
     const [hFim, mFim] = escala.horarioFim.split(":").map(Number);
     const fimMin = hFim * 60 + mFim + 10; // folga de 10 min após o fim do turno
 
     if (horaMin < fimMin) {
-      manaus.setUTCDate(manaus.getUTCDate() - 1);
+      const anterior = new Date(`${dataManaus}T12:00:00Z`);
+      anterior.setUTCDate(anterior.getUTCDate() - 1);
+      dataManaus = anterior.toISOString().slice(0, 10);
     }
   }
 
-  const y = manaus.getUTCFullYear();
-  const m = String(manaus.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(manaus.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
+  return dataManaus;
 }
 
 /**
@@ -44,11 +54,7 @@ export function calcularDataOperacional(
  *
  * Formato: YYYY-MM-DD__Linha 3__Enchedora 3
  */
-export function buildFolhaDiaKey(
-  data: string,
-  linha: string,
-  maquina: string,
-): string {
+export function buildFolhaDiaKey(data: string, linha: string, maquina: string): string {
   return `${data}__${linha}__${maquina}`;
 }
 

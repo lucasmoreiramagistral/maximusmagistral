@@ -63,7 +63,9 @@ export function avaliarMelhorias(
   hoje: string,
   gruposResolvidos: GrupoPendencia[] = [],
 ): Melhoria[] {
-  const todos = [...grupos, ...gruposResolvidos];
+  // Validação atrasada é cobrança de fechamento, não um problema que pede
+  // plano de ação. Misturá-la aqui criava um 12º "problema" fantasma.
+  const todos = [...grupos, ...gruposResolvidos].filter((g) => g.tipo === "nc");
 
   return todos
     .map((g): Melhoria => {
@@ -160,11 +162,12 @@ export function avaliarRotinaLideranca(
   planos: PlanoAcao[],
   hoje: string,
 ): RotinaLideranca {
-  const comPlano = grupos.filter((g) => g.plano).length;
-  const semPlano = grupos.length - comPlano;
+  const problemas = grupos.filter((g) => g.tipo === "nc");
+  const comPlano = problemas.filter((g) => g.plano).length;
+  const semPlano = problemas.length - comPlano;
 
   const atrasos: number[] = [];
-  for (const g of grupos) {
+  for (const g of problemas) {
     if (!g.plano) continue;
     const abertura = g.plano.criadoEm.slice(0, 10);
     atrasos.push(diffDias(g.primeiraData, abertura));
@@ -175,7 +178,7 @@ export function avaliarRotinaLideranca(
   return {
     comPlano,
     semPlano,
-    pctComPlano: grupos.length === 0 ? 0 : Math.round((comPlano / grupos.length) * 100),
+    pctComPlano: problemas.length === 0 ? 0 : Math.round((comPlano / problemas.length) * 100),
     tempoMedioAberturaDias:
       atrasos.length === 0 ? null : Math.round(atrasos.reduce((s, d) => s + d, 0) / atrasos.length),
     vencidosSemRecurso: abertos.filter((p) => p.quando < hoje && !p.recursoLiberadoEm).length,

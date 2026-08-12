@@ -60,7 +60,11 @@ function somarDias(data: string, passos: number): string {
 
 function SupervisorHome() {
   const { usuario, loading } = useGuard("supervisor");
-  const { data: checklists, loading: carregando } = useChecklistsRemote({ realtime: true });
+  const {
+    data: checklists,
+    loading: carregando,
+    error: erroChecklists,
+  } = useChecklistsRemote({ realtime: true });
 
   const [limpezas, setLimpezas] = useState<LimpezaTurno[]>([]);
   const [janela, setJanela] = useState<number>(7);
@@ -75,6 +79,9 @@ function SupervisorHome() {
 
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+  const [erroLimpezas, setErroLimpezas] = useState("");
+  const [erroPlanos, setErroPlanos] = useState("");
+  const [erroPtp, setErroPtp] = useState("");
 
   const hoje = useMemo(
     () => calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao),
@@ -85,6 +92,7 @@ function SupervisorHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
+      setErroLimpezas("");
       // SEM filtro de data: o passivo vai a 108 dias, muito alem da janela
       // de 7/15/30. calcularCumprimentoPeriodo filtra por dia internamente,
       // entao passar tudo nao afeta o percentual.
@@ -95,6 +103,7 @@ function SupervisorHome() {
       if (cancelado) return;
       if (error) {
         console.error("[supervisor] limpezas:", error);
+        setErroLimpezas("Nao foi possivel carregar a limpeza operacional.");
         setCarregandoLimpezas(false);
         return;
       }
@@ -109,10 +118,16 @@ function SupervisorHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
-      const p = await buscarPlanos();
-      if (cancelado) return;
-      setPlanos(p);
-      setCarregandoPlanos(false);
+      setErroPlanos("");
+      try {
+        const p = await buscarPlanos();
+        if (!cancelado) setPlanos(p);
+      } catch (error) {
+        console.error("[supervisor] planos:", error);
+        if (!cancelado) setErroPlanos("Nao foi possivel carregar os planos de acao.");
+      } finally {
+        if (!cancelado) setCarregandoPlanos(false);
+      }
     })();
     return () => {
       cancelado = true;
@@ -122,14 +137,16 @@ function SupervisorHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
+      setErroPtp("");
       const { data: linhasPtp, error } = await supabase
         .from("ptp_janelas" as never)
         .select("*")
-        .gte("data_operacao", de)
+        .gte("data_operacao", ROTINA_ENCHEDORA_3.vigenteDesde)
         .lte("data_operacao", hoje);
       if (cancelado) return;
       if (error) {
         console.error("[supervisor] ptp:", error);
+        setErroPtp("Nao foi possivel carregar o PTP.");
         setCarregandoPtp(false);
         return;
       }
@@ -139,13 +156,13 @@ function SupervisorHome() {
     return () => {
       cancelado = true;
     };
-  }, [de, hoje, recarga]);
+  }, [hoje, recarga]);
 
   // Mesmo passivo que o lider e a GI enxergam. As tres telas TEM que contar
   // a mesma verdade: e o supervisor quem apresenta o farol para a GI.
   const pendencias = useMemo(
-    () => levantarPendencias({ checklists, limpezas, planos, hoje }),
-    [checklists, limpezas, planos, hoje],
+    () => levantarPendencias({ checklists, limpezas, ptp, planos, hoje }),
+    [checklists, limpezas, ptp, planos, hoje],
   );
 
   // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
@@ -157,10 +174,17 @@ function SupervisorHome() {
   const gruposHistoricos = useMemo(
     () =>
       agruparPendencias(
-        levantarPendencias({ checklists, limpezas, planos, hoje, incluirEncerradas: true }),
+        levantarPendencias({
+          checklists,
+          limpezas,
+          ptp,
+          planos,
+          hoje,
+          incluirEncerradas: true,
+        }),
         planos,
       ),
-    [checklists, limpezas, planos, hoje],
+    [checklists, limpezas, ptp, planos, hoje],
   );
   const melhorias = useMemo(
     () => avaliarMelhorias(gruposHistoricos, hoje),
@@ -193,6 +217,8 @@ function SupervisorHome() {
 
   if (loading || !usuario) return <TelaCarregando />;
 
+  const erroDados = erroChecklists || erroLimpezas || erroPlanos || erroPtp;
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -200,7 +226,19 @@ function SupervisorHome() {
         subtitulo={`Linha 3 · cumprimento da rotina · ${formatarDataBR(de)} a ${formatarDataBR(hoje)}`}
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
-        {carregando || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
+        {erroDados ? (
+          <section className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <p className="font-bold">Farol indisponivel</p>
+            <p className="mt-1">{erroDados} Nenhum numero sera mostrado como zero.</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 rounded-lg bg-destructive px-3 py-2 font-semibold text-destructive-foreground"
+            >
+              Tentar novamente
+            </button>
+          </section>
+        ) : carregando || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>

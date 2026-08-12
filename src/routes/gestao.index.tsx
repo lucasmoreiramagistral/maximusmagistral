@@ -18,7 +18,7 @@ import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { MelhoriasERotina } from "@/components/melhorias-rotina";
 import { agruparPendencias } from "@/lib/farol/grupos";
 import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
-import { montarFarol } from "@/lib/farol/farol";
+import { montarFarol, ROTINA_ENCHEDORA_3 } from "@/lib/farol/farol";
 import { levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
@@ -49,9 +49,11 @@ const DIAS_NCNR = 30;
 
 function GestaoHome() {
   const { usuario, loading } = useGuard("gestao");
-  const { data: checklists, loading: carregandoChecklists } = useChecklistsRemote({
-    realtime: true,
-  });
+  const {
+    data: checklists,
+    loading: carregandoChecklists,
+    error: erroChecklists,
+  } = useChecklistsRemote({ realtime: true });
   const [turnosLimpeza, setTurnosLimpeza] = useState<LimpezaTurno[]>([]);
   const [planos, setPlanos] = useState<PlanoAcao[]>([]);
   const [recarga, setRecarga] = useState(0);
@@ -69,12 +71,16 @@ function GestaoHome() {
 
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+  const [erroLimpeza, setErroLimpeza] = useState("");
+  const [erroPlanos, setErroPlanos] = useState("");
+  const [erroPtp, setErroPtp] = useState("");
 
   const hoje = calcularDataOperacional(usuario?.equipePadrao, usuario?.turnoPadrao);
 
   useEffect(() => {
     let cancelado = false;
     void (async () => {
+      setErroLimpeza("");
       // SEM filtro de data: o passivo não mora nos últimos 30 dias. A limpeza
       // sem validação mais antiga é de 24/04 — cortar em 30 dias esconderia
       // justamente as que mais envergonham. O card de NC/NR abaixo continua
@@ -87,6 +93,7 @@ function GestaoHome() {
       if (error) {
         console.error("[gestao.index] limpeza fetch:", error);
         setTurnosLimpeza([]);
+        setErroLimpeza("Nao foi possivel carregar a limpeza operacional.");
         setCarregandoLimpeza(false);
         return;
       }
@@ -101,10 +108,16 @@ function GestaoHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
-      const p = await buscarPlanos();
-      if (cancelado) return;
-      setPlanos(p);
-      setCarregandoPlanos(false);
+      setErroPlanos("");
+      try {
+        const p = await buscarPlanos();
+        if (!cancelado) setPlanos(p);
+      } catch (error) {
+        console.error("[gestao.index] planos:", error);
+        if (!cancelado) setErroPlanos("Nao foi possivel carregar os planos de acao.");
+      } finally {
+        if (!cancelado) setCarregandoPlanos(false);
+      }
     })();
     return () => {
       cancelado = true;
@@ -114,15 +127,18 @@ function GestaoHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
-      // Só o dia mostrado: a coluna PTP do farol é do dia, e o PTP não
-      // acumula passivo como a limpeza.
+      setErroPtp("");
+      // Desde o início oficial do piloto: ocorrência PTP não desaparece
+      // quando o dia vira; ela permanece até receber plano eficaz.
       const { data, error } = await supabase
         .from("ptp_janelas" as never)
         .select("*")
-        .eq("data_operacao", hoje);
+        .gte("data_operacao", ROTINA_ENCHEDORA_3.vigenteDesde)
+        .lte("data_operacao", hoje);
       if (cancelado) return;
       if (error) {
         console.error("[gestao.index] ptp:", error);
+        setErroPtp("Nao foi possivel carregar o PTP.");
         setCarregandoPtp(false);
         return;
       }
@@ -136,8 +152,8 @@ function GestaoHome() {
 
   // O passivo da linha — o mesmo que o líder vê, para a conversa ser a mesma.
   const pendencias = useMemo(
-    () => levantarPendencias({ checklists, limpezas: turnosLimpeza, planos, hoje }),
-    [checklists, turnosLimpeza, planos, hoje],
+    () => levantarPendencias({ checklists, limpezas: turnosLimpeza, ptp, planos, hoje }),
+    [checklists, turnosLimpeza, ptp, planos, hoje],
   );
 
   const linhasFarol = useMemo(
@@ -159,13 +175,14 @@ function GestaoHome() {
         levantarPendencias({
           checklists,
           limpezas: turnosLimpeza,
+          ptp,
           planos,
           hoje,
           incluirEncerradas: true,
         }),
         planos,
       ),
-    [checklists, turnosLimpeza, planos, hoje],
+    [checklists, turnosLimpeza, ptp, planos, hoje],
   );
   const melhorias = useMemo(
     () => avaliarMelhorias(gruposHistoricos, hoje),
@@ -180,6 +197,29 @@ function GestaoHome() {
     () => contarNcNrUltimosDias(checklists, turnosLimpeza, DIAS_NCNR),
     [checklists, turnosLimpeza],
   );
+
+  const erroDados = erroChecklists || erroLimpeza || erroPlanos || erroPtp;
+
+  if (!loading && usuario && erroDados) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader titulo="Gestao Industrial" subtitulo="Linha 3 - Enchedora 3" />
+        <main className="mx-auto w-full max-w-[1300px] px-4 py-8 md:px-8">
+          <section className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <p className="font-bold">Farol indisponivel</p>
+            <p className="mt-1">{erroDados} Nenhum numero sera mostrado como zero.</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 rounded-lg bg-destructive px-3 py-2 font-semibold text-destructive-foreground"
+            >
+              Tentar novamente
+            </button>
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   if (
     loading ||
@@ -209,6 +249,7 @@ function GestaoHome() {
 
         <GestaoRecursos
           pendencias={pendencias}
+          planos={planos}
           usuario={usuario}
           onAtualizar={() => setRecarga((n) => n + 1)}
         />

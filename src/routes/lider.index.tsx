@@ -1,15 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { Farol } from "@/components/farol";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
 import { useChecklistsRemote } from "@/hooks/use-storage";
 import { supabase } from "@/integrations/supabase/client";
-import { montarFarol, type CelulaFarol } from "@/lib/farol/farol";
+import { montarFarol, ROTINA_ENCHEDORA_3, type CelulaFarol } from "@/lib/farol/farol";
 import { levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
-import { validarLimpeza } from "@/lib/farol/validacao-storage";
+import {
+  finalizarValidacaoSessao,
+  novoFechamentoId,
+  type SolicitacaoFinalizacao,
+} from "@/lib/farol/validacao-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
@@ -21,12 +25,8 @@ import {
   type PtpJanelaRow,
 } from "@/lib/verso/mappers";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
-
-function somarDiasISO(data: string, passos: number): string {
-  const d = new Date(`${data}T12:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + passos);
-  return d.toISOString().slice(0, 10);
-}
+import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
+import { ValidarPendenciaDialog } from "@/components/validar-pendencia-dialog";
 
 export const Route = createFileRoute("/lider/")({
   head: () => ({
@@ -43,9 +43,11 @@ export const Route = createFileRoute("/lider/")({
 
 function LiderHome() {
   const { usuario, loading } = useGuard("lider");
-  const { data: checklists, loading: carregandoChecklists } = useChecklistsRemote({
-    realtime: true,
-  });
+  const {
+    data: checklists,
+    loading: carregandoChecklists,
+    error: erroChecklists,
+  } = useChecklistsRemote({ realtime: true });
 
   const [limpezas, setLimpezas] = useState<LimpezaTurno[]>([]);
   const [celulaAberta, setCelulaAberta] = useState<CelulaFarol | null>(null);
@@ -53,6 +55,9 @@ function LiderHome() {
   const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
   const [recarga, setRecarga] = useState(0);
   const [validando, setValidando] = useState<string | null>(null);
+  const [pendenciaValidacao, setPendenciaValidacao] = useState<Pendencia | null>(null);
+  const [erroValidacao, setErroValidacao] = useState("");
+  const idsFechamento = useRef(new Map<string, string>());
   const [aviso, setAviso] = useState("");
 
   // Mesma armadilha já corrigida na tela da GI, e que eu tinha deixado passar
@@ -65,6 +70,12 @@ function LiderHome() {
   // PTP alimenta a coluna própria no farol.
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+  const [operadoresEquipe, setOperadoresEquipe] = useState<ReadonlySet<string>>(new Set());
+  const [carregandoEquipe, setCarregandoEquipe] = useState(true);
+  const [erroEquipe, setErroEquipe] = useState("");
+  const [erroLimpezas, setErroLimpezas] = useState("");
+  const [erroPlanos, setErroPlanos] = useState("");
+  const [erroPtp, setErroPtp] = useState("");
 
   // Data operacional respeita a regra de madrugada: no turno da noite, antes
   // do fim do turno, a folha ainda é a do dia anterior.
@@ -77,6 +88,42 @@ function LiderHome() {
   // que está aberto. Por isso a data é navegável, começando em hoje.
   const [dataSel, setDataSel] = useState<string | null>(null);
   const data = dataSel ?? hoje;
+  const janelasEsperadas = useMemo(
+    () => janelasPtpDoTurnoEquipe(usuario?.turnoPadrao, usuario?.equipePadrao),
+    [usuario?.turnoPadrao, usuario?.equipePadrao],
+  );
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      if (!usuario?.equipePadrao) {
+        setOperadoresEquipe(new Set());
+        setErroEquipe("Seu perfil de Lideranca nao possui equipe definida.");
+        setCarregandoEquipe(false);
+        return;
+      }
+      setErroEquipe("");
+      const { data: perfis, error } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("active", true)
+        .eq("equipe_padrao", usuario.equipePadrao);
+      if (cancelado) return;
+      if (error) {
+        console.error("[lider] equipe:", error);
+        setErroEquipe("Nao foi possivel confirmar a equipe deste lider.");
+        setCarregandoEquipe(false);
+        return;
+      }
+      setOperadoresEquipe(
+        new Set(((perfis ?? []) as Array<{ id: string }>).map((perfil) => perfil.id)),
+      );
+      setCarregandoEquipe(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [usuario?.equipePadrao]);
 
   const irParaDia = (passos: number) => {
     const d = new Date(`${data}T12:00:00Z`);
@@ -87,6 +134,7 @@ function LiderHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
+      setErroLimpezas("");
       // NÃO desestruturar como `data`: sombrearia a data selecionada acima.
       const { data: linhasLimpeza, error } = await supabase
         .from("limpeza_turnos" as never)
@@ -95,6 +143,7 @@ function LiderHome() {
       if (cancelado) return;
       if (error) {
         console.error("[lider] limpezas:", error);
+        setErroLimpezas("Nao foi possivel carregar a limpeza operacional.");
         setCarregandoLimpezas(false);
         return;
       }
@@ -109,10 +158,16 @@ function LiderHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
-      const p = await buscarPlanos();
-      if (cancelado) return;
-      setPlanos(p);
-      setCarregandoPlanos(false);
+      setErroPlanos("");
+      try {
+        const p = await buscarPlanos();
+        if (!cancelado) setPlanos(p);
+      } catch (error) {
+        console.error("[lider] planos:", error);
+        if (!cancelado) setErroPlanos("Nao foi possivel carregar os planos de acao.");
+      } finally {
+        if (!cancelado) setCarregandoPlanos(false);
+      }
     })();
     return () => {
       cancelado = true;
@@ -122,16 +177,21 @@ function LiderHome() {
   useEffect(() => {
     let cancelado = false;
     void (async () => {
-      // Só a janela navegável do farol: o PTP não tem passivo para arrastar,
-      // e puxar 742 janelas de 4 meses seria peso à toa no tablet.
+      setErroPtp("");
+      // Desde o início oficial do piloto: ocorrências PTP continuam abertas
+      // depois que o dia vira e precisam alimentar o plano de ação.
       const { data: linhasPtp, error } = await supabase
         .from("ptp_janelas" as never)
         .select("*")
-        .gte("data_operacao", somarDiasISO(data, -1))
+        .gte(
+          "data_operacao",
+          data < ROTINA_ENCHEDORA_3.vigenteDesde ? data : ROTINA_ENCHEDORA_3.vigenteDesde,
+        )
         .lte("data_operacao", data);
       if (cancelado) return;
       if (error) {
         console.error("[lider] ptp:", error);
+        setErroPtp("Nao foi possivel carregar o PTP.");
         setCarregandoPtp(false);
         return;
       }
@@ -145,34 +205,105 @@ function LiderHome() {
 
   // O passivo: tudo que continua aberto hoje, de qualquer data.
   const pendencias = useMemo(
-    () => levantarPendencias({ checklists, limpezas, planos, hoje }),
-    [checklists, limpezas, planos, hoje],
+    () =>
+      levantarPendencias({
+        checklists,
+        limpezas,
+        ptp,
+        planos,
+        hoje,
+        turno: usuario?.turnoPadrao,
+        equipe: usuario?.equipePadrao,
+        ptpJanelasEsperadas: janelasEsperadas,
+        operadorUserIds: operadoresEquipe,
+      }),
+    [
+      checklists,
+      limpezas,
+      ptp,
+      planos,
+      hoje,
+      usuario?.turnoPadrao,
+      usuario?.equipePadrao,
+      janelasEsperadas,
+      operadoresEquipe,
+    ],
   );
 
   const linhas = useMemo(
-    () => montarFarol({ checklists, limpezas, ptp, data, hoje, pendencias }),
-    [checklists, limpezas, ptp, data, hoje, pendencias],
+    () =>
+      montarFarol({
+        checklists,
+        limpezas,
+        ptp,
+        data,
+        hoje,
+        pendencias,
+        turno: usuario?.turnoPadrao,
+        equipe: usuario?.equipePadrao,
+        ptpJanelasEsperadas: janelasEsperadas,
+        operadorUserIds: operadoresEquipe,
+      }),
+    [
+      checklists,
+      limpezas,
+      ptp,
+      data,
+      hoje,
+      pendencias,
+      usuario?.turnoPadrao,
+      usuario?.equipePadrao,
+      janelasEsperadas,
+      operadoresEquipe,
+    ],
   );
 
-  const validar = async (p: Pendencia) => {
-    if (!usuario) return;
+  const validar = (p: Pendencia) => {
+    if (p.tipo !== "validacao") return;
+    setErroValidacao("");
+    setPendenciaValidacao(p);
+  };
+
+  const confirmarValidacao = async (assinatura: string) => {
+    const p = pendenciaValidacao;
+    if (!usuario || !p) return;
     setValidando(p.chave);
-    setAviso("");
-    const r = await validarLimpeza(p.origemId, usuario);
+    setErroValidacao("");
+    const fechamentoId = idsFechamento.current.get(p.chave) ?? novoFechamentoId();
+    idsFechamento.current.set(p.chave, fechamentoId);
+    const solicitacao: SolicitacaoFinalizacao = {
+      fechamentoId,
+      checklist:
+        p.origemTipo === "checklist"
+          ? { id: p.origemId, assinaturaDataUrl: assinatura }
+          : undefined,
+      limpeza:
+        p.origemTipo === "limpeza" ? { id: p.origemId, assinaturaDataUrl: assinatura } : undefined,
+    };
+    const r = await finalizarValidacaoSessao(solicitacao);
     setValidando(null);
     if (!r.ok) {
-      setAviso(r.erro);
+      setErroValidacao(r.erro);
       return;
     }
-    setAviso(`Validado por ${usuario.nome}.`);
+    idsFechamento.current.delete(p.chave);
+    setPendenciaValidacao(null);
+    setAviso(
+      `Validado por ${r.resultado.ator.nome} às ${new Date(r.resultado.validadoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Manaus", hour: "2-digit", minute: "2-digit" })}.`,
+    );
     setRecarga((n) => n + 1);
   };
 
   if (loading || !usuario) return <TelaCarregando />;
 
+  const erroDados = erroChecklists || erroEquipe || erroLimpezas || erroPlanos || erroPtp;
+
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader titulo="Liderança" subtitulo={`Linha 3 · ${formatarDataBR(data)}`} />
+      <AppHeader
+        titulo="Liderança"
+        subtitulo={`Equipe ${usuario.equipePadrao ?? "—"} · ${usuario.turnoPadrao ?? "—"} · Linha 3 · ${formatarDataBR(data)}`}
+      />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <button
@@ -211,7 +342,23 @@ function LiderHome() {
         {/* O gate cobre o farol E as filas. Antes cobria só o farol, então as
             filas renderizavam com lista vazia e a tela dizia "Nada aguardando
             validação" enquanto 55 validações carregavam. */}
-        {carregandoChecklists || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
+        {erroDados ? (
+          <section className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
+            <p className="font-bold">Farol indisponivel</p>
+            <p className="mt-1">{erroDados} Nenhum numero sera mostrado como zero.</p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-3 rounded-lg bg-destructive px-3 py-2 font-semibold text-destructive-foreground"
+            >
+              Tentar novamente
+            </button>
+          </section>
+        ) : carregandoChecklists ||
+          carregandoLimpezas ||
+          carregandoPlanos ||
+          carregandoPtp ||
+          carregandoEquipe ? (
           <p className="text-sm text-muted-foreground">Carregando o farol…</p>
         ) : (
           <>
@@ -238,6 +385,18 @@ function LiderHome() {
             usuario={usuario}
             onFechar={() => setPendenciaAberta(null)}
             onSalvo={() => setRecarga((n) => n + 1)}
+          />
+        )}
+
+        {pendenciaValidacao && (
+          <ValidarPendenciaDialog
+            pendencia={pendenciaValidacao}
+            salvando={validando === pendenciaValidacao.chave}
+            erro={erroValidacao}
+            onFechar={() => {
+              if (!validando) setPendenciaValidacao(null);
+            }}
+            onConfirmar={(assinatura) => void confirmarValidacao(assinatura)}
           />
         )}
 

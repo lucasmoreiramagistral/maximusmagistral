@@ -92,6 +92,16 @@ function grupo(datas: string[], p: PlanoAcao | null): GrupoPendencia {
   };
 }
 
+function grupoValidacao(): GrupoPendencia {
+  return {
+    ...grupo(["2026-05-01"], null),
+    chave: "validacao",
+    tipo: "validacao",
+    titulo: "Validação do fechamento",
+    ocorrencias: [{ ...ocorrencia("2026-05-01"), tipo: "validacao" }],
+  };
+}
+
 describe("avaliarMelhorias", () => {
   it("sem plano, ninguem assumiu", () => {
     const [m] = avaliarMelhorias([grupo(["2026-05-01", "2026-06-01"], null)], HOJE);
@@ -171,6 +181,10 @@ describe("avaliarMelhorias", () => {
     expect(DIAS_PARA_ELIMINADO).toBe(30);
   });
 
+  it("validação atrasada não é contada como problema de melhoria", () => {
+    expect(avaliarMelhorias([grupoValidacao()], HOJE)).toEqual([]);
+  });
+
   it("plano checado e sem decisao A fica marcado como ciclo aberto", () => {
     // O plano parava no C: "o problema saiu" e ninguem decidia se aquilo
     // virava padrao. As colunas existiam no banco desde a migration 04 e
@@ -241,5 +255,11 @@ describe("avaliarRotinaLideranca", () => {
     // Zero diria "responderam na hora", que e mentira.
     const r = avaliarRotinaLideranca([grupo(["2026-05-01"], null)], [], HOJE);
     expect(r.tempoMedioAberturaDias).toBeNull();
+  });
+
+  it("validação atrasada não infla a meta de planos da liderança", () => {
+    const r = avaliarRotinaLideranca([grupoValidacao()], [], HOJE);
+    expect(r.comPlano + r.semPlano).toBe(0);
+    expect(r.semPlano).toBe(0);
   });
 });

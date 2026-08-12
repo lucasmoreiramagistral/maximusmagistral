@@ -16,8 +16,8 @@
  */
 
 import type { Checklist } from "@/lib/checklist/types";
-import type { LimpezaTurno } from "@/lib/verso/types";
-import { planoDoProblema, type PlanoAcao } from "./planos-types";
+import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
+import { planoDoProblema, type OrigemPlano, type PlanoAcao } from "./planos-types";
 
 /**
  * Duas naturezas diferentes, que o papel do gerente já separa e eu tinha
@@ -51,7 +51,7 @@ export interface Pendencia {
   detalhe: string;
   /** Plano de ação vigente, quando já existe. */
   plano: PlanoAcao | null;
-  origemTipo: "checklist" | "limpeza";
+  origemTipo: OrigemPlano;
   origemId: string;
   itemNumero: number | null;
 }
@@ -98,9 +98,14 @@ export function planoEncerraOcorrencia(
 export interface EntradaPendencias {
   checklists: Checklist[];
   limpezas: LimpezaTurno[];
+  ptp?: PtpJanela[];
   planos: PlanoAcao[];
   /** Data de referência para calcular a idade. */
   hoje: string;
+  turno?: string | null;
+  equipe?: string | null;
+  ptpJanelasEsperadas?: ReadonlyArray<string>;
+  operadorUserIds?: ReadonlySet<string>;
   /**
    * Inclui também as ocorrências que um plano já encerrou.
    *
@@ -114,6 +119,18 @@ export interface EntradaPendencias {
   incluirEncerradas?: boolean;
 }
 
+/** Identidade estável do problema PTP; não depende da ordem do array JSON. */
+export function numeroItemPtp(codigo: string): number | null {
+  const numeros: Record<string, number> = {
+    TAMPA_ALTA: 1,
+    ESTOURANDO: 2,
+    FINISH_QUEBRANDO: 3,
+    NIVEL_BAIXO: 4,
+    SEM_TAMPA: 5,
+  };
+  return numeros[codigo] ?? null;
+}
+
 /**
  * Levanta tudo que está em aberto AGORA, de qualquer data.
  *
@@ -125,6 +142,8 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
   const out: Pendencia[] = [];
 
   for (const c of e.checklists) {
+    if (e.turno && c.contexto.turno !== e.turno) continue;
+    if (e.equipe && c.contexto.equipe !== e.equipe) continue;
     for (const r of c.respostas) {
       if (r.resposta !== "Não conforme") continue;
       const plano = planoDoProblema(e.planos, "checklist", r.itemNumero, c.contexto.maquina);
@@ -147,9 +166,41 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
         itemNumero: r.itemNumero,
       });
     }
+
+    // O Pós-setup é o fechamento da folha. Se o operador já assinou e a
+    // liderança ainda não, existe uma pendência de validação — não um plano
+    // de ação. Até aqui o farol cobrava isso apenas para a limpeza e deixava
+    // o FM09 aparecer verde sem o segundo aceite.
+    if (
+      c.momento === "Pós-setup" &&
+      c.status === "concluido" &&
+      c.assinaturaOperador &&
+      !c.assinaturaLider
+    ) {
+      out.push({
+        chave: `val-checklist:${c.id}`,
+        tipo: "validacao",
+        maquina: c.contexto.maquina,
+        momento: c.momento,
+        turno: c.contexto.turno,
+        dataOrigem: c.contexto.data,
+        idadeDias: diffDias(c.contexto.data, e.hoje),
+        titulo: `Checklist operacional · fechamento ${c.contexto.turno}`,
+        contexto: `${c.momento} · ${c.respostas.length} itens verificados`,
+        detalhe: `${c.assinaturaOperador.nome} assinou. Falta a validação da liderança para fechar a folha.`,
+        plano: null,
+        origemTipo: "checklist",
+        origemId: c.id,
+        itemNumero: null,
+      });
+    }
   }
 
   for (const l of e.limpezas) {
+    if (e.turno && l.turno !== e.turno) continue;
+    if (e.operadorUserIds && (!l.operadorUserId || !e.operadorUserIds.has(l.operadorUserId))) {
+      continue;
+    }
     // 2a. Itens da limpeza marcados "não realizado" — problema concreto,
     //     precisa de plano de ação igual à NC do checklist.
     for (const item of l.itens ?? []) {
@@ -206,6 +257,45 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
       origemId: l.id,
       itemNumero: null,
     });
+  }
+
+  const janelasEsperadas =
+    e.ptpJanelasEsperadas && e.ptpJanelasEsperadas.length > 0
+      ? new Set(e.ptpJanelasEsperadas)
+      : null;
+  for (const p of e.ptp ?? []) {
+    if (janelasEsperadas && !janelasEsperadas.has(p.janelaCodigo)) continue;
+    if (e.operadorUserIds && (!p.operadorUserId || !e.operadorUserIds.has(p.operadorUserId))) {
+      continue;
+    }
+    if (p.statusJanela !== "houve_ocorrencia") continue;
+
+    for (const item of p.itens ?? []) {
+      if ((item.quantidade ?? 0) <= 0) continue;
+      const itemNumero = numeroItemPtp(item.codigo);
+      if (itemNumero == null) continue;
+      const plano = planoDoProblema(e.planos, "ptp", itemNumero, p.maquina);
+      if (!e.incluirEncerradas && planoEncerraOcorrencia(plano, p.dataOperacao)) continue;
+
+      out.push({
+        chave: `ptp:${p.id}:${item.codigo}`,
+        tipo: "nc",
+        maquina: p.maquina,
+        momento: null,
+        turno: e.turno ?? (Number(p.janelaCodigo.slice(1)) <= 6 ? "12x36 Dia" : "12x36 Noite"),
+        dataOrigem: p.dataOperacao,
+        idadeDias: diffDias(p.dataOperacao, e.hoje),
+        titulo: `PTP · ${item.nome}`,
+        contexto: `Janela ${p.janelaCodigo} · ${p.janelaInicio}–${p.janelaFim}`,
+        detalhe:
+          `${item.quantidade} ocorrência(s)` +
+          ((p.observacao ?? "").trim() ? ` · ${p.observacao!.trim()}` : ""),
+        plano,
+        origemTipo: "ptp",
+        origemId: p.id,
+        itemNumero,
+      });
+    }
   }
 
   // Mais velha primeiro: é a que envergonha e a que tem que sair.

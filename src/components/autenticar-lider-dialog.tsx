@@ -16,38 +16,42 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   autenticarLider,
-  autenticarERegistrar,
-  registrarContingencia,
   MOTIVOS_CONTINGENCIA,
   type IdentidadeLider,
-  type ValidacaoParaRegistrar,
 } from "@/lib/farol/autenticar-lider";
+import type { ResultadoFinalizacao } from "@/lib/farol/validacao-storage";
+
+type ResultadoLoginDialog =
+  | { ok: true; lider: IdentidadeLider; resultado?: ResultadoFinalizacao }
+  | { ok: false; erro: string };
+type ResultadoContingenciaDialog =
+  | { ok: true; resultado?: ResultadoFinalizacao }
+  | { ok: false; erro: string };
 
 export function AutenticarLiderDialog({
   aberto,
   onFechar,
   onAutenticado,
   onContingencia,
-  validacoes,
-  onAuditoriaIndisponivel,
+  processarLogin,
+  processarContingencia,
 }: {
   aberto: boolean;
   onFechar: () => void;
-  onAutenticado: (lider: IdentidadeLider) => void;
+  onAutenticado: (lider: IdentidadeLider, resultado?: ResultadoFinalizacao) => void;
   /**
    * Fechamento em contingência: o líder não pôde entrar. Recebe o nome
    * informado de quem autorizou — que NÃO é identidade verificada, e a tela
    * de quem chama precisa deixar isso claro.
    */
-  onContingencia?: (autorizou: string, motivo: string) => void;
-  /**
-   * Validações a gravar DENTRO da sessão do líder, para o banco carimbar a
-   * autoria (ver migration 06). Sem isto, o único registro de quem assinou é
-   * um campo de texto escrito pela sessão do operador.
-   */
-  validacoes?: ValidacaoParaRegistrar[];
-  /** Chamado quando a migration 06 ainda não está aplicada. */
-  onAuditoriaIndisponivel?: () => void;
+  onContingencia?: (autorizou: string, motivo: string, resultado?: ResultadoFinalizacao) => void;
+  /** Quando informado, autenticação e confirmação final acontecem juntas. */
+  processarLogin?: (login: string, senha: string) => Promise<ResultadoLoginDialog>;
+  /** Quando informado, a contingência também só conclui após o commit da RPC. */
+  processarContingencia?: (
+    autorizou: string,
+    motivo: string,
+  ) => Promise<ResultadoContingenciaDialog>;
 }) {
   const [login, setLogin] = useState("");
   const [senha, setSenha] = useState("");
@@ -72,20 +76,29 @@ export function AutenticarLiderDialog({
   };
 
   const confirmarContingencia = async () => {
-    setEntrando(true);
     setErro("");
-    const r = await registrarContingencia(validacoes ?? [], { autorizou, motivo });
-    setEntrando(false);
-    if (!r.ok) {
-      if (r.indisponivel) {
-        onAuditoriaIndisponivel?.();
-      } else {
-        setErro(r.erro);
-        return;
-      }
+    if (!autorizou.trim()) {
+      setErro("Informe quem autorizou o fechamento.");
+      return;
+    }
+    if (!motivo.trim()) {
+      setErro("Informe por que o líder não pôde validar.");
+      return;
     }
     const nome = autorizou.trim();
     const mot = motivo.trim();
+    if (processarContingencia) {
+      setEntrando(true);
+      const r = await processarContingencia(nome, mot);
+      setEntrando(false);
+      if (!r.ok) {
+        setErro(r.erro);
+        return;
+      }
+      limpar();
+      onContingencia?.(nome, mot, r.resultado);
+      return;
+    }
     limpar();
     onContingencia?.(nome, mot);
   };
@@ -94,40 +107,18 @@ export function AutenticarLiderDialog({
     setEntrando(true);
     setErro("");
 
-    let lider: IdentidadeLider;
-
-    if (validacoes && validacoes.length > 0) {
-      const r = await autenticarERegistrar(login, senha, validacoes);
-      setEntrando(false);
-      setSenha(""); // a senha sai da memória do componente, dê no que der
-      if (!r.ok) {
-        setErro(r.erro);
-        return;
-      }
-      if (!r.registro.ok) {
-        if (r.registro.indisponivel) {
-          // Migration 06 pendente. Deixa passar, mas avisa — fingir que
-          // gravou seria pior do que não gravar.
-          onAuditoriaIndisponivel?.();
-        } else {
-          setErro(r.registro.erro);
-          return;
-        }
-      }
-      lider = r.lider;
-    } else {
-      const r = await autenticarLider(login, senha);
-      setEntrando(false);
-      setSenha("");
-      if (!r.ok) {
-        setErro(r.erro);
-        return;
-      }
-      lider = r.lider;
+    const r: ResultadoLoginDialog = processarLogin
+      ? await processarLogin(login, senha)
+      : await autenticarLider(login, senha);
+    setEntrando(false);
+    setSenha("");
+    if (!r.ok) {
+      setErro(r.erro);
+      return;
     }
 
     limpar();
-    onAutenticado(lider);
+    onAutenticado(r.lider, r.resultado);
   };
 
   return (
@@ -282,7 +273,7 @@ export function AutenticarLiderDialog({
               disabled={entrando || !autorizou.trim() || !motivo}
               onClick={() => void confirmarContingencia()}
             >
-              {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Fechar em contingência"}
+              {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirmar contingência"}
             </Button>
           ) : (
             <Button
@@ -291,7 +282,13 @@ export function AutenticarLiderDialog({
               disabled={entrando || !login.trim() || !senha}
               onClick={() => void confirmar()}
             >
-              {entrando ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar e validar"}
+              {entrando ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : processarLogin ? (
+                "Entrar e confirmar"
+              ) : (
+                "Entrar e validar"
+              )}
             </Button>
           )}
         </div>

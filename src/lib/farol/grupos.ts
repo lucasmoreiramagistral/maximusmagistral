@@ -15,7 +15,7 @@
 
 import type { Pendencia } from "./pendencias";
 import { faixaIdade, planoAprovado, type FaixaIdade } from "./pendencias";
-import { planoDoProblema, type PlanoAcao } from "./planos-types";
+import { planoDoProblema, type OrigemPlano, type PlanoAcao } from "./planos-types";
 
 export interface GrupoPendencia {
   chave: string;
@@ -24,7 +24,7 @@ export interface GrupoPendencia {
   titulo: string;
   contexto: string;
   maquina: string;
-  origemTipo: "checklist" | "limpeza";
+  origemTipo: OrigemPlano;
   itemNumero: number | null;
 
   ocorrencias: Pendencia[];

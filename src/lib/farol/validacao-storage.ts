@@ -1,70 +1,183 @@
-/**
- * Validação do líder.
- *
- * Hoje, no app publicado, o líder valida dentro da sessão do OPERADOR
- * digitando o próprio nome num campo de texto livre
- * (routes/operador.validacao-lider.tsx). Qualquer pessoa digita qualquer
- * nome — assinatura sem prova de quem assinou.
- *
- * Aqui o nome vem da sessão autenticada. É a razão de existir o login do
- * líder, e é o que transforma as 56 validações em aberto num número que
- * significa alguma coisa.
- */
+/** Fechamento autenticado e transacional do Checklist/Limpeza (migration 09). */
 
 import { supabase } from "@/integrations/supabase/client";
-import type { Usuario } from "@/lib/checklist/types";
+import { criarClienteValidacao } from "@/integrations/supabase/client-validacao";
+import { loginParaEmail, mensagemErroLogin } from "@/lib/usuarios/login-cliente";
+import { PERFIS_QUE_VALIDAM, type Contingencia, type IdentidadeLider } from "./autenticar-lider";
 
-export async function validarLimpeza(
-  limpezaId: string,
-  usuario: Usuario,
-): Promise<{ ok: true } | { ok: false; erro: string }> {
-  const agora = new Date().toISOString();
+export interface SolicitacaoFinalizacao {
+  fechamentoId: string;
+  checklist?: { id: string; assinaturaDataUrl: string };
+  limpeza?: { id: string; assinaturaDataUrl: string };
+  observacao?: string | null;
+}
 
-  // folha_dia_key e turno são NOT NULL na tabela de auditoria; busca antes
-  // de escrever para não gravar registro de auditoria pela metade.
-  const { data: atual, error: errLer } = await supabase
-    .from("limpeza_turnos" as never)
-    .select("folha_dia_key, turno, status")
-    .eq("id", limpezaId)
-    .maybeSingle<{ folha_dia_key: string; turno: string; status: string }>();
+export interface ResultadoFinalizacao {
+  fechamentoId: string;
+  validadoEm: string;
+  contingencia: boolean;
+  nomeAssinatura: string;
+  ator: {
+    userId: string;
+    login: string;
+    nome: string;
+    perfil: string;
+  };
+}
 
-  if (errLer || !atual) {
-    return { ok: false, erro: errLer?.message ?? "Limpeza não encontrada" };
+export type RetornoFinalizacao =
+  | { ok: true; resultado: ResultadoFinalizacao; lider?: IdentidadeLider }
+  | { ok: false; erro: string };
+
+type ClienteSupabase = typeof supabase;
+
+export function novoFechamentoId(): string {
+  return crypto.randomUUID();
+}
+
+function erroRpc(error: { code?: string; message?: string } | null): string {
+  if (error?.code === "PGRST202" || /function .* does not exist/i.test(error?.message ?? "")) {
+    return "A migration 09 ainda não foi aplicada. Nenhum fechamento foi registrado.";
   }
-  if (atual.status === "validado") {
-    return { ok: false, erro: "Esta limpeza já foi validada." };
+  return error?.message || "Não foi possível concluir a validação.";
+}
+
+function interpretarResultado(data: unknown): ResultadoFinalizacao | null {
+  if (!data || typeof data !== "object") return null;
+  const d = data as Record<string, unknown>;
+  const ator = d.ator as Record<string, unknown> | undefined;
+  if (
+    typeof d.fechamentoId !== "string" ||
+    typeof d.validadoEm !== "string" ||
+    typeof d.contingencia !== "boolean" ||
+    typeof d.nomeAssinatura !== "string" ||
+    !ator ||
+    typeof ator.userId !== "string" ||
+    typeof ator.login !== "string" ||
+    typeof ator.nome !== "string" ||
+    typeof ator.perfil !== "string"
+  ) {
+    return null;
   }
+  return {
+    fechamentoId: d.fechamentoId,
+    validadoEm: d.validadoEm,
+    contingencia: d.contingencia,
+    nomeAssinatura: d.nomeAssinatura,
+    ator: {
+      userId: ator.userId,
+      login: ator.login,
+      nome: ator.nome,
+      perfil: ator.perfil,
+    },
+  };
+}
 
-  const { error } = await supabase
-    .from("limpeza_turnos" as never)
-    .update({
-      status: "validado",
-      lider_nome: usuario.nome,
-      lider_assinou_em: agora,
-      ultima_edicao_por_login: usuario.usuario,
-      ultima_edicao_por_nome: usuario.nome,
-    } as never)
-    .eq("id", limpezaId);
+function parametros(s: SolicitacaoFinalizacao) {
+  return {
+    p_fechamento_id: s.fechamentoId,
+    p_checklist_id: s.checklist?.id ?? null,
+    p_assinatura_checklist: s.checklist?.assinaturaDataUrl ?? null,
+    p_limpeza_id: s.limpeza?.id ?? null,
+    p_assinatura_limpeza: s.limpeza?.assinaturaDataUrl ?? null,
+    p_observacao: s.observacao?.trim() || null,
+  };
+}
 
+async function chamarNormal(
+  cliente: ClienteSupabase,
+  solicitacao: SolicitacaoFinalizacao,
+): Promise<RetornoFinalizacao> {
+  const { data, error } = await cliente.rpc(
+    "rpc_finalizar_validacao_lider" as never,
+    {
+      ...parametros(solicitacao),
+    } as never,
+  );
   if (error) {
-    console.error("[validacao] limpeza:", error);
-    return { ok: false, erro: error.message };
+    console.error("[validacao-v2] normal:", error);
+    return { ok: false, erro: erroRpc(error) };
   }
+  const resultado = interpretarResultado(data);
+  return resultado
+    ? { ok: true, resultado }
+    : { ok: false, erro: "O banco confirmou a chamada, mas devolveu um resultado inválido." };
+}
 
-  // Auditoria no mesmo padrão das outras tabelas do projeto.
-  const { error: errAud } = await supabase
-    .from("limpeza_turnos_edicoes" as never)
-    .insert({
-      limpeza_turno_id: limpezaId,
-      folha_dia_key: atual.folha_dia_key,
-      turno: atual.turno,
-      editado_por_login: usuario.usuario,
-      editado_por_nome: usuario.nome,
-      motivo_edicao: "Validação do líder pela área da liderança",
-      antes_json: { status: "aguardando_validacao" },
-      depois_json: { status: "validado", lider_nome: usuario.nome, lider_assinou_em: agora },
-    } as never);
-  if (errAud) console.error("[validacao] auditoria:", errAud);
+/** Mesmo tablet do Operador: autentica e finaliza dentro da sessão isolada do Líder. */
+export async function finalizarValidacaoComLogin(
+  login: string,
+  senha: string,
+  solicitacao: SolicitacaoFinalizacao,
+): Promise<RetornoFinalizacao> {
+  const usuario = login.trim();
+  if (!usuario || !senha) return { ok: false, erro: "Informe usuário e senha." };
 
-  return { ok: true };
+  const cliente = criarClienteValidacao();
+  try {
+    const { data, error } = await cliente.auth.signInWithPassword({
+      email: loginParaEmail(usuario),
+      password: senha,
+    });
+    if (error || !data.user) return { ok: false, erro: mensagemErroLogin(error) };
+
+    const { data: perfil, error: pErr } = await cliente
+      .from("profiles")
+      .select("perfil, active, nome, usuario")
+      .eq("id", data.user.id)
+      .maybeSingle();
+    if (pErr || !perfil) return { ok: false, erro: "Perfil não encontrado." };
+    if (!perfil.active) return { ok: false, erro: "Usuário inativo." };
+    if (!PERFIS_QUE_VALIDAM.includes(perfil.perfil as (typeof PERFIS_QUE_VALIDAM)[number])) {
+      return { ok: false, erro: "Este usuário não tem permissão para validar." };
+    }
+
+    const r = await chamarNormal(cliente, solicitacao);
+    if (!r.ok) return r;
+    return {
+      ...r,
+      lider: {
+        userId: data.user.id,
+        login: perfil.usuario ?? usuario,
+        nome: perfil.nome ?? usuario,
+        perfil: perfil.perfil,
+        autenticadoEm: r.resultado.validadoEm,
+      },
+    };
+  } catch (e) {
+    console.error("[validacao-v2] login:", e);
+    return { ok: false, erro: "Erro ao validar. Tente novamente." };
+  } finally {
+    await cliente.auth.signOut().catch(() => undefined);
+  }
+}
+
+/** Área própria do Líder/Sup/GI: usa a sessão já autenticada. */
+export async function finalizarValidacaoSessao(
+  solicitacao: SolicitacaoFinalizacao,
+): Promise<RetornoFinalizacao> {
+  return chamarNormal(supabase, solicitacao);
+}
+
+/** Contingência honesta: a RPC carimba o Operador e nunca se passa pelo Líder. */
+export async function finalizarValidacaoContingencia(
+  solicitacao: SolicitacaoFinalizacao,
+  contingencia: Contingencia,
+): Promise<RetornoFinalizacao> {
+  const { data, error } = await supabase.rpc(
+    "rpc_finalizar_validacao_contingencia" as never,
+    {
+      ...parametros(solicitacao),
+      p_autorizou: contingencia.autorizou.trim(),
+      p_motivo: contingencia.motivo.trim(),
+    } as never,
+  );
+  if (error) {
+    console.error("[validacao-v2] contingência:", error);
+    return { ok: false, erro: erroRpc(error) };
+  }
+  const resultado = interpretarResultado(data);
+  return resultado
+    ? { ok: true, resultado }
+    : { ok: false, erro: "O banco devolveu um resultado de contingência inválido." };
 }

@@ -4,6 +4,7 @@ import {
   planoAprovado,
   planoEncerraOcorrencia,
   faixaIdade,
+  numeroItemPtp,
 } from "./pendencias";
 import { montarFarol } from "./farol";
 import type { PlanoAcao } from "./planos-types";
@@ -215,6 +216,52 @@ describe("levantarPendencias", () => {
     });
     expect(p[0].tipo).toBe("validacao");
     expect(p[0].idadeDias).toBe(108); // a real do banco
+  });
+
+  it("Pós-setup assinado pelo operador e sem líder vira validação, não NC", () => {
+    const c = checklistComNc("c-fechamento", "2026-08-09");
+    c.momento = "Pós-setup";
+    c.respostas[0].resposta = "Conforme";
+    c.assinaturaOperador = {
+      nome: "Operador Teste",
+      dataUrl: "data:image/png;base64,op",
+      assinadoEm: "2026-08-09T18:00:00Z",
+    };
+    const p = levantarPendencias({ checklists: [c], limpezas: [], planos: [], hoje: HOJE });
+    expect(p).toHaveLength(1);
+    expect(p[0].tipo).toBe("validacao");
+    expect(p[0].origemTipo).toBe("checklist");
+  });
+
+  it("PTP com ocorrência entra no passivo e conserva o item", () => {
+    const p = levantarPendencias({
+      checklists: [],
+      limpezas: [],
+      ptp: [
+        {
+          id: "ptp-1",
+          dataOperacao: "2026-08-09",
+          maquina: "Enchedora 3",
+          janelaCodigo: "J01",
+          janelaInicio: "06:00",
+          janelaFim: "08:00",
+          statusJanela: "houve_ocorrencia",
+          itens: [{ codigo: "TAMPA_ALTA", nome: "Garrafa com tampa alta", quantidade: 2 }],
+        } as never,
+      ],
+      planos: [],
+      hoje: HOJE,
+    });
+    expect(p).toHaveLength(1);
+    expect(p[0].origemTipo).toBe("ptp");
+    expect(p[0].itemNumero).toBe(1);
+    expect(p[0].detalhe).toContain("2 ocorrência(s)");
+  });
+
+  it("identidade do item PTP não muda quando o JSON é reordenado", () => {
+    expect(numeroItemPtp("SEM_TAMPA")).toBe(5);
+    expect(numeroItemPtp("TAMPA_ALTA")).toBe(1);
+    expect(numeroItemPtp("DESCONHECIDO")).toBeNull();
   });
 
   it("ordena da mais velha para a mais nova", () => {

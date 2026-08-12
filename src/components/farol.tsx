@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
+import { formatarDataHora } from "@/lib/checklist/format";
 
 const CLASSE_CELULA: Record<EstadoFarol, string> = {
   nc: "bg-destructive text-destructive-foreground border-destructive",
@@ -53,9 +54,7 @@ export function Farol({
 }) {
   const [verNc, setVerNc] = useState(false);
   const resumo = resumirFarol(linhas);
-  const itensNc: ItemNcFarol[] = linhas.flatMap((l) =>
-    l.celulas.flatMap((c) => c.itensNc),
-  );
+  const itensNc: ItemNcFarol[] = linhas.flatMap((l) => l.celulas.flatMap((c) => c.itensNc));
   const cumprimento = percentualCumprimento(resumo);
   const passivoTotal = linhas.reduce((s, l) => s + l.passivoTotal, 0);
   const passivoIdade = linhas.reduce((m, l) => Math.max(m, l.passivoIdadeMaxDias), 0);
@@ -397,7 +396,9 @@ function DetalheNcDialog({
               <p className="mt-1 text-sm font-bold text-foreground">{i.titulo}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {i.maquinaId} · {i.turno}
-                {i.horario ? ` · ${i.horario}` : ""}
+                {i.horario
+                  ? ` · ${i.horario.includes("T") ? formatarDataHora(i.horario) : i.horario}`
+                  : ""}
               </p>
               {i.observacao && (
                 <p className="mt-2 rounded-lg bg-card p-2 text-xs text-foreground">

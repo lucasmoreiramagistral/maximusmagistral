@@ -88,7 +88,7 @@ export function PendenciasAbertas({
         }
         subtitulo={
           executivo
-            ? "Agrupados por causa. O que aparece aqui é o que a liderança ainda não transformou em plano."
+            ? "Agrupados por item recorrente. O que aparece aqui é o que a liderança ainda não transformou em plano."
             : "Um item recorrente é um problema só. Resolver é eliminar a causa, não tratar cada ocorrência."
         }
         vazio="Nenhum item fora do padrão em aberto."

@@ -16,6 +16,8 @@ import type { Usuario } from "@/lib/checklist/types";
 import type { Pendencia } from "@/lib/farol/pendencias";
 import { liberarRecurso } from "@/lib/farol/planos-storage";
 import { etapaDoPlano } from "@/lib/farol/planos-types";
+import type { PlanoAcao } from "@/lib/farol/planos-types";
+import { agruparPendencias, ocorrenciaRepresentante } from "@/lib/farol/grupos";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 
 function hojeISO(): string {
@@ -24,10 +26,12 @@ function hojeISO(): string {
 
 export function GestaoRecursos({
   pendencias,
+  planos,
   usuario,
   onAtualizar,
 }: {
   pendencias: Pendencia[];
+  planos: PlanoAcao[];
   usuario: Usuario;
   onAtualizar: () => void;
 }) {
@@ -40,10 +44,11 @@ export function GestaoRecursos({
   // duas filas). Aqui ficou passando.
   const problemas = pendencias.filter((p) => p.tipo === "nc");
   const validacoes = pendencias.filter((p) => p.tipo === "validacao");
+  const gruposProblemas = agruparPendencias(problemas, planos);
 
-  const comPlano = problemas.filter((p) => p.plano && p.plano.status === "aberto");
-  const vencidos = comPlano.filter((p) => p.plano!.quando < hoje && !p.plano!.recursoLiberadoEm);
-  const semPlano = problemas.filter((p) => !p.plano || p.plano.status === "nao_cumprido");
+  const comPlano = gruposProblemas.filter((g) => g.plano && g.plano.status === "aberto");
+  const vencidos = comPlano.filter((g) => g.plano!.quando < hoje && !g.plano!.recursoLiberadoEm);
+  const semPlano = gruposProblemas.filter((g) => !g.plano || g.plano.status === "nao_cumprido");
 
   const maisAntiga = pendencias.reduce<Pendencia | null>(
     (a, p) => (a === null || p.idadeDias > a.idadeDias ? p : a),
@@ -105,10 +110,10 @@ export function GestaoRecursos({
             Planos com prazo vencido aguardando a GI
           </p>
           <ul className="space-y-2">
-            {vencidos.map((p) => (
+            {vencidos.map((g) => (
               <ItemVencido
-                key={p.chave}
-                pendencia={p}
+                key={g.chave}
+                pendencia={ocorrenciaRepresentante(g)}
                 usuario={usuario}
                 onAtualizar={onAtualizar}
               />
