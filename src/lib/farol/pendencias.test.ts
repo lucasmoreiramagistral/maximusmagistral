@@ -317,6 +317,42 @@ describe("levantarPendencias", () => {
     expect(historico[0].plano?.status).toBe("cumprido");
   });
 
+  it("NC ja resolvida na tela de Nao Conformidades sai da fila", () => {
+    // O farol ignorava a tabela `nao_conformidade_resolucoes` da v1: uma NC
+    // consertada de verdade, COM registro do que foi feito, continuava
+    // vermelha para sempre. O Lucas topou com isso olhando quatro NCs de
+    // maio/junho que a fabrica ja tinha resolvido — o sensor, o arrolhador,
+    // o detector de metal.
+    const entrada = {
+      checklists: [checklistComNc("c-antigo", "2026-05-20")],
+      limpezas: [],
+      planos: [],
+      hoje: HOJE,
+    };
+    expect(levantarPendencias(entrada)).toHaveLength(1);
+
+    const resolvida = levantarPendencias({
+      ...entrada,
+      resolvidas: new Set(["checklist::c-antigo::5"]),
+    });
+    expect(resolvida).toHaveLength(0);
+  });
+
+  it("resolver NAO apaga a ocorrencia do historico", () => {
+    // Resolver tira da fila de quem AGE. A ocorrencia aconteceu e continua
+    // valendo para o "antes" de Avaliar Melhorias — senao consertar o
+    // problema apagaria a prova de que ele existia.
+    const historico = levantarPendencias({
+      checklists: [checklistComNc("c-antigo", "2026-05-20")],
+      limpezas: [],
+      planos: [],
+      hoje: HOJE,
+      resolvidas: new Set(["checklist::c-antigo::5"]),
+      incluirEncerradas: true,
+    });
+    expect(historico).toHaveLength(1);
+  });
+
   it("faixa de aging", () => {
     expect(faixaIdade(0)).toBe("hoje");
     expect(faixaIdade(7)).toBe("ate7");

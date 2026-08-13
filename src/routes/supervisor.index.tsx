@@ -13,7 +13,7 @@ import {
   montarFarol,
   type CumprimentoPeriodo,
 } from "@/lib/farol/farol";
-import { levantarPendencias } from "@/lib/farol/pendencias";
+import { carregarResolvidas, levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { PendenciasAbertas } from "@/components/pendencias-abertas";
@@ -79,6 +79,25 @@ function SupervisorHome() {
 
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+
+  // NC já resolvida na tela de Não Conformidades sai da fila de quem age.
+  // Enquanto não carrega, `undefined` significa "não sei" — e a tela espera,
+  // em vez de mostrar como aberto o que já foi consertado.
+  const [resolvidas, setResolvidas] = useState<ReadonlySet<string> | undefined>(undefined);
+  const [carregandoResolvidas, setCarregandoResolvidas] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const r = await carregarResolvidas();
+      if (cancelado) return;
+      setResolvidas(r ?? new Set<string>());
+      setCarregandoResolvidas(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
   const [erroLimpezas, setErroLimpezas] = useState("");
   const [erroPlanos, setErroPlanos] = useState("");
   const [erroPtp, setErroPtp] = useState("");
@@ -161,8 +180,8 @@ function SupervisorHome() {
   // Mesmo passivo que o lider e a GI enxergam. As tres telas TEM que contar
   // a mesma verdade: e o supervisor quem apresenta o farol para a GI.
   const pendencias = useMemo(
-    () => levantarPendencias({ checklists, limpezas, ptp, planos, hoje }),
-    [checklists, limpezas, ptp, planos, hoje],
+    () => levantarPendencias({ checklists, limpezas, ptp, planos, hoje, resolvidas }),
+    [checklists, limpezas, ptp, planos, hoje, resolvidas],
   );
 
   // "Avaliar Melhorias" e "Análise cump. Rotina Sup/Coord." — as duas
@@ -249,7 +268,11 @@ function SupervisorHome() {
               Tentar novamente
             </button>
           </section>
-        ) : carregando || carregandoLimpezas || carregandoPlanos || carregandoPtp ? (
+        ) : carregando ||
+          carregandoLimpezas ||
+          carregandoPlanos ||
+          carregandoPtp ||
+          carregandoResolvidas ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>

@@ -56,6 +56,33 @@ export interface Pendencia {
   itemNumero: number | null;
 }
 
+/**
+ * Carrega as NCs/NRs já resolvidas, no formato que `levantarPendencias` usa.
+ *
+ * Falha de leitura devolve `null`, e quem chama trata como "não sei" — nunca
+ * como "nada resolvido". Assumir zero aqui reabriria pendências que já foram
+ * fechadas, e o líder passaria a caçar problema que não existe mais.
+ */
+export async function carregarResolvidas(): Promise<ReadonlySet<string> | null> {
+  const { listarResolucoes, chaveResolucao } = await import("@/lib/nao-conformidades/resolucoes");
+  try {
+    const rs = await listarResolucoes("1900-01-01");
+    return new Set(rs.map(chaveResolucao));
+  } catch (e) {
+    console.error("[pendencias] resolvidas:", e);
+    return null;
+  }
+}
+
+/** A mesma chave usada em `nao_conformidade_resolucoes` (lib/nao-conformidades). */
+export function chaveResolucaoPendencia(p: {
+  origemTipo: string;
+  origemId: string;
+  itemNumero: number | null;
+}): string {
+  return `${p.origemTipo}::${p.origemId}::${String(p.itemNumero ?? "")}`;
+}
+
 export function diffDias(de: string, ate: string): number {
   const a = Date.parse(`${de}T00:00:00Z`);
   const b = Date.parse(`${ate}T00:00:00Z`);
@@ -107,6 +134,20 @@ export interface EntradaPendencias {
   ptpJanelasEsperadas?: ReadonlyArray<string>;
   operadorUserIds?: ReadonlySet<string>;
   /**
+   * Chaves `origem::origemId::itemNumero` já resolvidas na tela de Não
+   * Conformidades (tabela `nao_conformidade_resolucoes`, da v1).
+   *
+   * O farol ignorava essa tabela: uma NC resolvida de verdade, com o registro
+   * do que foi feito, continuava vermelha para sempre. O Lucas topou com isso
+   * olhando quatro NCs de maio/junho que a fábrica já tinha consertado — o
+   * sensor, o arrolhador, o detector de metal.
+   *
+   * Resolver não é apagar a ocorrência: a ocorrência aconteceu e continua no
+   * histórico, alimentando a contagem de "antes" em Avaliar Melhorias. O que
+   * a resolução faz é tirá-la da fila de quem precisa AGIR.
+   */
+  resolvidas?: ReadonlySet<string>;
+  /**
    * Inclui também as ocorrências que um plano já encerrou.
    *
    * O farol e as filas usam `false` (o padrão): quem já foi resolvido não é
@@ -148,6 +189,18 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
       if (r.resposta !== "Não conforme") continue;
       const plano = planoDoProblema(e.planos, "checklist", r.itemNumero, c.contexto.maquina);
       if (!e.incluirEncerradas && planoEncerraOcorrencia(plano, c.contexto.data)) continue;
+      if (
+        !e.incluirEncerradas &&
+        e.resolvidas?.has(
+          chaveResolucaoPendencia({
+            origemTipo: "checklist",
+            origemId: c.id,
+            itemNumero: r.itemNumero,
+          }),
+        )
+      ) {
+        continue;
+      }
 
       out.push({
         chave: `nc:${c.id}:${r.itemNumero}`,
@@ -207,6 +260,18 @@ export function levantarPendencias(e: EntradaPendencias): Pendencia[] {
       if (item.status !== "nao_realizado") continue;
       const plano = planoDoProblema(e.planos, "limpeza", item.codigo, l.maquina ?? "Enchedora 3");
       if (!e.incluirEncerradas && planoEncerraOcorrencia(plano, l.dataOperacao)) continue;
+      if (
+        !e.incluirEncerradas &&
+        e.resolvidas?.has(
+          chaveResolucaoPendencia({
+            origemTipo: "limpeza",
+            origemId: l.id,
+            itemNumero: item.codigo,
+          }),
+        )
+      ) {
+        continue;
+      }
 
       out.push({
         chave: `nr:${l.id}:${item.codigo}`,

@@ -7,7 +7,7 @@ import { useGuard } from "@/hooks/use-guard";
 import { useChecklistsRemote } from "@/hooks/use-storage";
 import { supabase } from "@/integrations/supabase/client";
 import { montarFarol, ROTINA_ENCHEDORA_3, type CelulaFarol } from "@/lib/farol/farol";
-import { levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
+import { carregarResolvidas, levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import {
   finalizarValidacaoSessao,
@@ -70,6 +70,23 @@ function LiderHome() {
   // PTP alimenta a coluna própria no farol.
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+
+  // NC já resolvida sai da fila — ver o comentário em pendencias.ts.
+  const [resolvidas, setResolvidas] = useState<ReadonlySet<string> | undefined>(undefined);
+  const [carregandoResolvidas, setCarregandoResolvidas] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const r = await carregarResolvidas();
+      if (cancelado) return;
+      setResolvidas(r ?? new Set<string>());
+      setCarregandoResolvidas(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
   const [operadoresEquipe, setOperadoresEquipe] = useState<ReadonlySet<string>>(new Set());
   const [carregandoEquipe, setCarregandoEquipe] = useState(true);
   const [erroEquipe, setErroEquipe] = useState("");
@@ -238,6 +255,7 @@ function LiderHome() {
         equipe: usuario?.equipePadrao,
         ptpJanelasEsperadas: janelasEsperadas,
         operadorUserIds: operadoresEquipe,
+        resolvidas,
       }),
     [
       checklists,
@@ -249,6 +267,7 @@ function LiderHome() {
       usuario?.equipePadrao,
       janelasEsperadas,
       operadoresEquipe,
+      resolvidas,
     ],
   );
 
@@ -390,6 +409,7 @@ function LiderHome() {
           carregandoLimpezas ||
           carregandoPlanos ||
           carregandoPtp ||
+          carregandoResolvidas ||
           carregandoEquipe ? (
           <p className="text-sm text-muted-foreground">Carregando o farol…</p>
         ) : (

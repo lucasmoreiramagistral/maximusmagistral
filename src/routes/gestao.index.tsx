@@ -19,7 +19,7 @@ import { MelhoriasERotina } from "@/components/melhorias-rotina";
 import { agruparPendencias } from "@/lib/farol/grupos";
 import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { montarFarol, ROTINA_ENCHEDORA_3 } from "@/lib/farol/farol";
-import { levantarPendencias } from "@/lib/farol/pendencias";
+import { carregarResolvidas, levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
@@ -71,6 +71,24 @@ function GestaoHome() {
 
   const [ptp, setPtp] = useState<PtpJanela[]>([]);
   const [carregandoPtp, setCarregandoPtp] = useState(true);
+
+  // NC já resolvida sai da fila de quem age — ver o comentário em
+  // pendencias.ts. O farol ignorava a tabela de resoluções da v1.
+  const [resolvidas, setResolvidas] = useState<ReadonlySet<string> | undefined>(undefined);
+  const [carregandoResolvidas, setCarregandoResolvidas] = useState(true);
+
+  useEffect(() => {
+    let cancelado = false;
+    void (async () => {
+      const r = await carregarResolvidas();
+      if (cancelado) return;
+      setResolvidas(r ?? new Set<string>());
+      setCarregandoResolvidas(false);
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [recarga]);
   const [erroLimpeza, setErroLimpeza] = useState("");
   const [erroPlanos, setErroPlanos] = useState("");
   const [erroPtp, setErroPtp] = useState("");
@@ -152,8 +170,9 @@ function GestaoHome() {
 
   // O passivo da linha — o mesmo que o líder vê, para a conversa ser a mesma.
   const pendencias = useMemo(
-    () => levantarPendencias({ checklists, limpezas: turnosLimpeza, ptp, planos, hoje }),
-    [checklists, turnosLimpeza, ptp, planos, hoje],
+    () =>
+      levantarPendencias({ checklists, limpezas: turnosLimpeza, ptp, planos, hoje, resolvidas }),
+    [checklists, turnosLimpeza, ptp, planos, hoje, resolvidas],
   );
 
   const linhasFarol = useMemo(
@@ -236,7 +255,8 @@ function GestaoHome() {
     carregandoChecklists ||
     carregandoLimpeza ||
     carregandoPlanos ||
-    carregandoPtp
+    carregandoPtp ||
+    carregandoResolvidas
   ) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
