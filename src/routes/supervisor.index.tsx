@@ -282,7 +282,9 @@ function SupervisorHome() {
               pendencias={pendencias}
               planos={planos}
               onAbrirPlano={setPendenciaAberta}
+              modo="executivo"
             />
+
 
             {pendenciaAberta && (
               <PlanoAcaoDialog
