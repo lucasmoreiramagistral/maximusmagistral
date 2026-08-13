@@ -212,7 +212,7 @@ function Fila({
   const visiveis = cortar ? grupos.slice(0, limite) : grupos;
 
   return (
-    <section className="mt-8" aria-label={titulo}>
+    <section id="problemas-abertos" className="mt-8" aria-label={titulo}>
       <div className="mb-3">
         <h3 className="text-2xl font-black tracking-tight text-foreground">
           {titulo}

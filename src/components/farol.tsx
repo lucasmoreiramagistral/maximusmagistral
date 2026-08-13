@@ -57,6 +57,8 @@ export function Farol({
 }) {
   const estadoGeral = modo === "estado";
   const [verNc, setVerNc] = useState(false);
+  const [celulaNc, setCelulaNc] = useState<CelulaFarol | null>(null);
+
   const resumo = resumirFarol(linhas);
   const itensNc: ItemNcFarol[] = linhas.flatMap((l) => l.celulas.flatMap((c) => c.itensNc));
   const cumprimento = percentualCumprimento(resumo);
@@ -148,7 +150,21 @@ export function Farol({
                       celula.coluna.tipo !== "checklist" && "border-l-2 border-l-border",
                     )}
                   >
-                    <CelulaLampada celula={celula} onAbrir={onAbrirCelula} />
+                    <CelulaLampada
+                      celula={celula}
+                      onAbrir={
+                        celula.itensNc.length > 0 || onAbrirCelula
+                          ? (c) => {
+                              // Gestão à vista: célula com item fora do padrão
+                              // abre direto a lista do que está ruim.
+                              if (c.itensNc.length > 0) setCelulaNc(c);
+                              else onAbrirCelula?.(c);
+                            }
+                          : undefined
+                      }
+                    />
+
+
                   </td>
                 ))}
               </tr>
@@ -242,6 +258,17 @@ export function Farol({
         data={data}
         itens={itensNc}
       />
+
+      <DetalheNcDialog
+        aberto={!!celulaNc}
+        onFechar={() => setCelulaNc(null)}
+        data={data}
+        itens={celulaNc?.itensNc ?? []}
+        contexto={
+          celulaNc ? `${celulaNc.maquinaId} · ${celulaNc.coluna.titulo}` : undefined
+        }
+      />
+
     </section>
   );
 }
@@ -323,6 +350,8 @@ function CelulaLampada({
   onAbrir?: (c: CelulaFarol) => void;
 }) {
   const clicavel = !!onAbrir && celula.estado !== "sem_escopo";
+
+
   const conteudo = (
     <>
       <span className="text-xl font-black leading-none lg:text-2xl">
@@ -389,11 +418,14 @@ function DetalheNcDialog({
   onFechar,
   data,
   itens,
+  contexto,
 }: {
   aberto: boolean;
   onFechar: () => void;
   data: string;
   itens: ItemNcFarol[];
+  /** Máquina · rotina, quando o diálogo veio do clique numa célula. */
+  contexto?: string;
 }) {
   return (
     <Dialog open={aberto} onOpenChange={(o) => (!o ? onFechar() : undefined)}>
@@ -402,8 +434,11 @@ function DetalheNcDialog({
           <DialogTitle>
             {itens.length} {itens.length === 1 ? "item" : "itens"} fora do padrão
           </DialogTitle>
-          <DialogDescription>No dia {formatarDataBR(data)}</DialogDescription>
+          <DialogDescription>
+            {contexto ? `${contexto} · ` : ""}No dia {formatarDataBR(data)}
+          </DialogDescription>
         </DialogHeader>
+
         <ul className="space-y-3">
           {itens.map((i, idx) => (
             <li
@@ -428,7 +463,22 @@ function DetalheNcDialog({
             </li>
           ))}
         </ul>
+
+        {/* Quem quiser tratar (plano de ação/validação) desce para a fila. */}
+        <button
+          type="button"
+          onClick={() => {
+            onFechar();
+            document
+              .getElementById("problemas-abertos")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent"
+        >
+          Ver na lista de problemas abertos ↓
+        </button>
       </DialogContent>
+
     </Dialog>
   );
 }
