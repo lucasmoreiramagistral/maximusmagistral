@@ -463,7 +463,22 @@ function DetalheNcDialog({
             </li>
           ))}
         </ul>
+
+        {/* Quem quiser tratar (plano de ação/validação) desce para a fila. */}
+        <button
+          type="button"
+          onClick={() => {
+            onFechar();
+            document
+              .getElementById("problemas-abertos")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent"
+        >
+          Ver na lista de problemas abertos ↓
+        </button>
       </DialogContent>
+
     </Dialog>
   );
 }
