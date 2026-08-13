@@ -152,14 +152,18 @@ export function Farol({
                   >
                     <CelulaLampada
                       celula={celula}
-                      onAbrir={(c) => {
-                        // Gestão à vista: se a célula tem item fora do padrão,
-                        // o clique mostra JÁ o que está fudido, sem escala.
-                        if (c.itensNc.length > 0) setCelulaNc(c);
-                        else onAbrirCelula?.(c);
-                      }}
-                      sempreClicavel={celula.itensNc.length > 0}
+                      onAbrir={
+                        celula.itensNc.length > 0 || onAbrirCelula
+                          ? (c) => {
+                              // Gestão à vista: célula com item fora do padrão
+                              // abre direto a lista do que está ruim.
+                              if (c.itensNc.length > 0) setCelulaNc(c);
+                              else onAbrirCelula?.(c);
+                            }
+                          : undefined
+                      }
                     />
+
 
                   </td>
                 ))}
