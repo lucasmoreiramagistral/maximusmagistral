@@ -266,6 +266,21 @@ export interface EntradaFarol {
    * depois que a janela do padrão passou.
    */
   hoje?: string;
+  /**
+   * Quem está olhando muda o que a célula responde.
+   *
+   *   "turno"   Líder. A execução do turno mostrado: foi feito? teve NC?
+   *             É ele quem preenche e valida, então o recorte é o turno da
+   *             equipe dele.
+   *
+   *   "estado"  Coordenador e GI. O que está ABERTO agora em cada rotina, de
+   *             qualquer data, com a idade. Eles não executam — cobram. Pedir
+   *             que naveguem dia a dia atrás do vermelho é pedir que não
+   *             olhem o farol.
+   *
+   * O padrão é "turno" para não mudar o que já existe sem querer.
+   */
+  modo?: "turno" | "estado";
 }
 
 /**
@@ -361,6 +376,49 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
       const idadeMaxDias = pendencias.reduce((m, p) => Math.max(m, p.idadeDias), 0);
       const passivoAnterior = pendencias.filter((p) => p.dataOrigem < entrada.data).length;
       const base = { ...vazia, pendencias, idadeMaxDias, passivoAnterior };
+
+      // ── MODO ESTADO — o farol do Coordenador e da GI ───────────────────
+      //
+      // Eles não executam a rotina: cobram e decidem. Perguntar a eles "como
+      // foi o turno de ontem" obriga a caçar o dia no calendário atrás do
+      // vermelho, que foi exatamente a reclamação do Lucas.
+      //
+      // Aqui a célula responde outra coisa: o que está ABERTO nesta rotina
+      // agora, de qualquer data, com a idade. Não existe "turno em andamento"
+      // nem "não realizado" — esses são conceitos de execução, e execução é
+      // assunto do líder. O cumprimento ao longo do tempo continua no painel
+      // próprio, logo abaixo.
+      if (entrada.modo === "estado") {
+        const ncs = pendencias.filter((p) => p.tipo === "nc");
+        const validacoes = pendencias.filter((p) => p.tipo === "validacao");
+
+        if (ncs.length > 0) {
+          const idade = ncs.reduce((m, p) => Math.max(m, p.idadeDias), 0);
+          return {
+            ...base,
+            estado: "nc" as EstadoFarol,
+            totalNc: ncs.length,
+            itensNc: ncs.map((p) => ({
+              rotina: coluna.titulo,
+              maquinaId: maquina.id,
+              turno: p.turno,
+              titulo: p.titulo,
+              observacao: p.detalhe || null,
+              horario: p.dataOrigem,
+            })),
+            detalhe: `${ncs.length} em aberto · mais antigo há ${idade}d`,
+          };
+        }
+        if (validacoes.length > 0) {
+          const idade = validacoes.reduce((m, p) => Math.max(m, p.idadeDias), 0);
+          return {
+            ...base,
+            estado: "pendente_validacao" as EstadoFarol,
+            detalhe: `${validacoes.length} sem validação · mais antiga há ${idade}d`,
+          };
+        }
+        return { ...base, estado: "conforme" as EstadoFarol, detalhe: "nada em aberto" };
+      }
 
       // ── LIMPEZA ────────────────────────────────────────────────────────
       if (coluna.tipo === "limpeza") {

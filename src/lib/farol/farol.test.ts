@@ -297,6 +297,57 @@ describe("montarFarol", () => {
     expect(daLimpeza.itensNc[0].turno).toBe("12x36 Dia");
   });
 
+  it("modo estado responde 'o que esta aberto', nao 'como foi o dia'", () => {
+    // A reclamacao do Lucas: o Coord e a GI abriam o farol e viam uma parede
+    // de "turno em andamento", tendo que cacar no calendario o dia que teve
+    // nao conformidade. Eles nao executam a rotina — cobram. A pergunta deles
+    // e "onde esta o vermelho agora".
+    const pendencias = [
+      {
+        chave: "p1",
+        tipo: "nc" as const,
+        maquina: "Enchedora 3",
+        momento: null,
+        turno: "12x36 Dia",
+        dataOrigem: "2026-05-01",
+        idadeDias: 101,
+        titulo: "Limpeza · item 2 — dispenser",
+        contexto: "Antessala",
+        detalhe: "sem sabão",
+        plano: null,
+        origemTipo: "limpeza" as const,
+        origemId: "l1",
+        itemNumero: 2,
+      },
+    ];
+
+    // Sem NENHUM registro do dia: no modo turno isso seria "aguardando".
+    const [turno] = montarFarol({
+      checklists: [],
+      data: DATA,
+      hoje: DATA,
+      pendencias,
+      maquinas: MAQ,
+    });
+    expect(coluna(turno, "limpeza").estado).toBe("aguardando");
+
+    const [estado] = montarFarol({
+      checklists: [],
+      data: DATA,
+      hoje: DATA,
+      pendencias,
+      maquinas: MAQ,
+      modo: "estado",
+    });
+    const limpeza = coluna(estado, "limpeza");
+    expect(limpeza.estado).toBe("nc");
+    expect(limpeza.detalhe).toContain("101d");
+    // e nada fica "aguardando": esse conceito e de execucao, nao de estado
+    expect(estado.celulas.some((c) => c.estado === "aguardando")).toBe(false);
+    // rotina sem pendencia aparece limpa, nao "nao realizado"
+    expect(coluna(estado, "ptp").estado).toBe("conforme");
+  });
+
   it("máquina não implantada fica fora da conta", () => {
     const linhas = montarFarol({ checklists: [], data: DATA, maquinas: MAQ });
     expect(linhas[1].celulas.every((c) => c.estado === "sem_escopo")).toBe(true);

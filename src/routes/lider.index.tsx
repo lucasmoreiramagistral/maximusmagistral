@@ -85,9 +85,31 @@ function LiderHome() {
   );
 
   // O líder chega no turno e precisa olhar o que acabou de fechar, não só o
-  // que está aberto. Por isso a data é navegável, começando em hoje.
+  // que está aberto. Por isso a data é navegável.
   const [dataSel, setDataSel] = useState<string | null>(null);
-  const data = dataSel ?? hoje;
+
+  /**
+   * Abrir no dia corrente dava, quase sempre, uma parede de "turno em
+   * andamento": às 8h da manhã nada foi lançado ainda, e o líder teria que
+   * caçar no calendário o dia que teve não conformidade. Foi a reclamação do
+   * Lucas, e ela está certa.
+   *
+   * Então a tela abre no último dia da EQUIPE DELE que tem registro. Quando
+   * o turno de hoje começa a ser preenchido, ele passa a ser o mais recente e
+   * a tela volta sozinha para o presente.
+   */
+  const ultimoDiaComDado = useMemo(() => {
+    const datas = [
+      ...checklists
+        .filter((c) => !usuario?.equipePadrao || c.contexto.equipe === usuario.equipePadrao)
+        .map((c) => c.contexto.data),
+      ...limpezas.map((l) => l.dataOperacao),
+    ].filter((d) => d <= hoje);
+    return datas.length > 0 ? datas.reduce((a, b) => (a > b ? a : b)) : null;
+  }, [checklists, limpezas, hoje, usuario?.equipePadrao]);
+
+  const data = dataSel ?? ultimoDiaComDado ?? hoje;
+  const mostrandoDiaAnterior = data !== hoje;
   const janelasEsperadas = useMemo(
     () => janelasPtpDoTurnoEquipe(usuario?.turnoPadrao, usuario?.equipePadrao),
     [usuario?.turnoPadrao, usuario?.equipePadrao],
@@ -328,16 +350,26 @@ function LiderHome() {
           >
             Próximo dia →
           </button>
-          {data !== hoje && (
+          {mostrandoDiaAnterior && (
             <button
               type="button"
-              onClick={() => setDataSel(null)}
+              onClick={() => setDataSel(hoje)}
               className="rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground"
             >
-              Voltar para hoje
+              Ir para hoje
             </button>
           )}
         </div>
+
+        {/* Dizer POR QUE não está mostrando hoje. Sem isto o líder acha que a
+            tela está atrasada, em vez de entender que hoje ainda não teve
+            lançamento da equipe dele. */}
+        {mostrandoDiaAnterior && !dataSel && (
+          <p className="mb-4 rounded-xl border border-primary/40 bg-primary-soft px-4 py-3 text-sm font-semibold text-primary">
+            Ainda não há lançamento da sua equipe em {formatarDataBR(hoje)}. Mostrando o último
+            turno com registro: <b>{formatarDataBR(data)}</b>.
+          </p>
+        )}
 
         {/* O gate cobre o farol E as filas. Antes cobria só o farol, então as
             filas renderizavam com lista vazia e a tela dizia "Nada aguardando

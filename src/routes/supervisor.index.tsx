@@ -211,7 +211,18 @@ function SupervisorHome() {
   );
 
   const farolHoje = useMemo(
-    () => montarFarol({ checklists, limpezas, ptp, data: hoje, hoje, pendencias }),
+    () =>
+      montarFarol({
+        checklists,
+        limpezas,
+        ptp,
+        data: hoje,
+        hoje,
+        pendencias,
+        // O Sup/Coord cobra, não executa: a célula mostra o que está aberto
+        // agora, não como foi o turno de ontem.
+        modo: "estado",
+      }),
     [checklists, limpezas, ptp, hoje, pendencias],
   );
 
@@ -242,7 +253,7 @@ function SupervisorHome() {
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : (
           <>
-            <Farol linhas={farolHoje} data={hoje} />
+            <Farol linhas={farolHoje} data={hoje} modo="estado" />
 
             <PendenciasAbertas
               pendencias={pendencias}

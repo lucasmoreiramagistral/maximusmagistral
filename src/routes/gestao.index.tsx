@@ -157,7 +157,16 @@ function GestaoHome() {
   );
 
   const linhasFarol = useMemo(
-    () => montarFarol({ checklists, limpezas: turnosLimpeza, ptp, data: hoje, hoje, pendencias }),
+    () =>
+      montarFarol({
+        checklists,
+        limpezas: turnosLimpeza,
+        ptp,
+        data: hoje,
+        hoje,
+        pendencias,
+        modo: "estado",
+      }),
     [checklists, turnosLimpeza, ptp, hoje, pendencias],
   );
 
@@ -245,7 +254,7 @@ function GestaoHome() {
           <h2 className="text-2xl font-bold text-foreground md:text-3xl">{usuario.nome}</h2>
         </div>
 
-        <Farol linhas={linhasFarol} data={hoje} />
+        <Farol linhas={linhasFarol} data={hoje} modo="estado" />
 
         <GestaoRecursos
           pendencias={pendencias}

@@ -46,12 +46,16 @@ export function Farol({
   data,
   turno,
   onAbrirCelula,
+  modo = "turno",
 }: {
   linhas: LinhaFarol[];
   data: string;
   turno?: string | null;
   onAbrirCelula?: (celula: CelulaFarol) => void;
+  /** Ver EntradaFarol.modo. "estado" é a leitura do Coord/GI. */
+  modo?: "turno" | "estado";
 }) {
+  const estadoGeral = modo === "estado";
   const [verNc, setVerNc] = useState(false);
   const resumo = resumirFarol(linhas);
   const itensNc: ItemNcFarol[] = linhas.flatMap((l) => l.celulas.flatMap((c) => c.itensNc));
@@ -64,8 +68,17 @@ export function Farol({
       <div className="mb-4 flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h2 className="text-4xl font-black tracking-[0.15em] text-foreground md:text-5xl">FAROL</h2>
         <p className="text-sm text-muted-foreground md:text-base">
-          Checklist Operacional · {formatarDataBR(data)}
-          {turno ? ` · ${turno}` : ""}
+          {estadoGeral ? (
+            <>
+              Situação da linha <b className="text-foreground">agora</b> · o que está em aberto, de
+              qualquer data
+            </>
+          ) : (
+            <>
+              Checklist Operacional · {formatarDataBR(data)}
+              {turno ? ` · ${turno}` : ""}
+            </>
+          )}
         </p>
       </div>
 
@@ -160,7 +173,7 @@ export function Farol({
           acima de uma fila com 55 validações abertas — verdade pela metade
           lida como mentira inteira. */}
       <p className="mt-6 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-        No dia {formatarDataBR(data)}
+        {estadoGeral ? "Em aberto agora" : `No dia ${formatarDataBR(data)}`}
       </p>
       <div className="mt-2 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
         <Indicador
@@ -186,31 +199,38 @@ export function Farol({
           tom={resumo.pendenteValidacao > 0 ? "atencao" : "bom"}
           nota="validação pendente"
         />
+        {/* No modo estado não existe "não realizado" — a conta daria 100%
+            sempre, o que seria falso conforto. Quem mede cumprimento é o
+            painel de série do Sup/Coord, com denominador de verdade. */}
+        {!estadoGeral && (
+          <Indicador
+            rotulo="Cumprimento"
+            valor={resumo.totalAvaliado === 0 ? "—" : `${cumprimento}%`}
+            tom={
+              resumo.totalAvaliado === 0
+                ? "neutro"
+                : cumprimento >= 90
+                  ? "bom"
+                  : cumprimento >= 70
+                    ? "atencao"
+                    : "ruim"
+            }
+            nota={
+              resumo.totalAvaliado === 0
+                ? `turno em andamento · ${resumo.aguardando} a vencer`
+                : `${resumo.totalAvaliado - resumo.nr} de ${resumo.totalAvaliado} verificações`
+            }
+          />
+        )}
         <Indicador
-          rotulo="Cumprimento"
-          valor={resumo.totalAvaliado === 0 ? "—" : `${cumprimento}%`}
-          tom={
-            resumo.totalAvaliado === 0
-              ? "neutro"
-              : cumprimento >= 90
-                ? "bom"
-                : cumprimento >= 70
-                  ? "atencao"
-                  : "ruim"
-          }
-          nota={
-            resumo.totalAvaliado === 0
-              ? `turno em andamento · ${resumo.aguardando} a vencer`
-              : `${resumo.totalAvaliado - resumo.nr} de ${resumo.totalAvaliado} verificações`
-          }
-        />
-        <Indicador
-          rotulo="Passivo aberto"
-          valor={passivoTotal}
+          rotulo={estadoGeral ? "Mais antiga em aberto" : "Passivo aberto"}
+          valor={estadoGeral ? (passivoIdade > 0 ? `${passivoIdade}d` : "—") : passivoTotal}
           tom={passivoTotal > 0 ? "ruim" : "bom"}
           nota={
             passivoTotal > 0
-              ? `de outros dias · mais antiga há ${passivoIdade}d`
+              ? estadoGeral
+                ? `${passivoTotal} itens vindos de outros dias`
+                : `de outros dias · mais antiga há ${passivoIdade}d`
               : "nada vindo de trás"
           }
         />
