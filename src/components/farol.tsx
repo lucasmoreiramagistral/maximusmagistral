@@ -57,6 +57,8 @@ export function Farol({
 }) {
   const estadoGeral = modo === "estado";
   const [verNc, setVerNc] = useState(false);
+  const [celulaNc, setCelulaNc] = useState<CelulaFarol | null>(null);
+
   const resumo = resumirFarol(linhas);
   const itensNc: ItemNcFarol[] = linhas.flatMap((l) => l.celulas.flatMap((c) => c.itensNc));
   const cumprimento = percentualCumprimento(resumo);
