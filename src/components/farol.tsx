@@ -330,11 +330,15 @@ function AcoesPdca({ linhas }: { linhas: LinhaFarol[] }) {
 function CelulaLampada({
   celula,
   onAbrir,
+  sempreClicavel = false,
 }: {
   celula: CelulaFarol;
   onAbrir?: (c: CelulaFarol) => void;
+  /** Célula com item fora do padrão abre a lista mesmo sem handler da tela. */
+  sempreClicavel?: boolean;
 }) {
-  const clicavel = !!onAbrir && celula.estado !== "sem_escopo";
+  const clicavel = !!onAbrir && celula.estado !== "sem_escopo" && (sempreClicavel || true);
+
   const conteudo = (
     <>
       <span className="text-xl font-black leading-none lg:text-2xl">
