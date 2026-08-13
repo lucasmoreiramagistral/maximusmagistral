@@ -418,11 +418,14 @@ function DetalheNcDialog({
   onFechar,
   data,
   itens,
+  contexto,
 }: {
   aberto: boolean;
   onFechar: () => void;
   data: string;
   itens: ItemNcFarol[];
+  /** Máquina · rotina, quando o diálogo veio do clique numa célula. */
+  contexto?: string;
 }) {
   return (
     <Dialog open={aberto} onOpenChange={(o) => (!o ? onFechar() : undefined)}>
@@ -431,8 +434,11 @@ function DetalheNcDialog({
           <DialogTitle>
             {itens.length} {itens.length === 1 ? "item" : "itens"} fora do padrão
           </DialogTitle>
-          <DialogDescription>No dia {formatarDataBR(data)}</DialogDescription>
+          <DialogDescription>
+            {contexto ? `${contexto} · ` : ""}No dia {formatarDataBR(data)}
+          </DialogDescription>
         </DialogHeader>
+
         <ul className="space-y-3">
           {itens.map((i, idx) => (
             <li
