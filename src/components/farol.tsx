@@ -148,7 +148,17 @@ export function Farol({
                       celula.coluna.tipo !== "checklist" && "border-l-2 border-l-border",
                     )}
                   >
-                    <CelulaLampada celula={celula} onAbrir={onAbrirCelula} />
+                    <CelulaLampada
+                      celula={celula}
+                      onAbrir={(c) => {
+                        // Gestão à vista: se a célula tem item fora do padrão,
+                        // o clique mostra JÁ o que está fudido, sem escala.
+                        if (c.itensNc.length > 0) setCelulaNc(c);
+                        else onAbrirCelula?.(c);
+                      }}
+                      sempreClicavel={celula.itensNc.length > 0}
+                    />
+
                   </td>
                 ))}
               </tr>
