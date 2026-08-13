@@ -258,6 +258,17 @@ export function Farol({
         data={data}
         itens={itensNc}
       />
+
+      <DetalheNcDialog
+        aberto={!!celulaNc}
+        onFechar={() => setCelulaNc(null)}
+        data={data}
+        itens={celulaNc?.itensNc ?? []}
+        contexto={
+          celulaNc ? `${celulaNc.maquinaId} · ${celulaNc.coluna.titulo}` : undefined
+        }
+      />
+
     </section>
   );
 }
