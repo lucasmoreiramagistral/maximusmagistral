@@ -31,6 +31,7 @@ import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
 import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-conformidades'
 import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
 import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
+import { Route as GestaoHoraXHoraRouteImport } from './routes/gestao.hora-x-hora'
 import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
 import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
@@ -153,6 +154,11 @@ const GestaoItAnalyticsRoute = GestaoItAnalyticsRouteImport.update({
   path: '/gestao/it-analytics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GestaoHoraXHoraRoute = GestaoHoraXHoraRouteImport.update({
+  id: '/gestao/hora-x-hora',
+  path: '/gestao/hora-x-hora',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const GestaoFiltrosRoute = GestaoFiltrosRouteImport.update({
   id: '/gestao/filtros',
   path: '/gestao/filtros',
@@ -218,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/hora-x-hora': typeof GestaoHoraXHoraRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
@@ -253,6 +260,7 @@ export interface FileRoutesByTo {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/hora-x-hora': typeof GestaoHoraXHoraRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
@@ -289,6 +297,7 @@ export interface FileRoutesById {
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
+  '/gestao/hora-x-hora': typeof GestaoHoraXHoraRoute
   '/gestao/it-analytics': typeof GestaoItAnalyticsRoute
   '/gestao/it-treinamentos': typeof GestaoItTreinamentosRoute
   '/gestao/nao-conformidades': typeof GestaoNaoConformidadesRoute
@@ -326,6 +335,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
+    | '/gestao/hora-x-hora'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
     | '/gestao/nao-conformidades'
@@ -361,6 +371,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
+    | '/gestao/hora-x-hora'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
     | '/gestao/nao-conformidades'
@@ -396,6 +407,7 @@ export interface FileRouteTypes {
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
+    | '/gestao/hora-x-hora'
     | '/gestao/it-analytics'
     | '/gestao/it-treinamentos'
     | '/gestao/nao-conformidades'
@@ -432,6 +444,7 @@ export interface RootRouteChildren {
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
   GestaoDashboardRoute: typeof GestaoDashboardRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
+  GestaoHoraXHoraRoute: typeof GestaoHoraXHoraRoute
   GestaoItAnalyticsRoute: typeof GestaoItAnalyticsRoute
   GestaoItTreinamentosRoute: typeof GestaoItTreinamentosRoute
   GestaoNaoConformidadesRoute: typeof GestaoNaoConformidadesRoute
@@ -616,6 +629,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GestaoItAnalyticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/gestao/hora-x-hora': {
+      id: '/gestao/hora-x-hora'
+      path: '/gestao/hora-x-hora'
+      fullPath: '/gestao/hora-x-hora'
+      preLoaderRoute: typeof GestaoHoraXHoraRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/gestao/filtros': {
       id: '/gestao/filtros'
       path: '/gestao/filtros'
@@ -726,6 +746,7 @@ const rootRouteChildren: RootRouteChildren = {
   GestaoChecklistsRoute: GestaoChecklistsRoute,
   GestaoDashboardRoute: GestaoDashboardRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,
+  GestaoHoraXHoraRoute: GestaoHoraXHoraRoute,
   GestaoItAnalyticsRoute: GestaoItAnalyticsRoute,
   GestaoItTreinamentosRoute: GestaoItTreinamentosRoute,
   GestaoNaoConformidadesRoute: GestaoNaoConformidadesRoute,

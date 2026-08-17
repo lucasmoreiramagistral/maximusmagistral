@@ -10,6 +10,7 @@ import {
   AlertOctagon,
   ArrowRight,
   LayoutDashboard,
+  Clock,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Farol } from "@/components/farol";
@@ -360,6 +361,12 @@ function GestaoHome() {
             icon={<FileBarChart2 className="h-8 w-8" />}
             titulo="Gerar Relatório"
             descricao="Consolidar checklist, tratativas e recorrências da Linha 3"
+          />
+          <BotaoLink
+            to="/gestao/hora-x-hora"
+            icon={<Clock className="h-8 w-8" />}
+            titulo="Relatório Operacional Hora x Hora"
+            descricao="Consultar produção horária da enchedora por data e turno"
           />
           <BotaoLink
             to="/gestao/it-analytics"
