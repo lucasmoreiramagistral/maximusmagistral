@@ -363,6 +363,12 @@ function GestaoHome() {
             descricao="Consolidar checklist, tratativas e recorrências da Linha 3"
           />
           <BotaoLink
+            to="/gestao/hora-x-hora"
+            icon={<Clock className="h-8 w-8" />}
+            titulo="Relatório Operacional Hora x Hora"
+            descricao="Consultar produção horária da enchedora por data e turno"
+          />
+          <BotaoLink
             to="/gestao/it-analytics"
             icon={<BookOpen className="h-8 w-8" />}
             titulo="Inteligência das ITs"
