@@ -10,6 +10,7 @@ import {
   AlertOctagon,
   ArrowRight,
   LayoutDashboard,
+  Clock,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Farol } from "@/components/farol";
