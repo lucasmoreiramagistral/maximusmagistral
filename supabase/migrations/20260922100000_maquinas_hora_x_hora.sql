@@ -239,6 +239,34 @@ $$;
 revoke all on function public.maximus_operador_da_maquina(text) from public;
 grant execute on function public.maximus_operador_da_maquina(text) to authenticated;
 
+-- A restricao adicional so limita operadores a maquina atribuida. Lideres,
+-- supervisores e outros perfis continuam sujeitos as policies RLS existentes
+-- (por equipe, modulo e papel), sem ganhar acesso novo por esta funcao.
+create or replace function public.maximus_perfil_no_escopo_maquina(p_maquina text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles p
+     where p.id = auth.uid()
+       and p.active = true
+       and (
+         p.perfil <> 'operador'
+         or p.maquina_id = case p_maquina
+           when 'Enchedora 2' then 'enchedora-2'
+           when 'Enchedora 3' then 'enchedora-3'
+           when 'Empacotadora 2' then 'empacotadora-2'
+           when 'Empacotadora 3' then 'empacotadora-3'
+           else null
+         end
+       )
+  );
+$$;
+
+revoke all on function public.maximus_perfil_no_escopo_maquina(text) from public;
+grant execute on function public.maximus_perfil_no_escopo_maquina(text) to authenticated;
+
 -- Protege todos os formularios que ja possuem maquina e identificador do
 -- operador. Nao substitui nem remove as policies RLS existentes.
 create or replace function public.maximus_conferir_maquina_do_operador()
@@ -268,12 +296,11 @@ begin
   if not found or v_ativo is distinct from true then
     raise exception 'Perfil ativo necessario para gravar formulario.' using errcode = '42501';
   end if;
-  if v_perfil = 'gestao' then
+  -- Nao substitui as regras RLS ja existentes para lideranca e manutencao.
+  -- Este gatilho acrescenta apenas o vinculo de maquina para operadores.
+  if v_perfil is distinct from 'operador' then
     if tg_op = 'DELETE' then return old; end if;
     return new;
-  end if;
-  if v_perfil is distinct from 'operador' then
-    raise exception 'Perfil sem permissao para gravar formulario.' using errcode = '42501';
   end if;
 
   v_dados := case when tg_op = 'DELETE' then to_jsonb(old) else to_jsonb(new) end;
@@ -346,9 +373,9 @@ begin
       );
     end if;
 
-    -- Policy restritiva soma-se (AND) as policies atuais. Assim SELECT,
-    -- INSERT, UPDATE e DELETE nunca escapam da maquina atribuida, mesmo se
-    -- alguma policy permissiva antiga abranger mais linhas.
+    -- Policy restritiva soma-se (AND) as policies atuais. Operadores nunca
+    -- escapam da maquina atribuida; os outros perfis mantem suas regras
+    -- anteriores de escopo por equipe, modulo e papel.
     execute format('alter table public.%I enable row level security', v_tabela);
     v_nome_policy := 'maximus_maquina_escopo_' || v_tabela;
     if not exists (
@@ -357,7 +384,7 @@ begin
          and policyname = v_nome_policy
     ) then
       execute format(
-        'create policy %I on public.%I as restrictive for all to authenticated using (public.is_gestao(auth.uid()) or public.maximus_operador_da_maquina(maquina)) with check (public.is_gestao(auth.uid()) or public.maximus_operador_da_maquina(maquina))',
+        'create policy %I on public.%I as restrictive for all to authenticated using (public.maximus_perfil_no_escopo_maquina(maquina)) with check (public.maximus_perfil_no_escopo_maquina(maquina))',
         v_nome_policy, v_tabela
       );
     end if;
