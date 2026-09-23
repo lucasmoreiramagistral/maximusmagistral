@@ -597,16 +597,17 @@ function DialogHora({
       toast.error("O produto mudou desde a última hora. Marque a troca de sabor ou tamanho para reiniciar o acumulado.");
       return;
     }
-    if (reinicia && motivo !== "cip" && !sabor.trim() && !tamanho.trim()) {
+    if (reinicia && motivo !== "cip" && quantidadeFinal !== null && quantidadeFinal > 0 &&
+      !sabor.trim() && !tamanho.trim()) {
       toast.error("Informe o sabor ou o tamanho do novo produto.");
       return;
     }
-    if (eventos.includes("troca_sabor") && produtoSugerido?.sabor &&
+    if (quantidadeFinal !== null && quantidadeFinal > 0 && eventos.includes("troca_sabor") && produtoSugerido?.sabor &&
       sabor.trim().toLocaleLowerCase("pt-BR") === produtoSugerido.sabor.trim().toLocaleLowerCase("pt-BR")) {
       toast.error("Na troca de sabor, informe o novo sabor antes de salvar.");
       return;
     }
-    if (eventos.includes("troca_tamanho") && produtoSugerido?.tamanho &&
+    if (quantidadeFinal !== null && quantidadeFinal > 0 && eventos.includes("troca_tamanho") && produtoSugerido?.tamanho &&
       tamanho.trim().toLocaleLowerCase("pt-BR") === produtoSugerido.tamanho.trim().toLocaleLowerCase("pt-BR")) {
       toast.error("Na troca de tamanho, informe o novo tamanho antes de salvar.");
       return;

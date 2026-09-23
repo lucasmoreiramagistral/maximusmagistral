@@ -18,26 +18,41 @@ export function produtoAnteriorDoTurno(
 ): ProdutoAnterior | null {
   const indice = codigosDoTurno.indexOf(horaCodigo);
   const porCodigo = new Map(horas.map((hora) => [hora.horaCodigo, hora]));
-  let setupSemProduto = false;
+  let setupSemProducao: ProducaoHora | null = null;
   for (let i = indice - 1; i >= 0; i--) {
     const anterior = porCodigo.get(codigosDoTurno[i]);
     if (!anterior || !(anterior.finalizadoEm ||
       (anterior.createdAt && (anterior.naoRodou || typeof anterior.quantidade === "number")))) {
       continue;
     }
-    if (anterior.reiniciaAcumulado && anterior.naoRodou &&
-      !anterior.produtoSabor && !anterior.produtoTamanho) {
-      setupSemProduto = true;
+    if (!setupSemProducao && anterior.reiniciaAcumulado && anterior.naoRodou) {
+      setupSemProducao = anterior;
+      continue;
     }
     if (anterior.produtoSabor || anterior.produtoTamanho) {
+      if (setupSemProducao) {
+        const saborSetup = setupSemProducao.produtoSabor?.trim().toLocaleLowerCase("pt-BR");
+        const tamanhoSetup = setupSemProducao.produtoTamanho?.trim().toLocaleLowerCase("pt-BR");
+        const mesmoProduto = (!saborSetup || saborSetup === anterior.produtoSabor?.trim().toLocaleLowerCase("pt-BR")) &&
+          (!tamanhoSetup || tamanhoSetup === anterior.produtoTamanho?.trim().toLocaleLowerCase("pt-BR"));
+        if (!mesmoProduto) {
+          return {
+            sabor: setupSemProducao.produtoSabor,
+            tamanho: setupSemProducao.produtoTamanho,
+            setupSemProduto: false,
+          };
+        }
+      }
       return {
         sabor: anterior.produtoSabor,
         tamanho: anterior.produtoTamanho,
-        setupSemProduto,
+        setupSemProduto: setupSemProducao !== null,
       };
     }
   }
-  return null;
+  return setupSemProducao && (setupSemProducao.produtoSabor || setupSemProducao.produtoTamanho)
+    ? { sabor: setupSemProducao.produtoSabor, tamanho: setupSemProducao.produtoTamanho, setupSemProduto: false }
+    : null;
 }
 
 function rotuloProduto(sabor: string | null, tamanho: string | null): string | null {

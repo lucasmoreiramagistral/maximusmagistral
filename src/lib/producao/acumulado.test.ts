@@ -61,4 +61,22 @@ describe("resumo Hora x Hora", () => {
       sabor: "Cola", tamanho: "2L", setupSemProduto: false,
     });
   });
+
+  it("distingue produto antigo sugerido no setup de produto novo ja informado", () => {
+    const anterior = {
+      horaCodigo: "H04", quantidade: 100, naoRodou: false,
+      produtoSabor: "Uva", produtoTamanho: "2L", finalizadoEm: "2026-09-23T13:00:00Z",
+    } as ProducaoHora;
+    const setup = {
+      horaCodigo: "H05", quantidade: 0, naoRodou: true, reiniciaAcumulado: true,
+      produtoSabor: "Uva", produtoTamanho: "2L", finalizadoEm: "2026-09-23T14:00:00Z",
+    } as ProducaoHora;
+    expect(produtoAnteriorDoTurno([anterior, setup], ["H04", "H05", "H06"], "H06")).toEqual({
+      sabor: "Uva", tamanho: "2L", setupSemProduto: true,
+    });
+    setup.produtoSabor = "Cola";
+    expect(produtoAnteriorDoTurno([anterior, setup], ["H04", "H05", "H06"], "H06")).toEqual({
+      sabor: "Cola", tamanho: "2L", setupSemProduto: false,
+    });
+  });
 });
