@@ -18,11 +18,12 @@ import { useRascunho } from "@/hooks/use-storage";
 import { useGuard } from "@/hooks/use-guard";
 import { TelaCarregando } from "@/components/tela-carregando";
 import { storage } from "@/lib/checklist/storage";
-import { ITENS_CHECKLIST } from "@/lib/checklist/itens";
+import { itensChecklistPorMaquina } from "@/lib/checklist/itens";
 import type { Resposta, RespostaItem, ItemChecklistDef, Checklist } from "@/lib/checklist/types";
 import { formatarHora } from "@/lib/checklist/format";
 import { checklistEmEdicao } from "@/lib/checklist/edicao";
 import { cn } from "@/lib/utils";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 
 export const Route = createFileRoute("/operador/checklist")({
   head: () => ({ meta: [{ title: "Checklist em andamento" }] }),
@@ -53,7 +54,9 @@ function ChecklistPage() {
 
   useEffect(() => {
     if (typeof window === "undefined" || loading || !usuario) return;
-    if (!rascunho) navigate({ to: "/operador" });
+    if (!rascunho || rascunho.contexto.maquina !== maquinaDoUsuario(usuario).nome) {
+      navigate({ to: "/operador" });
+    }
   }, [usuario, loading, rascunho, navigate]);
 
   // Marca modo edição
@@ -64,13 +67,14 @@ function ChecklistPage() {
 
   const itensDef: ItemChecklistDef[] = useMemo(() => {
     if (!rascunho) return [];
+    const itensDaMaquina = itensChecklistPorMaquina(rascunho.contexto.maquina);
     return rascunho.respostas
-      .map((r) => ITENS_CHECKLIST.find((i) => i.numero === r.itemNumero))
+      .map((r) => itensDaMaquina.find((i) => i.numero === r.itemNumero))
       .filter((i): i is ItemChecklistDef => Boolean(i));
   }, [rascunho]);
 
   if (loading || !usuario) return <TelaCarregando />;
-  if (!rascunho) return null;
+  if (!rascunho || rascunho.contexto.maquina !== maquinaDoUsuario(usuario).nome) return null;
 
   const total = rascunho.respostas.length;
   const respondidos = rascunho.respostas.filter((r) => r.resposta !== null).length;
@@ -128,9 +132,10 @@ function ChecklistPage() {
   const validarTudo = (): { ok: boolean; itens: number[]; mensagem: string } => {
     const erros: number[] = [];
     let mensagem = "";
+    const itensDaMaquina = itensChecklistPorMaquina(rascunho.contexto.maquina);
 
     for (const r of rascunho.respostas) {
-      const def = ITENS_CHECKLIST.find((i) => i.numero === r.itemNumero);
+      const def = itensDaMaquina.find((i) => i.numero === r.itemNumero);
       if (!def) continue;
 
       if (!r.resposta) {
@@ -161,7 +166,7 @@ function ChecklistPage() {
       );
       const algumNumSemValor = rascunho.respostas.some((r) => {
         if (!erros.includes(r.itemNumero)) return false;
-        const def = ITENS_CHECKLIST.find((i) => i.numero === r.itemNumero);
+        const def = itensDaMaquina.find((i) => i.numero === r.itemNumero);
         return def?.tipo === "numerico" && r.resposta === "Conforme" && !r.valorNumerico.trim();
       });
 

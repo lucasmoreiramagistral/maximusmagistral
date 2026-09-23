@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { storage } from "@/lib/checklist/storage";
 import { fetchAnomalias, fetchChecklists } from "@/lib/checklist/supabase-storage";
+import { maquinaPorId } from "@/lib/maquinas/catalogo";
 import type {
   Anomalia,
   Checklist,
@@ -19,6 +20,7 @@ interface ProfileRow {
   usuario: string;
   email_interno: string;
   perfil: Perfil;
+  maquina_id?: string | null;
   equipe_padrao: Equipe | null;
   turno_padrao: Turno | null;
   active: boolean;
@@ -94,9 +96,24 @@ const authStore = {
         this.setState(null, false);
         return;
       }
+      if (row.perfil === "operador" && row.maquina_id != null && !maquinaPorId(row.maquina_id)) {
+        console.error("[auth] máquina do operador inválida no perfil");
+        await supabase.auth.signOut();
+        this.setState(null, false);
+        return;
+      }
+      // Somente operadores antigos sem atribuição conservam a Enchedora 3.
+      // Um ID explícito inválido não é convertido silenciosamente em outra máquina.
+      const maquinaId =
+        row.maquina_id == null
+          ? row.perfil === "operador"
+            ? "enchedora-3"
+            : null
+          : (maquinaPorId(row.maquina_id)?.id ?? null);
       this.setState(
         {
           perfil: row.perfil,
+          maquinaId,
           nome: row.nome,
           usuario: row.usuario,
           equipePadrao: row.equipe_padrao,

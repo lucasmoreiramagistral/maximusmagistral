@@ -14,6 +14,7 @@ import {
 } from "@/lib/verso/observacoes";
 import type { PtpEdicaoPayload, PtpJanela } from "@/lib/verso/types";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 interface UsePtpResult {
   janelas: PtpJanela[];
@@ -42,6 +43,7 @@ export function usePtpJanelas(
   folhaDiaKey: string,
   dataOperacao: string,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): UsePtpResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
@@ -52,13 +54,13 @@ export function usePtpJanelas(
 
   const mergeWithDefaults = useCallback(
     (remotos: PtpJanela[]): PtpJanela[] => {
-      const defaults = createPtpJanelasPadrao(folhaDiaKey, dataOperacao, operadorUserId);
+      const defaults = createPtpJanelasPadrao(folhaDiaKey, dataOperacao, operadorUserId, maquina);
       return defaults.map((d) => {
         const found = remotos.find((r) => r.janelaCodigo === d.janelaCodigo);
         return found ?? d;
       });
     },
-    [folhaDiaKey, dataOperacao, operadorUserId],
+    [folhaDiaKey, dataOperacao, operadorUserId, maquina],
   );
 
   const refetch = useCallback(async () => {

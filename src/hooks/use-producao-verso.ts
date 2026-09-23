@@ -18,6 +18,7 @@ import type {
   ProducaoTanque,
 } from "@/lib/producao/verso-types";
 import type { Turno } from "@/lib/checklist/types";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 interface UseProducaoVersoResult {
   tanques: ProducaoTanque[];
@@ -46,6 +47,7 @@ export function useProducaoVerso(
   dataOperacao: string,
   turno: Turno | null,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): UseProducaoVersoResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
@@ -70,6 +72,7 @@ export function useProducaoVerso(
       dataOperacao,
       turno,
       operadorUserId,
+      maquina,
     );
     const padraoPassagem = createPassagemPadrao(
       folhaDiaKey,
@@ -77,6 +80,7 @@ export function useProducaoVerso(
       turno,
       bloco,
       operadorUserId,
+      maquina,
     );
 
     try {
@@ -87,7 +91,7 @@ export function useProducaoVerso(
       setTanques(mescladosLocais);
 
       const localPassagem = producaoVersoStorage.getPassagem(
-        passagemId(dataOperacao, bloco, operadorUserId),
+        passagemId(dataOperacao, bloco, operadorUserId, maquina),
       );
       setPassagem(localPassagem ?? padraoPassagem);
 
@@ -115,7 +119,7 @@ export function useProducaoVerso(
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, dataOperacao, turno, operadorUserId, isOnline, bloco]);
+  }, [folhaDiaKey, dataOperacao, turno, operadorUserId, isOnline, bloco, maquina]);
 
   useEffect(() => {
     void refetch();

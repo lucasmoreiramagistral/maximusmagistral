@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { genVersoId } from "@/lib/verso/storage";
 import { ConflitoVersaoError } from "@/lib/verso/supabase-storage";
-import { PRODUCAO_CONTEXTO_FIXO } from "./constants";
+import { MAQUINAS, sufixoIdMaquina, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import { TANQUES_ORDENS } from "./verso-constants";
 import type {
   PassagemBloco,
@@ -107,9 +107,10 @@ export function tanqueId(
   dataOperacao: string,
   ordem: number,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): string {
   return genVersoId(
-    `tanque-${dataOperacao}-${ordem}${operadorUserId ? `-op:${operadorUserId}` : ""}`,
+    `tanque-${dataOperacao}-${ordem}${operadorUserId ? `-op:${operadorUserId}` : ""}${sufixoIdMaquina(maquina)}`,
   );
 }
 
@@ -118,15 +119,16 @@ export function createTanquesPadrao(
   dataOperacao: string,
   turno: Turno,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): ProducaoTanque[] {
   return TANQUES_ORDENS.map((ordem) => ({
-    id: tanqueId(dataOperacao, ordem, operadorUserId),
+    id: tanqueId(dataOperacao, ordem, operadorUserId, maquina),
     folhaDiaKey,
     dataOperacao,
-    linha: PRODUCAO_CONTEXTO_FIXO.linha,
-    area: PRODUCAO_CONTEXTO_FIXO.area,
-    maquina: PRODUCAO_CONTEXTO_FIXO.maquina,
-    equipamento: PRODUCAO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     turno,
     ordem,
     sabor: null,
@@ -268,9 +270,10 @@ export function passagemId(
   dataOperacao: string,
   bloco: PassagemBloco,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): string {
   return genVersoId(
-    `passagem-${dataOperacao}-${bloco}${operadorUserId ? `-op:${operadorUserId}` : ""}`,
+    `passagem-${dataOperacao}-${bloco}${operadorUserId ? `-op:${operadorUserId}` : ""}${sufixoIdMaquina(maquina)}`,
   );
 }
 
@@ -280,15 +283,16 @@ export function createPassagemPadrao(
   turno: Turno,
   bloco: PassagemBloco,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): ProducaoPassagem {
   return {
-    id: passagemId(dataOperacao, bloco, operadorUserId),
+    id: passagemId(dataOperacao, bloco, operadorUserId, maquina),
     folhaDiaKey,
     dataOperacao,
-    linha: PRODUCAO_CONTEXTO_FIXO.linha,
-    area: PRODUCAO_CONTEXTO_FIXO.area,
-    maquina: PRODUCAO_CONTEXTO_FIXO.maquina,
-    equipamento: PRODUCAO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     turno,
     bloco,
     ocorrencias: null,

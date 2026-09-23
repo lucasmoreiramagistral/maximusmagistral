@@ -38,6 +38,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApoioSecoes } from "@/components/producao/apoio-secoes";
 import { VersoSecoes } from "@/components/producao/verso-secoes";
+import { EmpacotadoraRelatorio } from "@/components/producao/empacotadora-relatorio";
 import { TelaCarregando } from "@/components/tela-carregando";
 
 import { useGuard } from "@/hooks/use-guard";
@@ -45,18 +46,18 @@ import { useProducaoHoraria } from "@/hooks/use-producao-horaria";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
 import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operacional";
 import {
-  HORA_X_HORA_FAIXAS,
   LABEL_MOTIVO_REINICIO,
   EVENTOS_SETUP,
   EVENTOS_OUTROS,
   EVENTO_REINICIA_ACUMULADO,
   LABEL_EVENTO_HORA,
-  PRODUCAO_CONTEXTO_FIXO,
   TAMANHOS_SUGERIDOS,
   checagensLiderDoTurno,
   ehHoraDeChecagemLider,
   horasDoTurnoEquipe,
 } from "@/lib/producao/constants";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
+import { horaTerminou } from "@/lib/producao/horario";
 import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
 import type { EventoHora, MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
@@ -83,37 +84,33 @@ export const Route = createFileRoute("/operador/hora-x-hora")({
   component: HoraXHoraPage,
 });
 
-/** Hora local Manaus em minutos desde 00:00. */
-function minutosManausAgora(): number {
-  const now = new Date();
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60_000;
-  const manaus = new Date(utcMs - 4 * 60 * 60_000);
-  return manaus.getUTCHours() * 60 + manaus.getUTCMinutes();
-}
-
-function hhmmParaMin(hhmm: string): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  return h * 60 + m;
+function horaJaConfirmada(hora: ProducaoHora): boolean {
+  return Boolean(
+    hora.finalizadoEm ||
+      (hora.createdAt && (hora.naoRodou || typeof hora.quantidade === "number")),
+  );
 }
 
 function HoraXHoraPage() {
   const { usuario, loading } = useGuard("operador");
+  const maquina = maquinaDoUsuario(usuario);
   const turnoAtivo = useTurnoAtivoDoDia(usuario);
   const turno = turnoAtivo.turno;
   const equipe = turnoAtivo.equipe;
   const data = turnoAtivo.data;
   const folhaDiaKey = buildFolhaDiaKey(
     data,
-    PRODUCAO_CONTEXTO_FIXO.linha,
-    PRODUCAO_CONTEXTO_FIXO.maquina,
+    maquina.linha,
+    maquina.nome,
   );
 
   const {
     horas,
     loading: carregando,
+    error,
     conflito,
     salvarHora,
-  } = useProducaoHoraria(folhaDiaKey, data, turno, usuario?.userId ?? null);
+  } = useProducaoHoraria(folhaDiaKey, data, turno, usuario?.userId ?? null, maquina);
 
   const [editando, setEditando] = useState<string | null>(null);
 
@@ -133,21 +130,8 @@ function HoraXHoraPage() {
     (c) => !!porCodigo.get(c)?.assinaturaLider?.dataUrl,
   ).length;
 
-  // Bloqueio de horas futuras: só quando o relógio ainda está dentro do turno.
-  const codigoAtual = useMemo(() => {
-    const agora = minutosManausAgora();
-    return (
-      HORA_X_HORA_FAIXAS.find((f) => {
-        const ini = hhmmParaMin(f.inicio);
-        const fim = hhmmParaMin(f.fim) <= ini ? 24 * 60 : hhmmParaMin(f.fim);
-        return agora >= ini && agora < fim;
-      })?.codigo ?? null
-    );
-  }, []);
-
-  const indiceAtualNoTurno = codigoAtual ? codigosDoTurno.indexOf(codigoAtual) : -1;
-  const bloqueada = (codigo: string) =>
-    indiceAtualNoTurno >= 0 && codigosDoTurno.indexOf(codigo) > indiceAtualNoTurno;
+  // A produção da faixa só é definitiva depois que a hora termina.
+  const bloqueada = (codigo: string) => !horaTerminou(data, codigo);
 
   if (loading || !usuario || carregando) return <TelaCarregando />;
 
@@ -173,6 +157,24 @@ function HoraXHoraPage() {
     );
   }
 
+  if (maquina.tipo === "empacotadora") {
+    return (
+      <EmpacotadoraRelatorio
+        usuario={usuario}
+        maquina={maquina}
+        turno={turno}
+        data={data}
+        folhaDiaKey={folhaDiaKey}
+        ehExtra={turnoAtivo.ehExtra}
+        codigosDoTurno={codigosDoTurno}
+        horas={horas}
+        conflito={conflito}
+        error={error}
+        salvarHora={salvarHora}
+      />
+    );
+  }
+
   const horaEmEdicao = editando ? (porCodigo.get(editando) ?? null) : null;
 
   // Meta sugerida: última meta informada nas horas anteriores do turno.
@@ -188,14 +190,14 @@ function HoraXHoraPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        titulo="Hora x Hora — Enchedora L3"
+        titulo={`Hora x Hora — ${maquina.nome}`}
         subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno}${turnoAtivo.ehExtra ? " · EXTRA" : ""}`}
         voltarPara="/operador"
       />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
-        {conflito && (
+        {(error || conflito) && (
           <div className="mb-4 rounded-xl border-2 border-destructive/40 bg-destructive/10 p-4 text-sm font-semibold text-destructive">
-            Conflito de versão: outra pessoa alterou uma hora. Recarregue a tela antes de salvar.
+            {error ?? "Conflito de versão: outra pessoa alterou uma hora. Recarregue a tela antes de salvar."}
           </div>
         )}
 
@@ -246,7 +248,7 @@ function HoraXHoraPage() {
             )}
 
             <p className="mb-3 text-sm text-muted-foreground">
-              Toque em uma hora para lançar a produção. A quantidade acumulada é calculada
+              Após o fim de cada hora, toque nela para lançar a produção. A quantidade acumulada é calculada
               automaticamente e zera na virada do turno e a cada troca de produto ou CIP.
             </p>
 
@@ -256,14 +258,17 @@ function HoraXHoraPage() {
                 if (!h) return null;
                 const travada = bloqueada(codigo);
                 const lancada = h.naoRodou || typeof h.quantidade === "number";
+                const confirmada = horaJaConfirmada(h);
+                const podeAssinar =
+                  confirmada && ehHoraDeChecagemLider(h.horaCodigo) && !h.assinaturaLider?.dataUrl;
                 return (
                   <button
                     key={codigo}
                     type="button"
-                    disabled={travada}
+                    disabled={travada || (confirmada && !podeAssinar)}
                     onClick={() => setEditando(codigo)}
                     className={`rounded-2xl border-2 p-4 text-left shadow-sm transition-all ${
-                      travada
+                      travada || (confirmada && !podeAssinar)
                         ? "cursor-not-allowed border-border bg-muted/40 opacity-70"
                         : "border-border bg-card hover:border-primary/50 hover:shadow-md active:scale-[0.99]"
                     }`}
@@ -370,11 +375,11 @@ function HoraXHoraPage() {
           </TabsContent>
 
           <TabsContent value="apoio" forceMount>
-            <ApoioSecoes usuario={usuario} turno={turno} data={data} folhaDiaKey={folhaDiaKey} />
+            <ApoioSecoes usuario={usuario} turno={turno} data={data} folhaDiaKey={folhaDiaKey} maquina={maquina} />
           </TabsContent>
 
           <TabsContent value="verso" forceMount>
-            <VersoSecoes usuario={usuario} turno={turno} data={data} folhaDiaKey={folhaDiaKey} />
+            <VersoSecoes usuario={usuario} turno={turno} data={data} folhaDiaKey={folhaDiaKey} maquina={maquina} />
           </TabsContent>
         </Tabs>
       </main>
@@ -383,6 +388,7 @@ function HoraXHoraPage() {
         <DialogHora
           key={horaEmEdicao.horaCodigo}
           hora={horaEmEdicao}
+          somenteAssinatura={horaJaConfirmada(horaEmEdicao)}
           metaSugerida={metaSugerida(horaEmEdicao.horaCodigo)}
           onFechar={() => setEditando(null)}
           onSalvar={async (nova) => {
@@ -391,6 +397,7 @@ function HoraXHoraPage() {
                 anterior: horaEmEdicao,
                 editadoPorLogin: usuario.usuario,
                 editadoPorNome: usuario.nome,
+                somenteAssinatura: horaJaConfirmada(horaEmEdicao),
               });
               toast.success(`Hora ${nova.horaInicio} salva.`);
               setEditando(null);
@@ -451,11 +458,13 @@ function BotaoEvento({
 
 function DialogHora({
   hora,
+  somenteAssinatura,
   metaSugerida,
   onFechar,
   onSalvar,
 }: {
   hora: ProducaoHora;
+  somenteAssinatura: boolean;
   metaSugerida: number | null;
   onFechar: () => void;
   onSalvar: (h: ProducaoHora) => Promise<void>;
@@ -498,6 +507,25 @@ function DialogHora({
   const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
 
   async function handleSalvar() {
+    if (somenteAssinatura) {
+      if (!exigeLider || !lider || !assinaturaLider || assinaturaLider === hora.assinaturaLider?.dataUrl) {
+        toast.error("Identifique o líder e colha a assinatura para concluir a checagem.");
+        return;
+      }
+      const agora = new Date().toISOString();
+      setSalvando(true);
+      try {
+        await onSalvar({
+          ...hora,
+          liderNome: lider.nome,
+          assinaturaLider: { dataUrl: assinaturaLider, nome: lider.nome, assinadoEm: agora },
+          liderAssinouEm: agora,
+        });
+      } finally {
+        setSalvando(false);
+      }
+      return;
+    }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
     const metaNum = meta.trim() === "" ? null : Number(meta);
     const paradaNum = parada.trim() === "" ? null : Number(parada);
@@ -616,11 +644,14 @@ function DialogHora({
             {hora.horaCodigo} · {hora.horaInicio} às {hora.horaFim}
           </DialogTitle>
           <DialogDescription>
-            Lance a produção desta hora. O acumulado é calculado pelo app.
+            {somenteAssinatura
+              ? "A produção desta hora já foi confirmada. O líder pode acrescentar a assinatura."
+              : "Lance a produção desta hora. Depois de confirmar, os valores não poderão ser alterados."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-2">
+          <fieldset disabled={somenteAssinatura} className="grid gap-4 disabled:opacity-70">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="meta">Meta (garrafas)</Label>
@@ -755,6 +786,7 @@ function DialogHora({
             />
           </div>
 
+          </fieldset>
           {exigeLider && (
             <div className="rounded-xl border-2 border-primary/30 bg-primary-soft/40 p-3">
               <p className="text-sm font-bold text-foreground">
@@ -826,7 +858,7 @@ function DialogHora({
             Cancelar
           </Button>
           <Button onClick={handleSalvar} disabled={salvando}>
-            {salvando ? "Salvando..." : "Salvar hora"}
+            {salvando ? "Salvando..." : somenteAssinatura ? "Salvar assinatura" : "Confirmar e salvar definitivamente"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -19,6 +19,7 @@ import {
 } from "@/lib/producao/apoio-constants";
 import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type { Turno, Usuario } from "@/lib/checklist/types";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 function agoraIso() {
   return new Date().toISOString();
@@ -29,18 +30,20 @@ interface ApoioSecoesProps {
   turno: Turno;
   data: string;
   folhaDiaKey: string;
+  maquina?: MaquinaOperacional;
 }
 
 /**
  * Blocos de apoio da frente do relatório operacional horário:
  * Checklist de Apoio + Assepsia + CIP. Renderizado dentro do Hora x Hora.
  */
-export function ApoioSecoes({ usuario, turno, data, folhaDiaKey }: ApoioSecoesProps) {
+export function ApoioSecoes({ usuario, turno, data, folhaDiaKey, maquina = MAQUINAS["enchedora-3"] }: ApoioSecoesProps) {
   const { apoio, loading: carregando, conflito, salvar } = useProducaoApoio(
     folhaDiaKey,
     data,
     turno,
     usuario?.userId ?? null,
+    maquina,
   );
 
   const [rascunho, setRascunho] = useState<ProducaoApoio | null>(null);

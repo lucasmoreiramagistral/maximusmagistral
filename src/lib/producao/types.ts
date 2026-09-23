@@ -53,6 +53,10 @@ export interface ProducaoHora {
   horaFim: string; // "07:00"
   meta: number | null;
   quantidade: number | null;
+  /** Base do cálculo das empacotadoras; null nas enchedoras e no legado. */
+  paletesCompletos?: number | null;
+  quebraPacotes?: number | null;
+  pacotesPorPalete?: number | null;
   naoRodou: boolean;
   tempoParadaMin: number | null;
   /** Marca o início de um novo bloco de acumulado. */
@@ -73,6 +77,8 @@ export interface ProducaoHora {
   ultimaEdicaoPorNome?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** Carimbo do servidor ao confirmar o primeiro lançamento definitivo. */
+  finalizadoEm?: string | null;
 }
 
 export interface ProducaoHoraEdicaoPayload {

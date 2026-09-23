@@ -1,7 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { genVersoId } from "@/lib/verso/storage";
 import { ConflitoVersaoError } from "@/lib/verso/supabase-storage";
-import { HORA_X_HORA_FAIXAS, PRODUCAO_CONTEXTO_FIXO } from "./constants";
+import { HORA_X_HORA_FAIXAS } from "./constants";
+import { MAQUINAS, sufixoIdMaquina, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import { producaoHoraFromRow, producaoHoraToRow, type ProducaoHoraRow } from "./mappers";
 import type { ProducaoHora, ProducaoHoraEdicaoPayload } from "./types";
 import type { Turno } from "@/lib/checklist/types";
@@ -91,22 +92,26 @@ export function createProducaoHorasPadrao(
   dataOperacao: string,
   turno: Turno,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): ProducaoHora[] {
   const opSuffix = operadorUserId ? `-op:${operadorUserId}` : "";
   return HORA_X_HORA_FAIXAS.map((f) => ({
-    id: genVersoId(`prod-${dataOperacao}-${f.codigo}${opSuffix}`),
+    id: genVersoId(`prod-${dataOperacao}-${f.codigo}${opSuffix}${sufixoIdMaquina(maquina)}`),
     folhaDiaKey,
     dataOperacao,
-    linha: PRODUCAO_CONTEXTO_FIXO.linha,
-    area: PRODUCAO_CONTEXTO_FIXO.area,
-    maquina: PRODUCAO_CONTEXTO_FIXO.maquina,
-    equipamento: PRODUCAO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     turno,
     horaCodigo: f.codigo,
     horaInicio: f.inicio,
     horaFim: f.fim,
     meta: null,
     quantidade: null,
+    paletesCompletos: null,
+    quebraPacotes: null,
+    pacotesPorPalete: null,
     naoRodou: false,
     tempoParadaMin: null,
     reiniciaAcumulado: false,
@@ -115,5 +120,6 @@ export function createProducaoHorasPadrao(
     produtoSabor: null,
     produtoTamanho: null,
     observacao: null,
+    finalizadoEm: null,
   }));
 }

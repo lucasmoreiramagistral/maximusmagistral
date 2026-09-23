@@ -15,10 +15,10 @@ import {
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 import {
   LABEL_LIMPEZA_ITEM_STATUS,
   LABEL_LIMPEZA_STATUS,
-  VERSO_CONTEXTO_FIXO,
 } from "@/lib/verso/constants";
 import { createLimpezaTurnoPadrao } from "@/lib/verso/supabase-storage";
 import type {
@@ -41,15 +41,17 @@ function LimpezaPage() {
   const turnoAtivo = useTurnoAtivoDoDia(usuario);
   const turnoLogado = turnoAtivo.turno;
   const data = turnoAtivo.data;
+  const maquina = maquinaDoUsuario(usuario);
   const folhaDiaKey = buildFolhaDiaKey(
     data,
-    VERSO_CONTEXTO_FIXO.linha,
-    VERSO_CONTEXTO_FIXO.maquina,
+    maquina.linha,
+    maquina.nome,
   );
   const { turnos, loading: l2, salvarTurno, conflito } = useLimpezaTurnos(
     folhaDiaKey,
     data,
     usuario?.userId ?? null,
+    maquina,
   );
 
   const [turnoSelecionado, setTurnoSelecionado] = useState<Turno | null>(null);
@@ -64,12 +66,35 @@ function LimpezaPage() {
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
+  if (!maquina.formularios.limpeza) {
+    return (
+      <div className="min-h-screen bg-background">
+        <AppHeader
+          titulo={`Limpeza — ${maquina.nome}`}
+          subtitulo="Formulário indisponível para esta máquina"
+          voltarPara="/operador"
+        />
+        <main className="mx-auto w-full max-w-[800px] px-4 py-10 text-center">
+          <p className="rounded-2xl border border-border bg-card p-6 text-sm text-muted-foreground">
+            A {maquina.nome} não possui checklist de limpeza.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
   if (turnoSelecionado) {
     // Modelo LAZY: se ainda não existe registro para esse turno na folha,
     // cria um registro padrão local em memória para o operador editar.
     const t =
       turnos.find((x) => x.turno === turnoSelecionado) ??
-      createLimpezaTurnoPadrao(folhaDiaKey, data, turnoSelecionado, usuario.userId ?? null);
+      createLimpezaTurnoPadrao(
+        folhaDiaKey,
+        data,
+        turnoSelecionado,
+        usuario.userId ?? null,
+        maquina,
+      );
     return (
       <TurnoEditor
         turno={t}
@@ -83,7 +108,7 @@ function LimpezaPage() {
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        titulo="Limpeza Sala de Envase"
+        titulo={`Limpeza — ${maquina.nome}`}
         subtitulo={`Folha do dia ${formatarDataBR(data)}`}
         voltarPara="/operador"
       />

@@ -1,7 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { genVersoId } from "@/lib/verso/storage";
 import { ConflitoVersaoError } from "@/lib/verso/supabase-storage";
-import { PRODUCAO_CONTEXTO_FIXO } from "./constants";
+import { MAQUINAS, sufixoIdMaquina, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import {
   criarEtapasCipVazias,
   criarMarcacoesApoioVazias,
@@ -97,9 +97,10 @@ export function apoioId(
   dataOperacao: string,
   turno: Turno,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): string {
   return genVersoId(
-    `apoio-${dataOperacao}-${turno}${operadorUserId ? `-op:${operadorUserId}` : ""}`,
+    `apoio-${dataOperacao}-${turno}${operadorUserId ? `-op:${operadorUserId}` : ""}${sufixoIdMaquina(maquina)}`,
   );
 }
 
@@ -108,15 +109,16 @@ export function createProducaoApoioPadrao(
   dataOperacao: string,
   turno: Turno,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): ProducaoApoio {
   return {
-    id: apoioId(dataOperacao, turno, operadorUserId),
+    id: apoioId(dataOperacao, turno, operadorUserId, maquina),
     folhaDiaKey,
     dataOperacao,
-    linha: PRODUCAO_CONTEXTO_FIXO.linha,
-    area: PRODUCAO_CONTEXTO_FIXO.area,
-    maquina: PRODUCAO_CONTEXTO_FIXO.maquina,
-    equipamento: PRODUCAO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     turno,
     checklist: criarMarcacoesApoioVazias(),
     assepsia: criarTrocasAssepsiaVazias(),

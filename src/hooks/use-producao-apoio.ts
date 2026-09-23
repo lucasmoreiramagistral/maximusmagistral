@@ -10,6 +10,7 @@ import {
 } from "@/lib/producao/apoio-supabase";
 import type { ProducaoApoio } from "@/lib/producao/apoio-types";
 import type { Turno } from "@/lib/checklist/types";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 interface UseProducaoApoioResult {
   apoio: ProducaoApoio | null;
@@ -29,6 +30,7 @@ export function useProducaoApoio(
   dataOperacao: string,
   turno: Turno | null,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): UseProducaoApoioResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
@@ -49,10 +51,11 @@ export function useProducaoApoio(
       dataOperacao,
       turno,
       operadorUserId,
+      maquina,
     );
     try {
       const local = producaoApoioStorage.get(
-        apoioId(dataOperacao, turno, operadorUserId),
+        apoioId(dataOperacao, turno, operadorUserId, maquina),
       );
       setApoio(local ?? padrao);
       if (isOnline) {
@@ -69,7 +72,7 @@ export function useProducaoApoio(
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, dataOperacao, turno, operadorUserId, isOnline]);
+  }, [folhaDiaKey, dataOperacao, turno, operadorUserId, isOnline, maquina]);
 
   useEffect(() => {
     void refetch();

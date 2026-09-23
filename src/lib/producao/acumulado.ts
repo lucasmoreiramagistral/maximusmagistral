@@ -84,6 +84,7 @@ export function calcularResumoHoraXHora(
 
   let lancadas = 0;
   let totalProduzido = 0;
+  let produzidoNasHorasComMeta = 0;
   let totalMeta = 0;
   let totalParadaMin = 0;
   const faltantes: string[] = [];
@@ -96,8 +97,12 @@ export function calcularResumoHoraXHora(
       continue;
     }
     lancadas++;
-    totalProduzido += h?.naoRodou ? 0 : h?.quantidade ?? 0;
-    totalMeta += h?.meta ?? 0;
+    const produzido = h?.naoRodou ? 0 : h?.quantidade ?? 0;
+    totalProduzido += produzido;
+    if (typeof h?.meta === "number" && h.meta > 0) {
+      totalMeta += h.meta;
+      produzidoNasHorasComMeta += produzido;
+    }
     totalParadaMin += h?.tempoParadaMin ?? 0;
   }
 
@@ -108,6 +113,6 @@ export function calcularResumoHoraXHora(
     totalProduzido,
     totalMeta,
     totalParadaMin,
-    atingimentoPct: totalMeta > 0 ? Math.round((totalProduzido / totalMeta) * 100) : null,
+    atingimentoPct: totalMeta > 0 ? Math.round((produzidoNasHorasComMeta / totalMeta) * 100) : null,
   };
 }

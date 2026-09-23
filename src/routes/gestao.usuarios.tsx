@@ -47,6 +47,11 @@ import {
 } from "@/components/ui/select";
 import { ESCALAS, ESCALAS_AGRUPADAS } from "@/lib/operacao/escalas";
 import {
+  MAQUINAS_ORDENADAS,
+  maquinaPorId,
+  type MaquinaId,
+} from "@/lib/maquinas/catalogo";
+import {
   Table,
   TableBody,
   TableCell,
@@ -99,6 +104,7 @@ interface UsuarioRow {
   usuario: string;
   email_interno: string;
   perfil: Perfil;
+  maquina_id: MaquinaId | null;
   equipe_padrao: string | null;
   turno_padrao: string | null;
   active: boolean;
@@ -297,6 +303,7 @@ function UsuariosPage() {
                   <TableHead>Nome</TableHead>
                   <TableHead>Login</TableHead>
                   <TableHead>Perfil</TableHead>
+                  <TableHead>Máquina</TableHead>
                   <TableHead>Hierarquia</TableHead>
                   <TableHead>Módulos</TableHead>
                   <TableHead>Status</TableHead>
@@ -313,6 +320,13 @@ function UsuariosPage() {
                     <TableCell className="font-mono text-xs">{u.usuario}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{u.perfil}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {u.maquina_id
+                        ? (maquinaPorId(u.maquina_id)?.nome ?? "Máquina inválida")
+                        : u.perfil === "operador"
+                          ? "Enchedora 3 (legado)"
+                          : "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary">{u.hierarquia}</Badge>
@@ -388,7 +402,7 @@ function UsuariosPage() {
                 ))}
                 {usuarios.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
                       Nenhum usuário cadastrado ainda.
                     </TableCell>
                   </TableRow>
@@ -615,6 +629,7 @@ function UsuarioFormDialog({
   const [senha, setSenha] = useState("");
   const [matricula, setMatricula] = useState("");
   const [perfil, setPerfil] = useState<Perfil>("operador");
+  const [maquinaId, setMaquinaId] = useState<MaquinaId | "">("");
   const [hierarquia, setHierarquia] = useState<Hierarquia>("operador");
   const [modulos, setModulos] = useState<ModuloAcesso[]>(["operador"]);
   // Escala padrão estruturada (id de ESCALAS) — "" significa "sem escala fixa".
@@ -637,6 +652,7 @@ function UsuarioFormDialog({
       setSenha("");
       setMatricula(editando.matricula ?? "");
       setPerfil(editando.perfil);
+      setMaquinaId(editando.maquina_id ?? "");
       setHierarquia(editando.hierarquia);
       setModulos(editando.modulos_acesso);
       const eq = editando.equipe_padrao;
@@ -664,6 +680,7 @@ function UsuarioFormDialog({
       setSenha("");
       setMatricula("");
       setPerfil("operador");
+      setMaquinaId("");
       setHierarquia("operador");
       setModulos(["operador"]);
       setEscalaIdSel("");
@@ -712,6 +729,10 @@ function UsuarioFormDialog({
       setErro("Selecione ao menos um módulo de acesso");
       return;
     }
+    if (perfil === "operador" && !maquinaId) {
+      setErro("Selecione a máquina do operador");
+      return;
+    }
 
     setSalvando(true);
     try {
@@ -722,6 +743,8 @@ function UsuarioFormDialog({
         : null;
       const equipeTrim = escalaSel ? escalaSel.equipe : null;
       const turnoTrim = escalaSel ? escalaSel.turno : null;
+      const maquinaIdParaSalvar =
+        perfil === "operador" ? maquinaId || null : editando?.maquina_id ?? null;
 
       if (isEdit && editando) {
         const res = await editarUsuario({
@@ -730,6 +753,7 @@ function UsuarioFormDialog({
             nome: nome.trim(),
             usuario: loginNorm,
             perfil,
+            maquinaId: maquinaIdParaSalvar,
             hierarquia,
             modulosAcesso: modulos,
             matricula: matriculaTrim,
@@ -753,6 +777,7 @@ function UsuarioFormDialog({
             usuario: normalizarLogin(login),
             senha,
             perfil,
+            maquinaId: maquinaIdParaSalvar,
             hierarquia,
             modulosAcesso: modulos,
             matricula: matriculaTrim,
@@ -909,6 +934,33 @@ function UsuarioFormDialog({
               )}
             </div>
           </div>
+
+          {perfil === "operador" && (
+            <div>
+              <Label htmlFor="maquina-operador">Máquina do operador *</Label>
+              <Select
+                value={maquinaId || undefined}
+                onValueChange={(value) => setMaquinaId(value as MaquinaId)}
+                disabled={salvando}
+              >
+                <SelectTrigger id="maquina-operador">
+                  <SelectValue placeholder="Selecione a máquina" />
+                </SelectTrigger>
+                <SelectContent>
+                  {MAQUINAS_ORDENADAS.map((maquina) => (
+                    <SelectItem key={maquina.id} value={maquina.id}>
+                      {maquina.nome} · {maquina.linha}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Este login verá apenas os formulários da máquina atribuída.
+                {isEdit && !editando?.maquina_id &&
+                  " Selecione uma máquina para substituir o acesso legado à Enchedora 3."}
+              </p>
+            </div>
+          )}
 
           <div>
             <Label className="mb-2 block">Módulos de acesso *</Label>

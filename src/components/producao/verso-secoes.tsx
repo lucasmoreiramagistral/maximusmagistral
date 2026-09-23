@@ -15,6 +15,7 @@ import type {
   ProducaoTanque,
 } from "@/lib/producao/verso-types";
 import type { Turno, Usuario } from "@/lib/checklist/types";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 function agoraIso() {
   return new Date().toISOString();
@@ -25,13 +26,14 @@ interface VersoSecoesProps {
   turno: Turno;
   data: string;
   folhaDiaKey: string;
+  maquina?: MaquinaOperacional;
 }
 
 /**
  * Verso do relatório operacional horário: controle de tanques de xarope
  * (18 linhas) + passagem de turno com assinatura do operador e do líder.
  */
-export function VersoSecoes({ usuario, turno, data, folhaDiaKey }: VersoSecoesProps) {
+export function VersoSecoes({ usuario, turno, data, folhaDiaKey, maquina = MAQUINAS["enchedora-3"] }: VersoSecoesProps) {
   const {
     tanques,
     passagem,
@@ -40,7 +42,7 @@ export function VersoSecoes({ usuario, turno, data, folhaDiaKey }: VersoSecoesPr
     conflito,
     salvarTanque,
     salvarPassagem,
-  } = useProducaoVerso(folhaDiaKey, data, turno, usuario?.userId ?? null);
+  } = useProducaoVerso(folhaDiaKey, data, turno, usuario?.userId ?? null, maquina);
 
   const [rascunhos, setRascunhos] = useState<Record<string, ProducaoTanque>>({});
   const [rascunhoPassagem, setRascunhoPassagem] = useState<ProducaoPassagem | null>(

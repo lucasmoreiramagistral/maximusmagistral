@@ -14,6 +14,7 @@ import {
   origemCodigoLimpezaItem,
 } from "@/lib/verso/observacoes";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import type { LimpezaEdicaoPayload, LimpezaTurno } from "@/lib/verso/types";
 
 interface UseLimpezaResult {
@@ -37,9 +38,13 @@ export function useLimpezaTurnos(
   folhaDiaKey: string,
   dataOperacao: string,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): UseLimpezaResult {
   const { isOnline } = useConnectionStatus();
   const { enfileirar } = useOfflineQueue();
+  // A chamada do hook permanece estável na home de todas as máquinas.
+  // Empacotadoras não têm formulário de limpeza e não devem consultar/gravar.
+  const temLimpeza = maquina.formularios.limpeza;
   const [turnos, setTurnos] = useState<LimpezaTurno[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +56,11 @@ export function useLimpezaTurnos(
   // quando o operador da escala ativa abre/preenche limpeza.
 
   const refetch = useCallback(async () => {
+    if (!temLimpeza) {
+      setTurnos([]);
+      setLoading(false);
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -68,7 +78,7 @@ export function useLimpezaTurnos(
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, isOnline, operadorUserId]);
+  }, [folhaDiaKey, isOnline, operadorUserId, temLimpeza]);
 
   useEffect(() => {
     void refetch();
@@ -76,6 +86,7 @@ export function useLimpezaTurnos(
 
   const salvarTurno: UseLimpezaResult["salvarTurno"] = useCallback(
     async (turno, opts) => {
+      if (!temLimpeza) throw new Error(`${maquina.nome} não possui checklist de limpeza.`);
       versoStorage.saveLimpezaTurno(turno);
       setTurnos((prev) => {
         const i = prev.findIndex((p) => p.turno === turno.turno);
@@ -192,7 +203,7 @@ export function useLimpezaTurnos(
       }
 
     },
-    [enfileirar, isOnline],
+    [enfileirar, isOnline, maquina.nome, temLimpeza],
   );
 
   return { turnos, loading, error, conflito, refetch, salvarTurno };

@@ -12,7 +12,6 @@ import {
   Droplets,
   Wrench,
   TrendingUp,
-
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
 import { Button } from "@/components/ui/button";
@@ -28,14 +27,10 @@ import { formatarDataHora } from "@/lib/checklist/format";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
 import type { Checklist, ContextoChecklist } from "@/lib/checklist/types";
 import { checklistEmEdicao, limparModoEdicao } from "@/lib/checklist/edicao";
-import {
-  buildFolhaDiaKey,
-  formatarDataBR,
-} from "@/lib/operacao/data-operacional";
-import {
-  janelasPtpDoTurno,
-  VERSO_CONTEXTO_FIXO,
-} from "@/lib/verso/constants";
+import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operacional";
+import { janelasPtpDaEscalaMaquina } from "@/lib/verso/constants";
+import { escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 
 export const Route = createFileRoute("/operador/")({
   head: () => ({
@@ -43,7 +38,7 @@ export const Route = createFileRoute("/operador/")({
       { title: "Operador — Checklist Operacional" },
       {
         name: "description",
-        content: "Tela inicial do operador da Linha 3 — Enchedora 3.",
+        content: "Tela inicial do operador e das rotinas da máquina vinculada.",
       },
     ],
   }),
@@ -54,32 +49,36 @@ type TurnoAtivo = "12x36 Dia" | "12x36 Noite" | "Comercial" | "1º Turno" | "2º
 
 function OperadorHome() {
   const { usuario, loading } = useGuard("operador");
+  const maquina = maquinaDoUsuario(usuario);
+  const temLimpeza = maquina.formularios.limpeza;
+  const objetoPtp = maquina.tipo === "empacotadora" ? "Pacotes" : "Garrafas";
   const rascunho = useRascunho();
+  const rascunhoDaMaquina = rascunho?.contexto.maquina === maquina.nome ? rascunho : null;
   const checklistsRemote = useChecklists();
 
   const turnoAtivo = useTurnoAtivoDoDia(usuario);
   const equipe = turnoAtivo.equipe;
   const turno = turnoAtivo.turno;
   const data = turnoAtivo.data;
-  const folhaDiaKey = buildFolhaDiaKey(
-    data,
-    VERSO_CONTEXTO_FIXO.linha,
-    VERSO_CONTEXTO_FIXO.maquina,
-  );
+  const folhaDiaKey = buildFolhaDiaKey(data, maquina.linha, maquina.nome);
 
-  const ptp = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
-  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null);
+  const ptp = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null, maquina);
+  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null, maquina);
 
   const turnoLogado = (turno ?? null) as TurnoAtivo | null;
+  const codigosTurno = useMemo(
+    () => janelasPtpDaEscalaMaquina(escalaPorTurnoEquipe(turnoLogado, equipe as never), maquina.nome),
+    [turnoLogado, equipe, maquina.nome],
+  );
 
   // Detecta se o rascunho atual é uma edição de um checklist já concluído.
   // Quando é edição, não exibimos o aviso padrão "Você tem um checklist em
   // andamento" — exibimos um aviso específico com Cancelar/Continuar.
   const ehEdicao = useMemo(() => {
-    if (!rascunho) return false;
+    if (!rascunhoDaMaquina) return false;
     if (typeof window === "undefined") return false;
-    return checklistEmEdicao() === rascunho.id;
-  }, [rascunho]);
+    return checklistEmEdicao() === rascunhoDaMaquina.id;
+  }, [rascunhoDaMaquina]);
 
   // ─── Cálculo do "tudo concluído" e pendências para o líder ───
   const {
@@ -104,21 +103,26 @@ function OperadorHome() {
     }
 
     // PTP: 100% das janelas da escala (qualquer turno)
-    const codigosTurno = janelasPtpDoTurno(turnoLogado, equipe as never);
-    const registradas = ptp.janelas.filter(
-      (j) =>
-        codigosTurno.includes(j.janelaCodigo) &&
-        j.statusJanela !== "pendente" &&
-        j.statusJanela !== "rascunho",
-    ).length;
-    const _ptpOk = registradas === codigosTurno.length;
+    const registradas = new Set(
+      ptp.janelas
+        .filter(
+          (j) =>
+            codigosTurno.includes(j.janelaCodigo) &&
+            j.statusJanela !== "pendente" &&
+            j.statusJanela !== "rascunho",
+        )
+        .map((j) => j.janelaCodigo),
+    );
+    const _ptpOk =
+      codigosTurno.length > 0 && codigosTurno.every((codigo) => registradas.has(codigo));
 
     // Limpeza: turno do operador validado pelo líder
-    const limpezaTurno = limpeza.turnos.find((t) => t.turno === turnoLogado);
-    const _limpezaOk = limpezaTurno?.status === "validado";
+    const limpezaTurno = temLimpeza
+      ? limpeza.turnos.find((t) => t.turno === turnoLogado)
+      : undefined;
+    const _limpezaOk = !temLimpeza || limpezaTurno?.status === "validado";
     // Limpeza aguardando validação do líder?
-    const _limpezaAguardandoLider =
-      limpezaTurno?.status === "aguardando_validacao";
+    const _limpezaAguardandoLider = temLimpeza && limpezaTurno?.status === "aguardando_validacao";
 
     // Checklist: 3 momentos concluídos no folhaKey do dia +
     // assinatura do OPERADOR no Pós-setup (líder valida depois).
@@ -126,16 +130,14 @@ function OperadorHome() {
       data,
       turno: turnoLogado,
       equipe,
-      linha: "Linha 3",
-      maquina: "Enchedora 3",
+      linha: maquina.linha,
+      maquina: maquina.nome,
     };
     const folhaKeyDia = buildFolhaKey(contextoDoDia);
     const localChecklists = storage.getChecklists();
     const todosChecklists: Checklist[] = [
       ...localChecklists,
-      ...checklistsRemote.filter(
-        (c) => !localChecklists.some((l) => l.id === c.id),
-      ),
+      ...checklistsRemote.filter((c) => !localChecklists.some((l) => l.id === c.id)),
     ];
     const doDia = todosChecklists.filter(
       (c) => (c.folhaKey ?? buildFolhaKey(c.contexto)) === folhaKeyDia,
@@ -144,12 +146,9 @@ function OperadorHome() {
     const concluidoDe = (momento: string) =>
       doDia.find((c) => c.momento === momento && c.status === "concluido");
 
-    const todosMomentosConcluidos = MOMENTOS_CHECKLIST.every((m) =>
-      Boolean(concluidoDe(m)),
-    );
+    const todosMomentosConcluidos = MOMENTOS_CHECKLIST.every((m) => Boolean(concluidoDe(m)));
     const posSetup = concluidoDe("Pós-setup");
-    const _checklistOk =
-      todosMomentosConcluidos && Boolean(posSetup?.assinaturaOperador);
+    const _checklistOk = todosMomentosConcluidos && Boolean(posSetup?.assinaturaOperador);
 
     // Pós-setup do operador assinado mas sem assinatura do líder?
     const _checklistAguardandoLider =
@@ -174,6 +173,10 @@ function OperadorHome() {
     ptp.janelas,
     limpeza.turnos,
     checklistsRemote,
+    codigosTurno,
+    maquina.linha,
+    maquina.nome,
+    temLimpeza,
   ]);
 
   if (loading || !usuario) return <TelaCarregando />;
@@ -186,12 +189,13 @@ function OperadorHome() {
 
   // Monta lista de pendências do líder (para descrição do card)
   const itensPendentesLider: string[] = [];
-  if (checklistAguardandoLider) itensPendentesLider.push("Checklist completo aguardando assinatura");
+  if (checklistAguardandoLider)
+    itensPendentesLider.push("Checklist completo aguardando assinatura");
   if (limpezaAguardandoLider) itensPendentesLider.push("Limpeza aguardando assinatura");
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader titulo="Checklist Operacional" subtitulo="Linha 3 — Enchedora 3" />
+      <AppHeader titulo="Checklist Operacional" subtitulo={`${maquina.linha} — ${maquina.nome}`} />
       <main className="mx-auto w-full max-w-[1200px] px-4 py-6 md:px-8 md:py-10">
         <div className="mb-6">
           <p className="text-sm text-muted-foreground md:text-base">Bem-vindo,</p>
@@ -205,9 +209,11 @@ function OperadorHome() {
           registrosNoTurnoAtual={
             ptp.janelas.filter(
               (j) =>
-                j.statusJanela !== "pendente" && j.statusJanela !== "rascunho",
+                codigosTurno.includes(j.janelaCodigo) &&
+                j.statusJanela !== "pendente" &&
+                j.statusJanela !== "rascunho",
             ).length +
-            (limpeza.turnos.find((t) => t.turno === turnoAtivo.turno) ? 1 : 0)
+            (temLimpeza && limpeza.turnos.find((t) => t.turno === turnoAtivo.turno) ? 1 : 0)
           }
         />
 
@@ -222,8 +228,7 @@ function OperadorHome() {
                   Turno concluído com sucesso!
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground md:text-base">
-                  Você concluiu o checklist operacional, o PTP Garrafas e a
-                  limpeza da sala de envase deste turno. Bom descanso!
+                  {`Você concluiu o checklist operacional e o PTP ${objetoPtp}${temLimpeza ? " e a limpeza da sala de envase" : ""} deste turno. Bom descanso!`}
                 </p>
                 <ul className="mt-4 space-y-2 text-sm">
                   <li className="flex items-start gap-2 text-foreground">
@@ -232,12 +237,15 @@ function OperadorHome() {
                   </li>
                   <li className="flex items-start gap-2 text-foreground">
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                    PTP Garrafas — 6/6 janelas registradas
+                    PTP {objetoPtp} — {codigosTurno.length}/{codigosTurno.length} janelas
+                    registradas
                   </li>
-                  <li className="flex items-start gap-2 text-foreground">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
-                    Limpeza Sala de Envase — turno validado pelo líder
-                  </li>
+                  {temLimpeza && (
+                    <li className="flex items-start gap-2 text-foreground">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                      Limpeza Sala de Envase — turno validado pelo líder
+                    </li>
+                  )}
                 </ul>
                 <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-success/30 bg-success/10 px-3 py-1 text-xs font-semibold text-foreground">
                   Turno {turnoLogado} · {formatarDataBR(data)}
@@ -248,7 +256,7 @@ function OperadorHome() {
         )}
 
         {/* Aviso quando há rascunho em ANDAMENTO (novo checklist, ainda não concluído) */}
-        {!tudoConcluido && rascunho && !ehEdicao && (
+        {!tudoConcluido && rascunhoDaMaquina && !ehEdicao && (
           <div className="mb-6 rounded-xl border-2 border-warning/40 bg-warning/10 p-4 md:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
@@ -256,7 +264,8 @@ function OperadorHome() {
                   Você tem um checklist em andamento
                 </p>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  {rascunho.momento} · iniciado em {formatarDataHora(rascunho.criadoEm)}
+                  {rascunhoDaMaquina.momento} · iniciado em{" "}
+                  {formatarDataHora(rascunhoDaMaquina.criadoEm)}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -277,7 +286,7 @@ function OperadorHome() {
         )}
 
         {/* Aviso específico quando o rascunho é uma EDIÇÃO de checklist já concluído */}
-        {!tudoConcluido && rascunho && ehEdicao && (
+        {!tudoConcluido && rascunhoDaMaquina && ehEdicao && (
           <div className="mb-6 rounded-xl border-2 border-primary/40 bg-primary-soft/40 p-4 md:p-5">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="flex items-start gap-3">
@@ -289,7 +298,8 @@ function OperadorHome() {
                     Continuar alterando os dados do checklist?
                   </p>
                   <p className="mt-0.5 text-sm text-muted-foreground">
-                    {rascunho.momento} · edição iniciada em {formatarDataHora(rascunho.criadoEm)}
+                    {rascunhoDaMaquina.momento} · edição iniciada em{" "}
+                    {formatarDataHora(rascunhoDaMaquina.criadoEm)}
                   </p>
                 </div>
               </div>
@@ -349,26 +359,29 @@ function OperadorHome() {
           <BotaoAcao
             to="/operador/verso/ptp"
             icon={<ClipboardList className="h-8 w-8" />}
-            titulo="PTP Enchedora L3"
+            titulo={`PTP ${maquina.nome}`}
             descricao="Monitoramento por janelas de horário"
             badge={ptpOk ? "Concluído" : undefined}
           />
-          <BotaoAcao
-            to="/operador/verso/limpeza"
-            icon={<Droplets className="h-8 w-8" />}
-            titulo="Checklist limpeza sala envase L3"
-            descricao="Checklist operacional de limpeza"
-            badge={limpezaOk ? "Concluído" : undefined}
-          />
+          {temLimpeza && (
+            <BotaoAcao
+              to="/operador/verso/limpeza"
+              icon={<Droplets className="h-8 w-8" />}
+              titulo={`Limpeza sala de envase — ${maquina.linha}`}
+              descricao="Checklist operacional de limpeza"
+              badge={limpezaOk ? "Concluído" : undefined}
+            />
+          )}
           <BotaoAcao
             to="/operador/hora-x-hora"
             icon={<TrendingUp className="h-8 w-8" />}
-            titulo="Hora x Hora — Enchedora L3"
-            descricao="Produção horária + apoio, assepsia e CIP"
+            titulo={`Hora x Hora — ${maquina.nome}`}
+            descricao={
+              maquina.tipo === "empacotadora"
+                ? "Produção, paradas, bobinas e fechamento"
+                : "Produção horária + apoio, assepsia e CIP"
+            }
           />
-
-
-
 
           <BotaoAcao
             to="/operador/tutorial-sigma"
@@ -396,7 +409,7 @@ function OperadorHome() {
             <div>
               <p className="text-sm font-semibold text-foreground">Equipamento</p>
               <p className="text-sm text-muted-foreground">
-                Linha 3 · Envase · Enchedora Zegla 50V
+                {maquina.linha} · {maquina.area} · {maquina.equipamento}
               </p>
             </div>
           </div>

@@ -10,58 +10,43 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as SupervisorIndexRouteImport } from './routes/supervisor.index'
-import { Route as OperadorIndexRouteImport } from './routes/operador.index'
-import { Route as LiderIndexRouteImport } from './routes/lider.index'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
-import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
-import { Route as OperadorTutorialSigmaRouteImport } from './routes/operador.tutorial-sigma'
-import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
-import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
-import { Route as OperadorItRouteImport } from './routes/operador.it'
-import { Route as OperadorHoraXHoraRouteImport } from './routes/operador.hora-x-hora'
-import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
-import { Route as OperadorFilaPendenteRouteImport } from './routes/operador.fila-pendente'
-import { Route as OperadorEnchedoraApoioRouteImport } from './routes/operador.enchedora-apoio'
-import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
-import { Route as OperadorConfirmacaoRouteImport } from './routes/operador.confirmacao'
-import { Route as OperadorChecklistRouteImport } from './routes/operador.checklist'
-import { Route as GestaoUsuariosRouteImport } from './routes/gestao.usuarios'
-import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
-import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-conformidades'
-import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
-import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
-import { Route as GestaoHoraXHoraRouteImport } from './routes/gestao.hora-x-hora'
-import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
-import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
-import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
-import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
-import { Route as OperadorItAtaRouteImport } from './routes/operador.it.ata'
+import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
+import { Route as GestaoFiltrosRouteImport } from './routes/gestao.filtros'
+import { Route as GestaoHoraXHoraRouteImport } from './routes/gestao.hora-x-hora'
+import { Route as GestaoItAnalyticsRouteImport } from './routes/gestao.it-analytics'
+import { Route as GestaoItTreinamentosRouteImport } from './routes/gestao.it-treinamentos'
+import { Route as GestaoNaoConformidadesRouteImport } from './routes/gestao.nao-conformidades'
+import { Route as GestaoRelatorioRouteImport } from './routes/gestao.relatorio'
+import { Route as GestaoUsuariosRouteImport } from './routes/gestao.usuarios'
+import { Route as LiderIndexRouteImport } from './routes/lider.index'
+import { Route as OperadorIndexRouteImport } from './routes/operador.index'
+import { Route as OperadorChecklistRouteImport } from './routes/operador.checklist'
+import { Route as OperadorConfirmacaoRouteImport } from './routes/operador.confirmacao'
+import { Route as OperadorContextoRouteImport } from './routes/operador.contexto'
+import { Route as OperadorEnchedoraApoioRouteImport } from './routes/operador.enchedora-apoio'
+import { Route as OperadorFilaPendenteRouteImport } from './routes/operador.fila-pendente'
+import { Route as OperadorHistoricoRouteImport } from './routes/operador.historico'
+import { Route as OperadorHoraXHoraRouteImport } from './routes/operador.hora-x-hora'
+import { Route as OperadorItRouteImport } from './routes/operador.it'
+import { Route as OperadorMomentoRouteImport } from './routes/operador.momento'
+import { Route as OperadorResumoRouteImport } from './routes/operador.resumo'
+import { Route as OperadorTutorialSigmaRouteImport } from './routes/operador.tutorial-sigma'
+import { Route as OperadorValidacaoLiderRouteImport } from './routes/operador.validacao-lider'
+import { Route as SupervisorIndexRouteImport } from './routes/supervisor.index'
 import { Route as OperadorItDocRouteImport } from './routes/operador.it.$doc'
-import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
-import { Route as OperadorVersoPtpJanelaCodigoRouteImport } from './routes/operador.verso.ptp.$janelaCodigo'
-import { Route as GestaoVisualizarDiaFolhaKeyRouteImport } from './routes/gestao.visualizar.dia.$folhaKey'
+import { Route as OperadorItAtaRouteImport } from './routes/operador.it.ata'
+import { Route as OperadorVersoLimpezaRouteImport } from './routes/operador.verso.limpeza'
+import { Route as OperadorVersoPtpRouteImport } from './routes/operador.verso.ptp'
 import { Route as GestaoVisualizarChecklistIdRouteImport } from './routes/gestao.visualizar.checklist.$id'
+import { Route as GestaoVisualizarDiaFolhaKeyRouteImport } from './routes/gestao.visualizar.dia.$folhaKey'
+import { Route as OperadorVersoPtpJanelaCodigoRouteImport } from './routes/operador.verso.ptp.$janelaCodigo'
+import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/operador.visualizar.checklist.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
-  id: '/supervisor/',
-  path: '/supervisor/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorIndexRoute = OperadorIndexRouteImport.update({
-  id: '/operador/',
-  path: '/operador/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LiderIndexRoute = LiderIndexRouteImport.update({
-  id: '/lider/',
-  path: '/lider/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoIndexRoute = GestaoIndexRouteImport.update({
@@ -69,99 +54,9 @@ const GestaoIndexRoute = GestaoIndexRouteImport.update({
   path: '/gestao/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OperadorValidacaoLiderRoute = OperadorValidacaoLiderRouteImport.update({
-  id: '/operador/validacao-lider',
-  path: '/operador/validacao-lider',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorTutorialSigmaRoute = OperadorTutorialSigmaRouteImport.update({
-  id: '/operador/tutorial-sigma',
-  path: '/operador/tutorial-sigma',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorResumoRoute = OperadorResumoRouteImport.update({
-  id: '/operador/resumo',
-  path: '/operador/resumo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorMomentoRoute = OperadorMomentoRouteImport.update({
-  id: '/operador/momento',
-  path: '/operador/momento',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorItRoute = OperadorItRouteImport.update({
-  id: '/operador/it',
-  path: '/operador/it',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorHoraXHoraRoute = OperadorHoraXHoraRouteImport.update({
-  id: '/operador/hora-x-hora',
-  path: '/operador/hora-x-hora',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorHistoricoRoute = OperadorHistoricoRouteImport.update({
-  id: '/operador/historico',
-  path: '/operador/historico',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorFilaPendenteRoute = OperadorFilaPendenteRouteImport.update({
-  id: '/operador/fila-pendente',
-  path: '/operador/fila-pendente',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorEnchedoraApoioRoute = OperadorEnchedoraApoioRouteImport.update({
-  id: '/operador/enchedora-apoio',
-  path: '/operador/enchedora-apoio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorContextoRoute = OperadorContextoRouteImport.update({
-  id: '/operador/contexto',
-  path: '/operador/contexto',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorConfirmacaoRoute = OperadorConfirmacaoRouteImport.update({
-  id: '/operador/confirmacao',
-  path: '/operador/confirmacao',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorChecklistRoute = OperadorChecklistRouteImport.update({
-  id: '/operador/checklist',
-  path: '/operador/checklist',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoUsuariosRoute = GestaoUsuariosRouteImport.update({
-  id: '/gestao/usuarios',
-  path: '/gestao/usuarios',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoRelatorioRoute = GestaoRelatorioRouteImport.update({
-  id: '/gestao/relatorio',
-  path: '/gestao/relatorio',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoNaoConformidadesRoute = GestaoNaoConformidadesRouteImport.update({
-  id: '/gestao/nao-conformidades',
-  path: '/gestao/nao-conformidades',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoItTreinamentosRoute = GestaoItTreinamentosRouteImport.update({
-  id: '/gestao/it-treinamentos',
-  path: '/gestao/it-treinamentos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoItAnalyticsRoute = GestaoItAnalyticsRouteImport.update({
-  id: '/gestao/it-analytics',
-  path: '/gestao/it-analytics',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoHoraXHoraRoute = GestaoHoraXHoraRouteImport.update({
-  id: '/gestao/hora-x-hora',
-  path: '/gestao/hora-x-hora',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestaoFiltrosRoute = GestaoFiltrosRouteImport.update({
-  id: '/gestao/filtros',
-  path: '/gestao/filtros',
+const GestaoChecklistsRoute = GestaoChecklistsRouteImport.update({
+  id: '/gestao/checklists',
+  path: '/gestao/checklists',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoDashboardRoute = GestaoDashboardRouteImport.update({
@@ -169,9 +64,129 @@ const GestaoDashboardRoute = GestaoDashboardRouteImport.update({
   path: '/gestao/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const GestaoChecklistsRoute = GestaoChecklistsRouteImport.update({
-  id: '/gestao/checklists',
-  path: '/gestao/checklists',
+const GestaoFiltrosRoute = GestaoFiltrosRouteImport.update({
+  id: '/gestao/filtros',
+  path: '/gestao/filtros',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoHoraXHoraRoute = GestaoHoraXHoraRouteImport.update({
+  id: '/gestao/hora-x-hora',
+  path: '/gestao/hora-x-hora',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoItAnalyticsRoute = GestaoItAnalyticsRouteImport.update({
+  id: '/gestao/it-analytics',
+  path: '/gestao/it-analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoItTreinamentosRoute = GestaoItTreinamentosRouteImport.update({
+  id: '/gestao/it-treinamentos',
+  path: '/gestao/it-treinamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoNaoConformidadesRoute = GestaoNaoConformidadesRouteImport.update({
+  id: '/gestao/nao-conformidades',
+  path: '/gestao/nao-conformidades',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoRelatorioRoute = GestaoRelatorioRouteImport.update({
+  id: '/gestao/relatorio',
+  path: '/gestao/relatorio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GestaoUsuariosRoute = GestaoUsuariosRouteImport.update({
+  id: '/gestao/usuarios',
+  path: '/gestao/usuarios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LiderIndexRoute = LiderIndexRouteImport.update({
+  id: '/lider/',
+  path: '/lider/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorIndexRoute = OperadorIndexRouteImport.update({
+  id: '/operador/',
+  path: '/operador/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorChecklistRoute = OperadorChecklistRouteImport.update({
+  id: '/operador/checklist',
+  path: '/operador/checklist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorConfirmacaoRoute = OperadorConfirmacaoRouteImport.update({
+  id: '/operador/confirmacao',
+  path: '/operador/confirmacao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorContextoRoute = OperadorContextoRouteImport.update({
+  id: '/operador/contexto',
+  path: '/operador/contexto',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorEnchedoraApoioRoute = OperadorEnchedoraApoioRouteImport.update({
+  id: '/operador/enchedora-apoio',
+  path: '/operador/enchedora-apoio',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorFilaPendenteRoute = OperadorFilaPendenteRouteImport.update({
+  id: '/operador/fila-pendente',
+  path: '/operador/fila-pendente',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorHistoricoRoute = OperadorHistoricoRouteImport.update({
+  id: '/operador/historico',
+  path: '/operador/historico',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorHoraXHoraRoute = OperadorHoraXHoraRouteImport.update({
+  id: '/operador/hora-x-hora',
+  path: '/operador/hora-x-hora',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorItRoute = OperadorItRouteImport.update({
+  id: '/operador/it',
+  path: '/operador/it',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorMomentoRoute = OperadorMomentoRouteImport.update({
+  id: '/operador/momento',
+  path: '/operador/momento',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorResumoRoute = OperadorResumoRouteImport.update({
+  id: '/operador/resumo',
+  path: '/operador/resumo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorTutorialSigmaRoute = OperadorTutorialSigmaRouteImport.update({
+  id: '/operador/tutorial-sigma',
+  path: '/operador/tutorial-sigma',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorValidacaoLiderRoute = OperadorValidacaoLiderRouteImport.update({
+  id: '/operador/validacao-lider',
+  path: '/operador/validacao-lider',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SupervisorIndexRoute = SupervisorIndexRouteImport.update({
+  id: '/supervisor/',
+  path: '/supervisor/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperadorItDocRoute = OperadorItDocRouteImport.update({
+  id: '/$doc',
+  path: '/$doc',
+  getParentRoute: () => OperadorItRoute,
+} as any)
+const OperadorItAtaRoute = OperadorItAtaRouteImport.update({
+  id: '/ata',
+  path: '/ata',
+  getParentRoute: () => OperadorItRoute,
+} as any)
+const OperadorVersoLimpezaRoute = OperadorVersoLimpezaRouteImport.update({
+  id: '/operador/verso/limpeza',
+  path: '/operador/verso/limpeza',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OperadorVersoPtpRoute = OperadorVersoPtpRouteImport.update({
@@ -179,25 +194,16 @@ const OperadorVersoPtpRoute = OperadorVersoPtpRouteImport.update({
   path: '/operador/verso/ptp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const OperadorVersoLimpezaRoute = OperadorVersoLimpezaRouteImport.update({
-  id: '/operador/verso/limpeza',
-  path: '/operador/verso/limpeza',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OperadorItAtaRoute = OperadorItAtaRouteImport.update({
-  id: '/ata',
-  path: '/ata',
-  getParentRoute: () => OperadorItRoute,
-} as any)
-const OperadorItDocRoute = OperadorItDocRouteImport.update({
-  id: '/$doc',
-  path: '/$doc',
-  getParentRoute: () => OperadorItRoute,
-} as any)
-const OperadorVisualizarChecklistIdRoute =
-  OperadorVisualizarChecklistIdRouteImport.update({
-    id: '/operador/visualizar/checklist/$id',
-    path: '/operador/visualizar/checklist/$id',
+const GestaoVisualizarChecklistIdRoute =
+  GestaoVisualizarChecklistIdRouteImport.update({
+    id: '/gestao/visualizar/checklist/$id',
+    path: '/gestao/visualizar/checklist/$id',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const GestaoVisualizarDiaFolhaKeyRoute =
+  GestaoVisualizarDiaFolhaKeyRouteImport.update({
+    id: '/gestao/visualizar/dia/$folhaKey',
+    path: '/gestao/visualizar/dia/$folhaKey',
     getParentRoute: () => rootRouteImport,
   } as any)
 const OperadorVersoPtpJanelaCodigoRoute =
@@ -206,16 +212,10 @@ const OperadorVersoPtpJanelaCodigoRoute =
     path: '/$janelaCodigo',
     getParentRoute: () => OperadorVersoPtpRoute,
   } as any)
-const GestaoVisualizarDiaFolhaKeyRoute =
-  GestaoVisualizarDiaFolhaKeyRouteImport.update({
-    id: '/gestao/visualizar/dia/$folhaKey',
-    path: '/gestao/visualizar/dia/$folhaKey',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const GestaoVisualizarChecklistIdRoute =
-  GestaoVisualizarChecklistIdRouteImport.update({
-    id: '/gestao/visualizar/checklist/$id',
-    path: '/gestao/visualizar/checklist/$id',
+const OperadorVisualizarChecklistIdRoute =
+  OperadorVisualizarChecklistIdRouteImport.update({
+    id: '/operador/visualizar/checklist/$id',
+    path: '/operador/visualizar/checklist/$id',
     getParentRoute: () => rootRouteImport,
   } as any)
 
@@ -482,172 +482,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/supervisor/': {
-      id: '/supervisor/'
-      path: '/supervisor'
-      fullPath: '/supervisor/'
-      preLoaderRoute: typeof SupervisorIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/': {
-      id: '/operador/'
-      path: '/operador'
-      fullPath: '/operador/'
-      preLoaderRoute: typeof OperadorIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/lider/': {
-      id: '/lider/'
-      path: '/lider'
-      fullPath: '/lider/'
-      preLoaderRoute: typeof LiderIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/gestao/': {
       id: '/gestao/'
       path: '/gestao'
       fullPath: '/gestao/'
       preLoaderRoute: typeof GestaoIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/validacao-lider': {
-      id: '/operador/validacao-lider'
-      path: '/operador/validacao-lider'
-      fullPath: '/operador/validacao-lider'
-      preLoaderRoute: typeof OperadorValidacaoLiderRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/tutorial-sigma': {
-      id: '/operador/tutorial-sigma'
-      path: '/operador/tutorial-sigma'
-      fullPath: '/operador/tutorial-sigma'
-      preLoaderRoute: typeof OperadorTutorialSigmaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/resumo': {
-      id: '/operador/resumo'
-      path: '/operador/resumo'
-      fullPath: '/operador/resumo'
-      preLoaderRoute: typeof OperadorResumoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/momento': {
-      id: '/operador/momento'
-      path: '/operador/momento'
-      fullPath: '/operador/momento'
-      preLoaderRoute: typeof OperadorMomentoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/it': {
-      id: '/operador/it'
-      path: '/operador/it'
-      fullPath: '/operador/it'
-      preLoaderRoute: typeof OperadorItRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/hora-x-hora': {
-      id: '/operador/hora-x-hora'
-      path: '/operador/hora-x-hora'
-      fullPath: '/operador/hora-x-hora'
-      preLoaderRoute: typeof OperadorHoraXHoraRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/historico': {
-      id: '/operador/historico'
-      path: '/operador/historico'
-      fullPath: '/operador/historico'
-      preLoaderRoute: typeof OperadorHistoricoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/fila-pendente': {
-      id: '/operador/fila-pendente'
-      path: '/operador/fila-pendente'
-      fullPath: '/operador/fila-pendente'
-      preLoaderRoute: typeof OperadorFilaPendenteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/enchedora-apoio': {
-      id: '/operador/enchedora-apoio'
-      path: '/operador/enchedora-apoio'
-      fullPath: '/operador/enchedora-apoio'
-      preLoaderRoute: typeof OperadorEnchedoraApoioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/contexto': {
-      id: '/operador/contexto'
-      path: '/operador/contexto'
-      fullPath: '/operador/contexto'
-      preLoaderRoute: typeof OperadorContextoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/confirmacao': {
-      id: '/operador/confirmacao'
-      path: '/operador/confirmacao'
-      fullPath: '/operador/confirmacao'
-      preLoaderRoute: typeof OperadorConfirmacaoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/operador/checklist': {
-      id: '/operador/checklist'
-      path: '/operador/checklist'
-      fullPath: '/operador/checklist'
-      preLoaderRoute: typeof OperadorChecklistRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/usuarios': {
-      id: '/gestao/usuarios'
-      path: '/gestao/usuarios'
-      fullPath: '/gestao/usuarios'
-      preLoaderRoute: typeof GestaoUsuariosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/relatorio': {
-      id: '/gestao/relatorio'
-      path: '/gestao/relatorio'
-      fullPath: '/gestao/relatorio'
-      preLoaderRoute: typeof GestaoRelatorioRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/nao-conformidades': {
-      id: '/gestao/nao-conformidades'
-      path: '/gestao/nao-conformidades'
-      fullPath: '/gestao/nao-conformidades'
-      preLoaderRoute: typeof GestaoNaoConformidadesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/it-treinamentos': {
-      id: '/gestao/it-treinamentos'
-      path: '/gestao/it-treinamentos'
-      fullPath: '/gestao/it-treinamentos'
-      preLoaderRoute: typeof GestaoItTreinamentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/it-analytics': {
-      id: '/gestao/it-analytics'
-      path: '/gestao/it-analytics'
-      fullPath: '/gestao/it-analytics'
-      preLoaderRoute: typeof GestaoItAnalyticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/hora-x-hora': {
-      id: '/gestao/hora-x-hora'
-      path: '/gestao/hora-x-hora'
-      fullPath: '/gestao/hora-x-hora'
-      preLoaderRoute: typeof GestaoHoraXHoraRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/filtros': {
-      id: '/gestao/filtros'
-      path: '/gestao/filtros'
-      fullPath: '/gestao/filtros'
-      preLoaderRoute: typeof GestaoFiltrosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/dashboard': {
-      id: '/gestao/dashboard'
-      path: '/gestao/dashboard'
-      fullPath: '/gestao/dashboard'
-      preLoaderRoute: typeof GestaoDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/checklists': {
@@ -657,26 +496,166 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GestaoChecklistsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/operador/verso/ptp': {
-      id: '/operador/verso/ptp'
-      path: '/operador/verso/ptp'
-      fullPath: '/operador/verso/ptp'
-      preLoaderRoute: typeof OperadorVersoPtpRouteImport
+    '/gestao/dashboard': {
+      id: '/gestao/dashboard'
+      path: '/gestao/dashboard'
+      fullPath: '/gestao/dashboard'
+      preLoaderRoute: typeof GestaoDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/operador/verso/limpeza': {
-      id: '/operador/verso/limpeza'
-      path: '/operador/verso/limpeza'
-      fullPath: '/operador/verso/limpeza'
-      preLoaderRoute: typeof OperadorVersoLimpezaRouteImport
+    '/gestao/filtros': {
+      id: '/gestao/filtros'
+      path: '/gestao/filtros'
+      fullPath: '/gestao/filtros'
+      preLoaderRoute: typeof GestaoFiltrosRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/operador/it/ata': {
-      id: '/operador/it/ata'
-      path: '/ata'
-      fullPath: '/operador/it/ata'
-      preLoaderRoute: typeof OperadorItAtaRouteImport
-      parentRoute: typeof OperadorItRoute
+    '/gestao/hora-x-hora': {
+      id: '/gestao/hora-x-hora'
+      path: '/gestao/hora-x-hora'
+      fullPath: '/gestao/hora-x-hora'
+      preLoaderRoute: typeof GestaoHoraXHoraRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/it-analytics': {
+      id: '/gestao/it-analytics'
+      path: '/gestao/it-analytics'
+      fullPath: '/gestao/it-analytics'
+      preLoaderRoute: typeof GestaoItAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/it-treinamentos': {
+      id: '/gestao/it-treinamentos'
+      path: '/gestao/it-treinamentos'
+      fullPath: '/gestao/it-treinamentos'
+      preLoaderRoute: typeof GestaoItTreinamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/nao-conformidades': {
+      id: '/gestao/nao-conformidades'
+      path: '/gestao/nao-conformidades'
+      fullPath: '/gestao/nao-conformidades'
+      preLoaderRoute: typeof GestaoNaoConformidadesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/relatorio': {
+      id: '/gestao/relatorio'
+      path: '/gestao/relatorio'
+      fullPath: '/gestao/relatorio'
+      preLoaderRoute: typeof GestaoRelatorioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/usuarios': {
+      id: '/gestao/usuarios'
+      path: '/gestao/usuarios'
+      fullPath: '/gestao/usuarios'
+      preLoaderRoute: typeof GestaoUsuariosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lider/': {
+      id: '/lider/'
+      path: '/lider'
+      fullPath: '/lider/'
+      preLoaderRoute: typeof LiderIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/': {
+      id: '/operador/'
+      path: '/operador'
+      fullPath: '/operador/'
+      preLoaderRoute: typeof OperadorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/checklist': {
+      id: '/operador/checklist'
+      path: '/operador/checklist'
+      fullPath: '/operador/checklist'
+      preLoaderRoute: typeof OperadorChecklistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/confirmacao': {
+      id: '/operador/confirmacao'
+      path: '/operador/confirmacao'
+      fullPath: '/operador/confirmacao'
+      preLoaderRoute: typeof OperadorConfirmacaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/contexto': {
+      id: '/operador/contexto'
+      path: '/operador/contexto'
+      fullPath: '/operador/contexto'
+      preLoaderRoute: typeof OperadorContextoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/enchedora-apoio': {
+      id: '/operador/enchedora-apoio'
+      path: '/operador/enchedora-apoio'
+      fullPath: '/operador/enchedora-apoio'
+      preLoaderRoute: typeof OperadorEnchedoraApoioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/fila-pendente': {
+      id: '/operador/fila-pendente'
+      path: '/operador/fila-pendente'
+      fullPath: '/operador/fila-pendente'
+      preLoaderRoute: typeof OperadorFilaPendenteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/historico': {
+      id: '/operador/historico'
+      path: '/operador/historico'
+      fullPath: '/operador/historico'
+      preLoaderRoute: typeof OperadorHistoricoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/hora-x-hora': {
+      id: '/operador/hora-x-hora'
+      path: '/operador/hora-x-hora'
+      fullPath: '/operador/hora-x-hora'
+      preLoaderRoute: typeof OperadorHoraXHoraRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/it': {
+      id: '/operador/it'
+      path: '/operador/it'
+      fullPath: '/operador/it'
+      preLoaderRoute: typeof OperadorItRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/momento': {
+      id: '/operador/momento'
+      path: '/operador/momento'
+      fullPath: '/operador/momento'
+      preLoaderRoute: typeof OperadorMomentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/resumo': {
+      id: '/operador/resumo'
+      path: '/operador/resumo'
+      fullPath: '/operador/resumo'
+      preLoaderRoute: typeof OperadorResumoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/tutorial-sigma': {
+      id: '/operador/tutorial-sigma'
+      path: '/operador/tutorial-sigma'
+      fullPath: '/operador/tutorial-sigma'
+      preLoaderRoute: typeof OperadorTutorialSigmaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/validacao-lider': {
+      id: '/operador/validacao-lider'
+      path: '/operador/validacao-lider'
+      fullPath: '/operador/validacao-lider'
+      preLoaderRoute: typeof OperadorValidacaoLiderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/supervisor/': {
+      id: '/supervisor/'
+      path: '/supervisor'
+      fullPath: '/supervisor/'
+      preLoaderRoute: typeof SupervisorIndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/operador/it/$doc': {
       id: '/operador/it/$doc'
@@ -685,11 +664,39 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorItDocRouteImport
       parentRoute: typeof OperadorItRoute
     }
-    '/operador/visualizar/checklist/$id': {
-      id: '/operador/visualizar/checklist/$id'
-      path: '/operador/visualizar/checklist/$id'
-      fullPath: '/operador/visualizar/checklist/$id'
-      preLoaderRoute: typeof OperadorVisualizarChecklistIdRouteImport
+    '/operador/it/ata': {
+      id: '/operador/it/ata'
+      path: '/ata'
+      fullPath: '/operador/it/ata'
+      preLoaderRoute: typeof OperadorItAtaRouteImport
+      parentRoute: typeof OperadorItRoute
+    }
+    '/operador/verso/limpeza': {
+      id: '/operador/verso/limpeza'
+      path: '/operador/verso/limpeza'
+      fullPath: '/operador/verso/limpeza'
+      preLoaderRoute: typeof OperadorVersoLimpezaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operador/verso/ptp': {
+      id: '/operador/verso/ptp'
+      path: '/operador/verso/ptp'
+      fullPath: '/operador/verso/ptp'
+      preLoaderRoute: typeof OperadorVersoPtpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/visualizar/checklist/$id': {
+      id: '/gestao/visualizar/checklist/$id'
+      path: '/gestao/visualizar/checklist/$id'
+      fullPath: '/gestao/visualizar/checklist/$id'
+      preLoaderRoute: typeof GestaoVisualizarChecklistIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestao/visualizar/dia/$folhaKey': {
+      id: '/gestao/visualizar/dia/$folhaKey'
+      path: '/gestao/visualizar/dia/$folhaKey'
+      fullPath: '/gestao/visualizar/dia/$folhaKey'
+      preLoaderRoute: typeof GestaoVisualizarDiaFolhaKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/operador/verso/ptp/$janelaCodigo': {
@@ -699,18 +706,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorVersoPtpJanelaCodigoRouteImport
       parentRoute: typeof OperadorVersoPtpRoute
     }
-    '/gestao/visualizar/dia/$folhaKey': {
-      id: '/gestao/visualizar/dia/$folhaKey'
-      path: '/gestao/visualizar/dia/$folhaKey'
-      fullPath: '/gestao/visualizar/dia/$folhaKey'
-      preLoaderRoute: typeof GestaoVisualizarDiaFolhaKeyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestao/visualizar/checklist/$id': {
-      id: '/gestao/visualizar/checklist/$id'
-      path: '/gestao/visualizar/checklist/$id'
-      fullPath: '/gestao/visualizar/checklist/$id'
-      preLoaderRoute: typeof GestaoVisualizarChecklistIdRouteImport
+    '/operador/visualizar/checklist/$id': {
+      id: '/operador/visualizar/checklist/$id'
+      path: '/operador/visualizar/checklist/$id'
+      fullPath: '/operador/visualizar/checklist/$id'
+      preLoaderRoute: typeof OperadorVisualizarChecklistIdRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

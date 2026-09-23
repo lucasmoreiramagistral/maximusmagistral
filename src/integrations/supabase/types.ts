@@ -312,6 +312,7 @@ export type Database = {
           email_interno: string;
           equipe_padrao: string | null;
           id: string;
+          maquina_id: string | null;
           nome: string;
           perfil: string;
           turno_padrao: string | null;
@@ -323,6 +324,7 @@ export type Database = {
           email_interno: string;
           equipe_padrao?: string | null;
           id: string;
+          maquina_id?: string | null;
           nome: string;
           perfil: string;
           turno_padrao?: string | null;
@@ -334,6 +336,7 @@ export type Database = {
           email_interno?: string;
           equipe_padrao?: string | null;
           id?: string;
+          maquina_id?: string | null;
           nome?: string;
           perfil?: string;
           turno_padrao?: string | null;

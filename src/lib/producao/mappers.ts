@@ -15,6 +15,9 @@ export interface ProducaoHoraRow {
   hora_fim: string;
   meta: number | null;
   quantidade: number | null;
+  paletes_completos?: number | null;
+  quebra_pacotes?: number | null;
+  pacotes_por_palete?: number | null;
   nao_rodou: boolean;
   tempo_parada_min: number | null;
   reinicia_acumulado: boolean;
@@ -33,6 +36,7 @@ export interface ProducaoHoraRow {
   ultima_edicao_por_nome: string | null;
   created_at?: string;
   updated_at?: string;
+  finalizado_em?: string | null;
 }
 
 export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
@@ -50,6 +54,9 @@ export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
     horaFim: r.hora_fim,
     meta: r.meta,
     quantidade: r.quantidade,
+    paletesCompletos: r.paletes_completos ?? null,
+    quebraPacotes: r.quebra_pacotes ?? null,
+    pacotesPorPalete: r.pacotes_por_palete ?? null,
     naoRodou: Boolean(r.nao_rodou),
     tempoParadaMin: r.tempo_parada_min,
     reiniciaAcumulado: Boolean(r.reinicia_acumulado),
@@ -70,6 +77,7 @@ export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
     ultimaEdicaoPorNome: r.ultima_edicao_por_nome,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    finalizadoEm: r.finalizado_em ?? null,
   };
 }
 
@@ -89,6 +97,9 @@ export function producaoHoraToRow(h: ProducaoHora, userId: string | null): Produ
     meta: h.meta ?? null,
     // "Não rodou" força quantidade 0 — o CHECK do banco exige isso.
     quantidade: h.naoRodou ? 0 : (h.quantidade ?? null),
+    paletes_completos: h.paletesCompletos ?? null,
+    quebra_pacotes: h.quebraPacotes ?? null,
+    pacotes_por_palete: h.pacotesPorPalete ?? null,
     nao_rodou: h.naoRodou,
     tempo_parada_min: h.tempoParadaMin ?? null,
     reinicia_acumulado: h.reiniciaAcumulado,

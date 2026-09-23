@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { STORAGE_CTX } from "./operador.contexto";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 
 export const Route = createFileRoute("/operador/momento")({
   head: () => ({ meta: [{ title: "Escolher momento — Checklist" }] }),
@@ -100,7 +101,18 @@ function MomentoPage() {
       navigate({ to: "/operador/contexto" });
       return;
     }
-    setContexto(JSON.parse(raw) as ContextoChecklist);
+    try {
+      const salvo = JSON.parse(raw) as ContextoChecklist;
+      if (salvo.maquina !== maquinaDoUsuario(usuario).nome) {
+        window.sessionStorage.removeItem(STORAGE_CTX);
+        navigate({ to: "/operador/contexto" });
+        return;
+      }
+      setContexto(salvo);
+    } catch {
+      window.sessionStorage.removeItem(STORAGE_CTX);
+      navigate({ to: "/operador/contexto" });
+    }
   }, [navigate, usuario, loading]);
 
   // Verifica REMOTAMENTE quais momentos já foram preenchidos para esta folha
@@ -173,7 +185,7 @@ function MomentoPage() {
   });
 
   const criarChecklist = (momento: MomentoChecklist): Checklist => {
-    const itens = itensPorMomento(momento);
+    const itens = itensPorMomento(momento, contexto!.maquina);
     return {
       id: genId(),
       contexto: contexto!,
@@ -380,7 +392,7 @@ function MomentoPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {MOMENTOS_CHECKLIST.map((m) => {
-              const total = itensPorMomento(m).length;
+               const total = itensPorMomento(m, contexto.maquina).length;
               const info = statusPorMomento[m];
               const preenchido = info?.preenchido ?? false;
               const rascunho = storage.getChecklistEmAndamentoMesmoMomento(contexto, m);

@@ -4,6 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-client-middleware";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { escalaExataPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { MAQUINAS, type MaquinaId } from "@/lib/maquinas/catalogo";
 import type { Equipe, Turno } from "@/lib/checklist/types";
 import {
   HIERARQUIAS as HIERARQUIAS_TIPOS,
@@ -32,6 +33,7 @@ import {
 const HIERARQUIAS = HIERARQUIAS_TIPOS as unknown as readonly [string, ...string[]];
 const MODULOS = MODULOS_ACESSO as unknown as readonly [string, ...string[]];
 const PERFIS = PERFIS_ATIVOS as unknown as readonly [string, ...string[]];
+const MAQUINA_IDS = Object.keys(MAQUINAS) as [MaquinaId, ...MaquinaId[]];
 
 const EMAIL_DOMAIN = "magistral.internal";
 
@@ -142,12 +144,17 @@ const criarUsuarioSchema = z
     hierarquia: z.enum(HIERARQUIAS),
     modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(MODULOS.length),
     matricula: z.string().min(1).max(40).optional().nullable(),
+    maquinaId: z.enum(MAQUINA_IDS).optional().nullable(),
     equipePadrao: z.string().max(40).optional().nullable(),
     turnoPadrao: z.string().max(40).optional().nullable(),
   })
   .refine(escalaPadraoRefine, {
     message: "Equipe padrão e turno padrão devem ser definidos juntos",
     path: ["equipePadrao"],
+  })
+  .refine((val) => val.perfil !== "operador" || !!val.maquinaId, {
+    message: "Selecione a máquina do operador",
+    path: ["maquinaId"],
   });
 
 const editarUsuarioSchema = z
@@ -159,12 +166,17 @@ const editarUsuarioSchema = z
     hierarquia: z.enum(HIERARQUIAS),
     modulosAcesso: z.array(z.enum(MODULOS)).min(1).max(MODULOS.length),
     matricula: z.string().min(1).max(40).optional().nullable(),
+    maquinaId: z.enum(MAQUINA_IDS).optional().nullable(),
     equipePadrao: z.string().max(40).optional().nullable(),
     turnoPadrao: z.string().max(40).optional().nullable(),
   })
   .refine(escalaPadraoRefine, {
     message: "Equipe padrão e turno padrão devem ser definidos juntos",
     path: ["equipePadrao"],
+  })
+  .refine((val) => val.perfil !== "operador" || !!val.maquinaId, {
+    message: "Selecione a máquina do operador",
+    path: ["maquinaId"],
   });
 
 /**
@@ -215,7 +227,7 @@ export const listarUsuarios = createServerFn({ method: "GET" })
     const { data, error } = await context.supabase
       .from("profiles")
       .select(
-        "id, nome, usuario, email_interno, perfil, equipe_padrao, turno_padrao, active, created_at, matricula, hierarquia, modulos_acesso, somente_leitura, criado_por" as string,
+        "id, nome, usuario, email_interno, perfil, maquina_id, equipe_padrao, turno_padrao, active, created_at, matricula, hierarquia, modulos_acesso, somente_leitura, criado_por" as string,
       )
       .order("created_at", { ascending: false });
 
@@ -279,6 +291,7 @@ export const criarUsuario = createServerFn({ method: "POST" })
         hierarquia: data.hierarquia,
         modulos_acesso: data.modulosAcesso,
         matricula: data.matricula ?? null,
+        maquina_id: data.maquinaId ?? null,
       },
     });
 
@@ -297,6 +310,8 @@ export const criarUsuario = createServerFn({ method: "POST" })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error: updErr } = await (supabaseAdmin.from("profiles") as any)
       .update({
+        active: true,
+        ...(data.perfil === "operador" ? { maquina_id: data.maquinaId } : {}),
         equipe_padrao: data.equipePadrao ?? null,
         turno_padrao: data.turnoPadrao ?? null,
         somente_leitura: somenteLeitura,
@@ -306,11 +321,21 @@ export const criarUsuario = createServerFn({ method: "POST" })
 
     if (updErr) {
       console.error("[criarUsuario] update overrides falhou:", updErr);
-      // Não desfazer — usuário existe. Apenas avisar.
+      // O trigger cria o perfil inativo; uma falha no UPDATE não pode deixar
+      // uma conta parcialmente cadastrada sem os campos de autorização.
+      const { error: rollbackErr } = await supabaseAdmin.auth.admin.deleteUser(
+        created.user.id,
+      );
+      if (rollbackErr) {
+        console.error("[criarUsuario] rollback do auth falhou:", rollbackErr);
+        return {
+          ok: false as const,
+          erro: "Cadastro incompleto. Verifique o usuário criado antes de tentar novamente.",
+        };
+      }
       return {
-        ok: true as const,
-        userId: created.user.id,
-        aviso: "Usuário criado, mas alguns campos opcionais não puderam ser salvos.",
+        ok: false as const,
+        erro: "O cadastro não pôde ser concluído e foi desfeito. Tente novamente.",
       };
     }
 
@@ -405,6 +430,7 @@ export const editarUsuario = createServerFn({ method: "POST" })
         hierarquia: data.hierarquia,
         modulos_acesso: data.modulosAcesso,
         matricula: data.matricula ?? null,
+        ...(data.maquinaId !== undefined ? { maquina_id: data.maquinaId } : {}),
         equipe_padrao: data.equipePadrao ?? null,
         turno_padrao: data.turnoPadrao ?? null,
         somente_leitura: somenteLeitura,

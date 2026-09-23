@@ -37,6 +37,62 @@ export const PTP_JANELAS: PtpJanelaDef[] = [
   { codigo: "J12", inicio: "04:00", fim: "06:00", rotulo: "04:00 às 06:00" },
 ];
 
+// As folhas PTP impressas de L2 e das empacotadoras quebram dois blocos no
+// limite dos turnos (14:20 e 22:40). A Enchedora 3 mantém PTP_JANELAS para
+// preservar o significado dos registros já gravados com horários legados.
+export const PTP_JANELAS_IMPRESSAS: PtpJanelaDef[] = [
+  { codigo: "J01", inicio: "06:00", fim: "08:00", rotulo: "06:00 às 08:00" },
+  { codigo: "J02", inicio: "08:00", fim: "10:00", rotulo: "08:00 às 10:00" },
+  { codigo: "J03", inicio: "10:00", fim: "12:00", rotulo: "10:00 às 12:00" },
+  { codigo: "J04", inicio: "12:00", fim: "14:20", rotulo: "12:00 às 14:20" },
+  { codigo: "J05", inicio: "14:20", fim: "16:00", rotulo: "14:20 às 16:00" },
+  { codigo: "J06", inicio: "16:00", fim: "18:00", rotulo: "16:00 às 18:00" },
+  { codigo: "J07", inicio: "18:00", fim: "20:00", rotulo: "18:00 às 20:00" },
+  { codigo: "J08", inicio: "20:00", fim: "22:40", rotulo: "20:00 às 22:40" },
+  { codigo: "J09", inicio: "22:40", fim: "00:00", rotulo: "22:40 às 00:00" },
+  { codigo: "J10", inicio: "00:00", fim: "02:00", rotulo: "00:00 às 02:00" },
+  { codigo: "J11", inicio: "02:00", fim: "04:00", rotulo: "02:00 às 04:00" },
+  { codigo: "J12", inicio: "04:00", fim: "06:00", rotulo: "04:00 às 06:00" },
+];
+
+export function janelasPtpDaMaquina(nomeMaquina: string): readonly PtpJanelaDef[] {
+  switch (nomeMaquina) {
+    case "Enchedora 3":
+      return PTP_JANELAS;
+    case "Enchedora 2":
+    case "Empacotadora 2":
+    case "Empacotadora 3":
+      return PTP_JANELAS_IMPRESSAS;
+    default:
+      throw new Error(`Máquina sem janelas PTP: ${nomeMaquina}`);
+  }
+}
+
+/** Janelas da folha que cruzam o horário real do turno, inclusive parciais. */
+export function janelasPtpDaEscalaMaquina(
+  escala: Escala | null | undefined,
+  nomeMaquina: string,
+): string[] {
+  if (!escala) return [];
+  const minutos = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const inicioTurno = minutos(escala.horarioInicio);
+  const fimTurno = minutos(escala.horarioFim) + (escala.atravessaMeiaNoite ? 1440 : 0);
+  return janelasPtpDaMaquina(nomeMaquina)
+    .filter((janela) => {
+      const inicioJanela = minutos(janela.inicio);
+      const fimJanela = minutos(janela.fim);
+      const duracao = (fimJanela - inicioJanela + 1440) % 1440 || 1440;
+      return [-1440, 0, 1440].some((deslocamento) => {
+        const inicio = inicioJanela + deslocamento;
+        return inicio < fimTurno && inicio + duracao > inicioTurno;
+      });
+    })
+    .map((janela) => janela.codigo);
+}
+
 export interface PtpItemDef {
   codigo: PtpItemCodigo;
   nome: string;
@@ -50,8 +106,34 @@ export const PTP_ITENS: PtpItemDef[] = [
   { codigo: "SEM_TAMPA", nome: "SEM TAMPA" },
 ];
 
-export function criarItensPtpVazios(): PtpItem[] {
-  return PTP_ITENS.map((d) => ({
+// Os dois PTPs de enchedora têm os mesmos cinco itens; os dois PTPs de
+// empacotadora têm os mesmos sete itens. PTP_ITENS continua sendo o catálogo
+// histórico da Enchedora 3 para não alterar leitores de registros antigos.
+export const PTP_ITENS_EMPACOTADORA: PtpItemDef[] = [
+  { codigo: "PACOTES_FURADOS", nome: "PACOTES FURADOS" },
+  { codigo: "PACOTES_MOLES", nome: "PACOTES MOLES" },
+  { codigo: "PACOTES_INCOMPLETOS", nome: "PACOTES INCOMPLETOS" },
+  { codigo: "PACOTES_DEFORMADOS", nome: "PACOTES DEFORMADOS" },
+  { codigo: "CODIFICACAO_APAGADA_CORTADA", nome: "CODIFICAÇÃO APAGADA/CORTADA" },
+  { codigo: "SEM_CODIFICACAO", nome: "SEM CODIFICAÇÃO" },
+  { codigo: "GARRAFAS_VAZAMENTO", nome: "GARRAFAS C/ VAZAMENTO" },
+];
+
+export function itensPtpDaMaquina(nomeMaquina: string): readonly PtpItemDef[] {
+  switch (nomeMaquina) {
+    case "Enchedora 2":
+    case "Enchedora 3":
+      return PTP_ITENS;
+    case "Empacotadora 2":
+    case "Empacotadora 3":
+      return PTP_ITENS_EMPACOTADORA;
+    default:
+      throw new Error(`Máquina sem catálogo PTP: ${nomeMaquina}`);
+  }
+}
+
+export function criarItensPtpVazios(nomeMaquina = "Enchedora 3"): PtpItem[] {
+  return itensPtpDaMaquina(nomeMaquina).map((d) => ({
     codigo: d.codigo,
     nome: d.nome,
     quantidade: 0,
@@ -243,8 +325,30 @@ export const LIMPEZA_ITENS_DEF: Omit<LimpezaItem, "status">[] = [
   },
 ];
 
-export function criarItensLimpezaVazios(): LimpezaItem[] {
-  return LIMPEZA_ITENS_DEF.map((d) => ({ ...d, status: null }));
+// As folhas L2 e L3 de limpeza da sala de envase têm os mesmos 21 itens.
+// O catálogo não determina se a execução é compartilhada entre enchedoras;
+// essa regra pertence ao registro operacional.
+export function itensLimpezaDaMaquina(
+  nomeMaquina: string,
+): readonly Omit<LimpezaItem, "status">[] | null {
+  switch (nomeMaquina) {
+    case "Enchedora 2":
+    case "Enchedora 3":
+      return LIMPEZA_ITENS_DEF;
+    case "Empacotadora 2":
+    case "Empacotadora 3":
+      return null;
+    default:
+      throw new Error(`Máquina sem catálogo de limpeza: ${nomeMaquina}`);
+  }
+}
+
+export function criarItensLimpezaVazios(nomeMaquina = "Enchedora 3"): LimpezaItem[] {
+  const itens = itensLimpezaDaMaquina(nomeMaquina);
+  if (!itens) {
+    throw new Error(`Limpeza não se aplica à ${nomeMaquina}`);
+  }
+  return itens.map((d) => ({ ...d, status: null }));
 }
 
 // ─── Labels ──────────────────────────────────────────────────────────

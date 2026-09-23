@@ -10,16 +10,14 @@ import {
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
-import {
-  LABEL_PTP_STATUS,
-  janelasPtpDoTurno,
-  VERSO_CONTEXTO_FIXO,
-} from "@/lib/verso/constants";
+import { escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
+import { LABEL_PTP_STATUS, janelasPtpDaEscalaMaquina } from "@/lib/verso/constants";
 import type { PtpJanela, PtpJanelaStatus } from "@/lib/verso/types";
 import { formatarDataHora } from "@/lib/checklist/format";
 
 export const Route = createFileRoute("/operador/verso/ptp")({
-  head: () => ({ meta: [{ title: "PTP Garrafas — Verso da folha" }] }),
+  head: () => ({ meta: [{ title: "PTP — Verso da folha" }] }),
   component: PtpLayout,
 });
 
@@ -39,12 +37,18 @@ function PtpListaPage() {
   const equipe = turnoAtivo.equipe;
   const turno = turnoAtivo.turno;
   const data = turnoAtivo.data;
+  const maquina = maquinaDoUsuario(usuario);
   const folhaDiaKey = buildFolhaDiaKey(
     data,
-    VERSO_CONTEXTO_FIXO.linha,
-    VERSO_CONTEXTO_FIXO.maquina,
+    maquina.linha,
+    maquina.nome,
   );
-  const { janelas, loading: l2, conflito } = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
+  const { janelas, loading: l2, conflito } = usePtpJanelas(
+    folhaDiaKey,
+    data,
+    usuario?.userId ?? null,
+    maquina,
+  );
 
   if (loading || !usuario || l2) return <TelaCarregando />;
 
@@ -53,7 +57,7 @@ function PtpListaPage() {
     return (
       <div className="min-h-screen bg-background">
         <AppHeader
-          titulo="PTP Garrafas"
+          titulo={`PTP — ${maquina.nome}`}
           subtitulo="Defina seu turno do dia"
           voltarPara="/operador"
         />
@@ -74,16 +78,16 @@ function PtpListaPage() {
     );
   }
 
-  // Filtra janelas pelo HORÁRIO REAL da escala (turno+equipe).
-  const codigosDoTurno = janelasPtpDoTurno(turno, equipe as never);
-  const janelasVisiveis = janelas.filter((j) =>
-    codigosDoTurno.includes(j.janelaCodigo),
-  );
+  // Usa os horários da própria folha: nas máquinas novas J04/J05 e J08/J09
+  // se encontram exatamente às 14:20 e 22:40, diferente da Enchedora 3.
+  const escala = escalaPorTurnoEquipe(turno, equipe as never);
+  const codigosDaEscala = janelasPtpDaEscalaMaquina(escala, maquina.nome);
+  const janelasVisiveis = janelas.filter((j) => codigosDaEscala.includes(j.janelaCodigo));
 
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
-        titulo="PTP Garrafas"
+        titulo={`PTP — ${maquina.nome}`}
         subtitulo={`Folha do dia ${formatarDataBR(data)} · ${turno}${turnoAtivo.ehExtra ? " · EXTRA" : ""}`}
         voltarPara="/operador"
       />

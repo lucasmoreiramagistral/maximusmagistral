@@ -1,4 +1,6 @@
 // Strings exatas dos momentos do checklist — NUNCA usar enum/classe com .label
+import type { MaquinaId, NomeLinha, NomeMaquina } from "@/lib/maquinas/catalogo";
+
 export const MOMENTOS_CHECKLIST = [
   "Início / retomada de processo",
   "Setup / longas paradas / PCM",
@@ -56,10 +58,10 @@ export interface ContextoChecklist {
   data: string; // YYYY-MM-DD
   turno: Turno;
   equipe: Equipe;
-  linha: "Linha 3";
-  maquina: "Enchedora 3";
+  linha: NomeLinha;
+  maquina: NomeMaquina;
   area?: "Envase";
-  equipamento?: "Enchedora Zegla 50V";
+  equipamento?: string;
   operadorResponsavel?: string;
 }
 
@@ -133,9 +135,9 @@ export type StatusAnomalia = "Aberta" | "Em andamento" | "Resolvida";
 export interface Anomalia {
   id: string;
   criadoEm: string;
-  linha: "Linha 3";
+  linha: NomeLinha;
   area: "Envase";
-  maquina: "Enchedora 3";
+  maquina: NomeMaquina;
   itemOrigem?: { numero: number; descricao: string };
   checklistId?: string;
   categoria: CategoriaAnomalia;
@@ -310,6 +312,8 @@ export interface Usuario {
   perfil: Perfil;
   nome: string;
   usuario: string;
+  /** Máquina atribuída ao operador; null para outros perfis. */
+  maquinaId: MaquinaId | null;
   /** Equipe padrão sugerida no contexto do checklist. */
   equipePadrao?: Equipe | null;
   /** Turno padrão sugerido no contexto do checklist. */

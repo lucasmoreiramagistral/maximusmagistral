@@ -6,7 +6,14 @@ export type PtpItemCodigo =
   | "ESTOURANDO"
   | "FINISH_QUEBRANDO"
   | "NIVEL_BAIXO"
-  | "SEM_TAMPA";
+  | "SEM_TAMPA"
+  | "PACOTES_FURADOS"
+  | "PACOTES_MOLES"
+  | "PACOTES_INCOMPLETOS"
+  | "PACOTES_DEFORMADOS"
+  | "CODIFICACAO_APAGADA_CORTADA"
+  | "SEM_CODIFICACAO"
+  | "GARRAFAS_VAZAMENTO";
 
 export type PtpItemStatus = "sem_ocorrencia" | "houve_ocorrencia";
 

@@ -9,8 +9,7 @@ import {
   type PtpJanelaRow,
 } from "./mappers";
 import {
-  PTP_JANELAS,
-  VERSO_CONTEXTO_FIXO,
+  janelasPtpDaMaquina,
   criarItensLimpezaVazios,
   criarItensPtpVazios,
 } from "./constants";
@@ -21,6 +20,7 @@ import type {
   PtpJanela,
 } from "./types";
 import type { Turno } from "@/lib/checklist/types";
+import { MAQUINAS, sufixoIdMaquina, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
 /** Erro de conflito de versão (updated_at do servidor é mais recente). */
 export class ConflitoVersaoError extends Error {
@@ -198,21 +198,22 @@ export function createPtpJanelasPadrao(
   folhaDiaKey: string,
   dataOperacao: string,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): PtpJanela[] {
   const opSuffix = operadorUserId ? `-op:${operadorUserId}` : "";
-  return PTP_JANELAS.map((def) => ({
-    id: genVersoId(`ptp-${dataOperacao}-${def.codigo}${opSuffix}`),
+  return janelasPtpDaMaquina(maquina.nome).map((def) => ({
+    id: genVersoId(`ptp-${dataOperacao}-${def.codigo}${opSuffix}${sufixoIdMaquina(maquina)}`),
     folhaDiaKey,
     dataOperacao,
-    linha: VERSO_CONTEXTO_FIXO.linha,
-    area: VERSO_CONTEXTO_FIXO.area,
-    maquina: VERSO_CONTEXTO_FIXO.maquina,
-    equipamento: VERSO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     janelaCodigo: def.codigo,
     janelaInicio: def.inicio,
     janelaFim: def.fim,
     statusJanela: "pendente",
-    itens: criarItensPtpVazios(),
+    itens: criarItensPtpVazios(maquina.nome),
     observacao: null,
   }));
 }
@@ -234,19 +235,23 @@ export function createLimpezaTurnoPadrao(
   dataOperacao: string,
   turno: Turno,
   operadorUserId?: string | null,
+  maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
 ): LimpezaTurno {
+  if (!maquina.formularios.limpeza) {
+    throw new Error(`A máquina ${maquina.nome} não possui checklist de limpeza.`);
+  }
   const opSuffix = operadorUserId ? `-op:${operadorUserId}` : "";
   return {
-    id: genVersoId(`limp-${dataOperacao}-${turno.replace(/\s/g, "_")}${opSuffix}`),
+    id: genVersoId(`limp-${dataOperacao}-${turno.replace(/\s/g, "_")}${opSuffix}${sufixoIdMaquina(maquina)}`),
     folhaDiaKey,
     dataOperacao,
-    linha: VERSO_CONTEXTO_FIXO.linha,
-    area: VERSO_CONTEXTO_FIXO.area,
-    maquina: VERSO_CONTEXTO_FIXO.maquina,
-    equipamento: VERSO_CONTEXTO_FIXO.equipamento,
+    linha: maquina.linha,
+    area: maquina.area,
+    maquina: maquina.nome,
+    equipamento: maquina.equipamento,
     turno,
     status: "pendente",
-    itens: criarItensLimpezaVazios(),
+    itens: criarItensLimpezaVazios(maquina.nome),
   };
 }
 

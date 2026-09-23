@@ -16,10 +16,8 @@ import {
   formatarDataBR,
 } from "@/lib/operacao/data-operacional";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
-import {
-  VERSO_CONTEXTO_FIXO,
-  criarAnaliseAnguloVazia,
-} from "@/lib/verso/constants";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
+import { criarAnaliseAnguloVazia } from "@/lib/verso/constants";
 import { deriveStatusJanela, recalcularStatusItens } from "@/lib/verso/format";
 import type {
   PtpAnaliseAngulo,
@@ -42,13 +40,19 @@ function PtpJanelaDetalhe() {
 
   const turnoAtivo = useTurnoAtivoDoDia(usuario);
   const data = turnoAtivo.data;
+  const maquina = maquinaDoUsuario(usuario);
   const folhaDiaKey = buildFolhaDiaKey(
     data,
-    VERSO_CONTEXTO_FIXO.linha,
-    VERSO_CONTEXTO_FIXO.maquina,
+    maquina.linha,
+    maquina.nome,
   );
 
-  const { janelas, salvarJanela } = usePtpJanelas(folhaDiaKey, data, usuario?.userId ?? null);
+  const { janelas, salvarJanela } = usePtpJanelas(
+    folhaDiaKey,
+    data,
+    usuario?.userId ?? null,
+    maquina,
+  );
   const janelaBase = useMemo(
     () => janelas.find((j) => j.janelaCodigo === janelaCodigo),
     [janelas, janelaCodigo],
@@ -234,7 +238,7 @@ function PtpJanelaDetalhe() {
 
   const montarPayload = (concluir: boolean): PtpJanela => {
     const agora = new Date().toISOString();
-    // Status: NÃO conta análise de ângulo. Só os 5 defeitos.
+    // O status considera os defeitos do PTP da máquina; análise de ângulo é separada.
     const status = concluir ? deriveStatusJanela(itens, naoRodou) : "rascunho";
     // Nome real do operador: usuario.userId é o auth.uid()/profiles.id e
     // usuario.nome vem do profile carregado pelo login próprio.
@@ -360,12 +364,13 @@ function PtpJanelaDetalhe() {
           ))}
         </div>
 
-        {/* Análise de ângulo */}
-        <div
-          className={`mt-4 rounded-xl border-2 border-accent/40 bg-accent/5 p-4 ${
-            naoRodou ? "opacity-50" : ""
-          }`}
-        >
+        {/* Análise de ângulo é verificação específica das enchedoras. */}
+        {maquina.tipo === "enchedora" && (
+          <div
+            className={`mt-4 rounded-xl border-2 border-accent/40 bg-accent/5 p-4 ${
+              naoRodou ? "opacity-50" : ""
+            }`}
+          >
           <p className="text-sm font-bold text-foreground">ANÁLISE DE ÂNGULO</p>
           <p className="mt-1 text-xs text-muted-foreground">
             2 verificações por janela (cada uma representa 30 min). Não conta
@@ -412,7 +417,8 @@ function PtpJanelaDetalhe() {
               );
             })}
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Observação */}
         <div className="mt-5">

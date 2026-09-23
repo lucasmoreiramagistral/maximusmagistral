@@ -17,6 +17,7 @@ import type { ContextoChecklist, Equipe, Turno } from "@/lib/checklist/types";
 import { calcularDataOperacional } from "@/lib/operacao/data-operacional";
 import { ESCALAS, escalaExataPorTurnoEquipe, escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
 import { setTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 
 const calcularDataFolha = calcularDataOperacional;
 
@@ -39,6 +40,7 @@ function nomeStorageKey(userId: string | undefined | null) {
 
 function ContextoPage() {
   const { usuario, loading } = useGuard("operador");
+  const maquina = maquinaDoUsuario(usuario);
   const navigate = useNavigate();
 
   const [erro, setErro] = useState("");
@@ -86,10 +88,10 @@ function ContextoPage() {
       data: calcularDataFolha(equipe, turno),
       turno,
       equipe,
-      linha: "Linha 3",
-      maquina: "Enchedora 3",
-      area: "Envase",
-      equipamento: "Enchedora Zegla 50V",
+      linha: maquina.linha,
+      maquina: maquina.nome,
+      area: maquina.area,
+      equipamento: maquina.equipamento,
       operadorResponsavel: usuario.nome,
     };
     if (typeof window !== "undefined") {
@@ -121,10 +123,10 @@ function ContextoPage() {
       <main className="mx-auto w-full max-w-[1100px] px-4 py-6 md:px-8 md:py-10">
         <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-8">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <CampoFixo titulo="Linha" valor="Linha 3" />
-            <CampoFixo titulo="Máquina" valor="Enchedora 3" />
-            <CampoFixo titulo="Área" valor="Envase" />
-            <CampoFixo titulo="Equipamento" valor="Enchedora Zegla 50V" />
+            <CampoFixo titulo="Linha" valor={maquina.linha} />
+            <CampoFixo titulo="Máquina" valor={maquina.nome} />
+            <CampoFixo titulo="Área" valor={maquina.area} />
+            <CampoFixo titulo="Equipamento" valor={maquina.equipamento} />
 
             <div>
               <Label htmlFor="turno-select" className="text-base">
