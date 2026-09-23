@@ -119,6 +119,7 @@ function novaBobina(props: EmpacotadoraVersoSecoesProps, ordem: number): BobinaF
     pesoBrutoFinalKg: null,
     horaInicio: null,
     horaTermino: null,
+    dataTerminoOperacao: null,
   };
 }
 
@@ -193,7 +194,7 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
     let ativo = true;
     setCarregando(true);
     setErroCarga(null);
-    buscarVersoEmpacotadora(folhaDiaKey, maquina.nome)
+    buscarVersoEmpacotadora(folhaDiaKey, maquina.nome, props.data)
       .then((resultado) => {
         if (!ativo) return;
         setBobinas(resultado.bobinas);
@@ -217,7 +218,7 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
     return () => {
       ativo = false;
     };
-  }, [folhaDiaKey, maquina.nome, tentativa]);
+  }, [folhaDiaKey, maquina.nome, props.data, tentativa]);
 
   function patchBobina(
     id: string,
@@ -232,11 +233,22 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
         | "pesoBrutoFinalKg"
         | "horaInicio"
         | "horaTermino"
+        | "dataTerminoOperacao"
       >
     >,
   ) {
     setBobinas((anteriores) =>
-      anteriores.map((linha) => (linha.id === id ? { ...linha, ...patch } : linha)),
+      anteriores.map((linha) =>
+        linha.id === id
+          ? {
+              ...linha,
+              ...patch,
+              ...("horaTermino" in patch
+                ? { dataTerminoOperacao: patch.horaTermino ? props.data : null }
+                : {}),
+            }
+          : linha,
+      ),
     );
   }
 
@@ -386,6 +398,11 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
           return (
             <section key={linha.id} className="rounded-2xl border border-border bg-card p-4">
               <StatusLinha ordem={linha.ordem} pendente={pendente} />
+              {linha.dataOperacao !== props.data && (
+                <p className="mt-2 text-sm font-medium text-primary">
+                  Bobina aberta no dia operacional {linha.dataOperacao}. Registre o término nesta linha.
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <CampoTexto
                   label="Produto"
@@ -430,6 +447,17 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
                   valor={linha.horaTermino}
                   aoMudar={(valor) => patchBobina(linha.id, { horaTermino: valor })}
                 />
+                {linha.horaTermino && (
+                  <div className="space-y-1">
+                    <Label htmlFor={`termino-${linha.id}`}>Dia operacional do término</Label>
+                    <Input
+                      id={`termino-${linha.id}`}
+                      type="date"
+                      value={linha.dataTerminoOperacao ?? props.data}
+                      onChange={(event) => patchBobina(linha.id, { dataTerminoOperacao: event.target.value || null })}
+                    />
+                  </div>
+                )}
               </div>
               <Button
                 className="mt-4 h-12 w-full text-base font-bold"
@@ -458,7 +486,10 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
           variant="outline"
           className="h-12 w-full text-base"
           onClick={() =>
-            setBobinas((anteriores) => [...anteriores, novaBobina(props, proximaOrdem(anteriores))])
+            setBobinas((anteriores) => [
+              ...anteriores,
+              novaBobina(props, proximaOrdem(anteriores.filter((item) => item.dataOperacao === props.data))),
+            ])
           }
         >
           <Plus className="mr-2 h-5 w-5" />

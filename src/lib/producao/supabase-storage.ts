@@ -53,16 +53,63 @@ export async function upsertProducaoHora(
   }
 
   const row = producaoHoraToRow(h, userId);
-  const { data, error } = await supabase
-    .from("producao_horaria" as never)
-    .upsert(row as never, { onConflict: "id" })
-    .select("*")
-    .single();
-  if (error) {
-    console.error("[upsertProducaoHora] supabase error:", error);
-    throw error;
+  let falha: unknown;
+  try {
+    const { data, error } = await supabase
+      .from("producao_horaria" as never)
+      .upsert(row as never, { onConflict: "id" })
+      .select("*")
+      .single();
+    if (!error) return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
+    falha = error;
+  } catch (error) {
+    falha = error;
   }
-  return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
+
+  // Se a gravação ocorreu mas a resposta se perdeu, o retry encontra a hora
+  // imutável. Só aceitamos sucesso após reler o mesmo conteúdo confirmado.
+  try {
+    const { data, error } = await supabase
+      .from("producao_horaria" as never)
+      .select("*")
+      .eq("id", row.id)
+      .maybeSingle();
+    if (!error && data && horaPersistidaIgual(data as unknown as ProducaoHoraRow, row)) {
+      return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
+    }
+  } catch {
+    // Sem leitura remota não há confirmação, então devolvemos o erro original.
+  }
+  console.error("[upsertProducaoHora] supabase error:", falha);
+  throw falha;
+}
+
+const CAMPOS_LANCAMENTO = [
+  "id", "folha_dia_key", "data_operacao", "linha", "maquina", "turno",
+  "hora_codigo", "hora_inicio", "hora_fim", "meta", "quantidade",
+  "paletes_completos", "quebra_pacotes", "pacotes_por_palete",
+  "nao_rodou", "tempo_parada_min", "tempo_parada_metodo", "motivo_parada_codigo",
+  "reinicia_acumulado", "motivo_reinicio", "produto_sabor", "produto_tamanho",
+  "observacao", "operador_user_id", "lider_nome", "lider_assinou_em",
+] as const satisfies readonly (keyof ProducaoHoraRow)[];
+
+/** Mesmo lançamento salvo pelo servidor, sem comparar timestamps ou assinatura posterior. */
+export function horaPersistidaIgual(
+  persistida: ProducaoHoraRow,
+  enviada: ProducaoHoraRow,
+): boolean {
+  if (!persistida.finalizado_em && persistida.quantidade === null && !persistida.nao_rodou) return false;
+  if (!CAMPOS_LANCAMENTO.every((campo) => (persistida[campo] ?? null) === (enviada[campo] ?? null))) {
+    return false;
+  }
+  const eventosPersistidos = [...(persistida.eventos ?? [])].sort();
+  const eventosEnviados = [...(enviada.eventos ?? [])].sort();
+  const assinaturaPersistida = persistida.assinatura_lider;
+  const assinaturaEnviada = enviada.assinatura_lider;
+  return JSON.stringify(eventosPersistidos) === JSON.stringify(eventosEnviados)
+    && (assinaturaPersistida?.dataUrl ?? null) === (assinaturaEnviada?.dataUrl ?? null)
+    && (assinaturaPersistida?.nome ?? null) === (assinaturaEnviada?.nome ?? null)
+    && (assinaturaPersistida?.assinadoEm ?? null) === (assinaturaEnviada?.assinadoEm ?? null);
 }
 
 export async function insertProducaoHoraEdicao(p: ProducaoHoraEdicaoPayload): Promise<void> {
@@ -114,6 +161,8 @@ export function createProducaoHorasPadrao(
     pacotesPorPalete: null,
     naoRodou: false,
     tempoParadaMin: null,
+    tempoParadaMetodo: null,
+    motivoParadaCodigo: null,
     reiniciaAcumulado: false,
     motivoReinicio: null,
     eventos: [],

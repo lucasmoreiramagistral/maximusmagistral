@@ -4,6 +4,42 @@ import type { ProducaoHora, ProducaoHoraCalculada } from "./types";
 /** Horas em que o acumulado zera por virada de turno (06:00 e 18:00). */
 export const HORAS_VIRADA_TURNO = new Set(["H01", "H13"]);
 
+export interface ProdutoAnterior {
+  sabor: string | null;
+  tamanho: string | null;
+  setupSemProduto: boolean;
+}
+
+/** Busca o ultimo produto confirmado e um eventual setup sem producao entre ele e a hora atual. */
+export function produtoAnteriorDoTurno(
+  horas: ProducaoHora[],
+  codigosDoTurno: string[],
+  horaCodigo: string,
+): ProdutoAnterior | null {
+  const indice = codigosDoTurno.indexOf(horaCodigo);
+  const porCodigo = new Map(horas.map((hora) => [hora.horaCodigo, hora]));
+  let setupSemProduto = false;
+  for (let i = indice - 1; i >= 0; i--) {
+    const anterior = porCodigo.get(codigosDoTurno[i]);
+    if (!anterior || !(anterior.finalizadoEm ||
+      (anterior.createdAt && (anterior.naoRodou || typeof anterior.quantidade === "number")))) {
+      continue;
+    }
+    if (anterior.reiniciaAcumulado && anterior.naoRodou &&
+      !anterior.produtoSabor && !anterior.produtoTamanho) {
+      setupSemProduto = true;
+    }
+    if (anterior.produtoSabor || anterior.produtoTamanho) {
+      return {
+        sabor: anterior.produtoSabor,
+        tamanho: anterior.produtoTamanho,
+        setupSemProduto,
+      };
+    }
+  }
+  return null;
+}
+
 function rotuloProduto(sabor: string | null, tamanho: string | null): string | null {
   const partes = [sabor?.trim(), tamanho?.trim()].filter(Boolean);
   return partes.length > 0 ? partes.join(" ") : null;
@@ -38,7 +74,7 @@ export function calcularAcumulado(horas: ProducaoHora[]): ProducaoHoraCalculada[
     const produtoDaLinha = rotuloProduto(h.produtoSabor, h.produtoTamanho);
     if (zera) {
       produtoVigente = produtoDaLinha;
-    } else if (produtoDaLinha && !produtoVigente) {
+    } else if (produtoDaLinha) {
       produtoVigente = produtoDaLinha;
     }
 
@@ -67,6 +103,9 @@ export interface ResumoHoraXHora {
   totalProduzido: number;
   totalMeta: number;
   totalParadaMin: number;
+  totalPerdaEquivalenteMin: number;
+  totalParadaInformadaMin: number;
+  horasSemCalculo: number;
   /** Percentual de atingimento da meta (null quando não há meta). */
   atingimentoPct: number | null;
 }
@@ -87,6 +126,9 @@ export function calcularResumoHoraXHora(
   let produzidoNasHorasComMeta = 0;
   let totalMeta = 0;
   let totalParadaMin = 0;
+  let totalPerdaEquivalenteMin = 0;
+  let totalParadaInformadaMin = 0;
+  let horasSemCalculo = 0;
   const faltantes: string[] = [];
 
   for (const codigo of codigosDoEscopo) {
@@ -103,7 +145,16 @@ export function calcularResumoHoraXHora(
       totalMeta += h.meta;
       produzidoNasHorasComMeta += produzido;
     }
-    totalParadaMin += h?.tempoParadaMin ?? 0;
+    if (h?.tempoParadaMin === null || h?.tempoParadaMin === undefined) {
+      horasSemCalculo++;
+    } else {
+      totalParadaMin += h.tempoParadaMin;
+      if (h.tempoParadaMetodo === "cadencia_equivalente") {
+        totalPerdaEquivalenteMin += h.tempoParadaMin;
+      } else {
+        totalParadaInformadaMin += h.tempoParadaMin;
+      }
+    }
   }
 
   return {
@@ -113,6 +164,9 @@ export function calcularResumoHoraXHora(
     totalProduzido,
     totalMeta,
     totalParadaMin,
+    totalPerdaEquivalenteMin,
+    totalParadaInformadaMin,
+    horasSemCalculo,
     atingimentoPct: totalMeta > 0 ? Math.round((produzidoNasHorasComMeta / totalMeta) * 100) : null,
   };
 }

@@ -19,14 +19,15 @@ describe("lançamento Hora x Hora da empacotadora", () => {
     fireEvent.change(screen.getByLabelText("Quebra: pacotes do palete incompleto"), {
       target: { value: "7" },
     });
-    fireEvent.change(screen.getByLabelText("Minutos parados nesta hora"), {
-      target: { value: "0" },
-    });
-    fireEvent.change(screen.getByLabelText("Meta da hora (pacotes, opcional)"), {
+    fireEvent.change(screen.getByLabelText("Cadência do produto (pacotes/h)"), {
       target: { value: "110" },
+    });
+    fireEvent.change(screen.getByLabelText("Motivo principal da parada"), {
+      target: { value: "parada_enchedora" },
     });
 
     expect(screen.getByText("103 pacotes produzidos")).toBeInTheDocument();
+    expect(screen.getByText("Perda equivalente: 4 min")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Revisar hora" }));
     expect(onSalvar).not.toHaveBeenCalled();
     expect(
@@ -43,7 +44,9 @@ describe("lançamento Hora x Hora da empacotadora", () => {
         pacotesPorPalete: 48,
         quantidade: 103,
         meta: 110,
-        tempoParadaMin: 0,
+        tempoParadaMin: 4,
+        tempoParadaMetodo: "cadencia_equivalente",
+        motivoParadaCodigo: "parada_enchedora",
         motivoParada: null,
         tipoSetup: null,
       }),
@@ -62,17 +65,36 @@ describe("lançamento Hora x Hora da empacotadora", () => {
         onSalvar={onSalvar}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Minutos parados nesta hora"), {
-      target: { value: "60" },
-    });
     fireEvent.click(screen.getByRole("button", { name: "Revisar hora" }));
-    expect(screen.getByRole("alert")).toHaveTextContent(/motivo da parada/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/motivo principal da parada/);
     expect(onSalvar).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/Motivo da parada ou observação/), {
-      target: { value: "Sem programação" },
+    fireEvent.change(screen.getByLabelText("Motivo principal da parada"), {
+      target: { value: "sem_programacao" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Revisar hora" }));
     expect(screen.getByText("0 pacotes produzidos")).toBeInTheDocument();
+    expect(screen.getByText("Não calculável")).toBeInTheDocument();
+  });
+
+  it("exige iniciar novo acumulado quando o produto muda entre horas", () => {
+    render(
+      <EmpacotadoraHoraForm
+        horaRotulo="10:00 às 11:00"
+        maquina="Empacotadora 3"
+        produtoAnterior={{ sabor: "Uva", tamanho: "2L", setupSemProduto: false }}
+        onSalvar={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Tamanho do produto"), { target: { value: "2L" } });
+    fireEvent.change(screen.getByLabelText("Sabor produzido"), { target: { value: "Cola" } });
+    fireEvent.change(screen.getByLabelText("Paletes completos"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Cadência do produto (pacotes/h)"), { target: { value: "48" } });
+    fireEvent.click(screen.getByRole("button", { name: "Revisar hora" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(/O produto mudou/);
+
+    fireEvent.change(screen.getByLabelText("Tipo de setup (se houve)"), { target: { value: "troca_sabor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Revisar hora" }));
+    expect(screen.getByText("Confira antes de salvar")).toBeInTheDocument();
   });
 });

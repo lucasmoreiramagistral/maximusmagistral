@@ -1,4 +1,5 @@
 import type { AssinaturaDigital, Turno } from "@/lib/checklist/types";
+import type { MotivoParadaCodigo } from "./motivos-parada";
 
 /** Motivo do reinício da quantidade acumulada. */
 export type MotivoReinicio = "troca_sabor" | "troca_tamanho" | "cip";
@@ -59,6 +60,10 @@ export interface ProducaoHora {
   pacotesPorPalete?: number | null;
   naoRodou: boolean;
   tempoParadaMin: number | null;
+  /** Novos lancamentos: minutos equivalentes pela cadencia; null nos historicos. */
+  tempoParadaMetodo?: "cadencia_equivalente" | null;
+  /** Motivo principal padronizado; observacao conserva apenas texto legado. */
+  motivoParadaCodigo?: MotivoParadaCodigo | null;
   /** Marca o início de um novo bloco de acumulado. */
   reiniciaAcumulado: boolean;
   motivoReinicio: MotivoReinicio | null;

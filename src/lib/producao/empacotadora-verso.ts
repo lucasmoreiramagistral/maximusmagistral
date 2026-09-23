@@ -41,6 +41,7 @@ export type BobinaFilmeEmpacotadora = EmpacotadoraVersoBase & {
   pesoBrutoFinalKg: number | null;
   horaInicio: string | null; // HH:mm, relógio local
   horaTermino: string | null; // HH:mm, relógio local
+  dataTerminoOperacao?: string | null; // Dia operacional em que a bobina terminou
 };
 
 /**
@@ -73,7 +74,8 @@ export type CampoBobina =
   | "pesoLiquidoInicialKg"
   | "pesoBrutoFinalKg"
   | "horaInicio"
-  | "horaTermino";
+  | "horaTermino"
+  | "dataTerminoOperacao";
 
 export type CampoConsolidacao =
   | "id"
@@ -229,9 +231,25 @@ export function validarBobinaFilme(
       mensagem: "O peso final deve ser zero ou positivo, em kg.",
     });
   }
-  erros.push(
-    ...validarIntervalo(bobina.horaInicio, bobina.horaTermino, "horaInicio", "horaTermino"),
-  );
+  const dataTermino = bobina.dataTerminoOperacao ?? bobina.dataOperacao;
+  if (bobina.dataTerminoOperacao &&
+      (!DATA_ISO.test(dataTermino) || !dataCalendarioValida(dataTermino))) {
+    erros.push({ campo: "dataTerminoOperacao", codigo: "formato", mensagem: "Data de término inválida." });
+  }
+  const inicioMin = bobina.horaInicio === null ? null : minutoNoDiaOperacional(bobina.horaInicio, "inicio");
+  const fimMin = bobina.horaTermino === null ? null : minutoNoDiaOperacional(bobina.horaTermino, "fim");
+  if (bobina.horaInicio !== null && inicioMin === null) {
+    erros.push({ campo: "horaInicio", codigo: "formato", mensagem: "Use horário HH:mm entre 00:00 e 23:59." });
+  }
+  if (bobina.horaTermino !== null && fimMin === null) {
+    erros.push({ campo: "horaTermino", codigo: "formato", mensagem: "Use horário HH:mm entre 00:00 e 23:59." });
+  }
+  if (inicioMin !== null && fimMin !== null && DATA_ISO.test(dataTermino)) {
+    const dias = (Date.parse(`${dataTermino}T00:00:00Z`) - Date.parse(`${bobina.dataOperacao}T00:00:00Z`)) / 86400000;
+    if (!Number.isInteger(dias) || dias * 1440 + fimMin - inicioMin <= 0) {
+      erros.push({ campo: "horaTermino", codigo: "intervalo_invalido", mensagem: "O término deve ser posterior ao início da bobina." });
+    }
+  }
   if (bobina.horaTermino !== null && bobina.horaInicio === null) {
     erros.push({
       campo: "horaInicio",
@@ -255,6 +273,7 @@ export function validarBobinaParaFechamento(
     ["pesoLiquidoInicialKg", bobina.pesoLiquidoInicialKg],
     ["horaInicio", bobina.horaInicio],
     ["horaTermino", bobina.horaTermino],
+    ["dataTerminoOperacao", bobina.dataTerminoOperacao ?? null],
   ];
   for (const [campo, valor] of obrigatorios) {
     if (valor === null || (typeof valor === "string" && emBranco(valor))) {

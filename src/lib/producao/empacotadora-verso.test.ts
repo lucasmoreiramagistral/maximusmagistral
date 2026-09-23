@@ -32,6 +32,7 @@ const bobina: BobinaFilmeEmpacotadora = {
   pesoBrutoFinalKg: null,
   horaInicio: "22:40",
   horaTermino: "01:10",
+  dataTerminoOperacao: "2026-09-21",
 };
 
 const consolidacao: ConsolidacaoProdutoEmpacotadora = {
@@ -73,6 +74,21 @@ describe("registro das bobinas", () => {
   it("fecha bobina mesmo quando o peso bruto final não foi medido", () => {
     expect(validarBobinaParaFechamento(bobina)).toEqual([]);
     expect(validarBobinaParaFechamento({ ...bobina, pesoBrutoFinalKg: 0 })).toEqual([]);
+  });
+
+  it("permite encerrar no dia operacional seguinte e rejeita término anterior", () => {
+    expect(validarBobinaParaFechamento({
+      ...bobina,
+      horaInicio: "05:30",
+      horaTermino: "07:10",
+      dataTerminoOperacao: "2026-09-22",
+    })).toEqual([]);
+    expect(validarBobinaParaFechamento({
+      ...bobina,
+      horaInicio: "05:30",
+      horaTermino: "07:10",
+      dataTerminoOperacao: "2026-09-21",
+    })).toContainEqual(expect.objectContaining({ campo: "horaTermino", codigo: "intervalo_invalido" }));
   });
 
   it("rejeita peso negativo, data inexistente e contexto de linha trocado", () => {

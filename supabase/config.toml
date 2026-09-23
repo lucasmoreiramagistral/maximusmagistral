@@ -1,1 +1,4 @@
 project_id = "qztltpjsvqyxpxfnteoe"
+
+[functions.hora-x-hora-telegram]
+verify_jwt = false

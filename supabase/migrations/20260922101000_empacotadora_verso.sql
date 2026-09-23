@@ -25,6 +25,7 @@ create table if not exists public.empacotadora_bobinas (
   hora_termino text check (
     hora_termino is null or hora_termino ~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
   ),
+  data_termino_operacao date,
   operador_user_id uuid not null references auth.users(id) on delete restrict,
   operador_login text,
   operador_nome text,
@@ -37,7 +38,28 @@ create table if not exists public.empacotadora_bobinas (
     or (maquina = 'Empacotadora 3' and linha = 'Linha 3' and codigo_equipamento = 'LE-03')
   ),
   constraint empacotadora_bobinas_fim_com_inicio check (
-    hora_termino is null or hora_inicio is not null
+    (hora_termino is null and data_termino_operacao is null)
+    or (hora_termino is not null and hora_inicio is not null
+        and data_termino_operacao is not null)
+  ),
+  constraint empacotadora_bobinas_fechamento check (
+    hora_termino is null or (
+      nullif(btrim(produto), '') is not null
+      and nullif(btrim(especificacao_filme), '') is not null
+      and nullif(btrim(fabricante), '') is not null
+      and nullif(btrim(numero_lote), '') is not null
+      and peso_liquido_inicial_kg is not null
+    )
+  ),
+  constraint empacotadora_bobinas_intervalo check (
+    hora_termino is null or (
+      data_termino_operacao >= data_operacao
+      and (data_termino_operacao + hora_termino::time
+           + case when hora_termino::time <= time '06:00' then interval '1 day' else interval '0 day' end)
+          >
+          (data_operacao + hora_inicio::time
+           + case when hora_inicio::time < time '06:00' then interval '1 day' else interval '0 day' end)
+    )
   )
 );
 
@@ -76,11 +98,32 @@ create table if not exists public.empacotadora_consolidacoes (
   constraint empacotadora_consolidacoes_fim_com_inicio check (
     hora_final is null or hora_inicio is not null
   ),
+  constraint empacotadora_consolidacoes_fechamento check (
+    hora_final is null or (
+      nullif(btrim(sabor), '') is not null
+      and tamanho is not null
+      and tamanho in ('2L', '1,5L', '1L', '600ml', '350ml', '200ml')
+      and quantidade_paletes is not null
+      and quebra_pacotes is not null
+      and total_pacotes is not null
+      and pacotes_por_palete is not null
+      and (data_operacao + hora_final::time
+           + case when hora_final::time <= time '06:00' then interval '1 day' else interval '0 day' end)
+          >
+          (data_operacao + hora_inicio::time
+           + case when hora_inicio::time < time '06:00' then interval '1 day' else interval '0 day' end)
+    )
+  ),
   constraint empacotadora_consolidacoes_total check (
-    quantidade_paletes is null or quebra_pacotes is null
-    or total_pacotes is null or pacotes_por_palete is null
-    or total_pacotes::numeric =
-      quantidade_paletes::numeric * pacotes_por_palete::numeric + quebra_pacotes::numeric
+    (quantidade_paletes is null and quebra_pacotes is null
+     and total_pacotes is null and pacotes_por_palete is null)
+    or (quantidade_paletes is null and quebra_pacotes is null
+        and total_pacotes is null and pacotes_por_palete is not null)
+    or (quantidade_paletes is not null and quebra_pacotes is not null
+        and total_pacotes is not null and pacotes_por_palete is not null
+        and quebra_pacotes < pacotes_por_palete
+        and total_pacotes::numeric =
+          quantidade_paletes::numeric * pacotes_por_palete::numeric + quebra_pacotes::numeric)
   )
 );
 

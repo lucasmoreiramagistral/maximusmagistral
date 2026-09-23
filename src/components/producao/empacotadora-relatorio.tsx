@@ -12,7 +12,7 @@ import { SignaturePad } from "@/components/signature-pad";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { calcularResumoHoraXHora } from "@/lib/producao/acumulado";
+import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno } from "@/lib/producao/acumulado";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
 import { horaTerminou } from "@/lib/producao/horario";
 import {
@@ -24,6 +24,7 @@ import type { Usuario, Turno } from "@/lib/checklist/types";
 import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import type { MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
+import { rotuloTempoParada } from "@/lib/producao/perda-cadencia";
 
 type MaquinaEmpacotadora = Extract<MaquinaOperacional, { tipo: "empacotadora" }>;
 
@@ -71,6 +72,8 @@ function valorInicial(hora: ProducaoHora) {
     pacotesPorPalete: hora.pacotesPorPalete ?? null,
     quantidade: hora.quantidade ?? 0,
     tempoParadaMin: hora.tempoParadaMin,
+    tempoParadaMetodo: hora.tempoParadaMetodo ?? null,
+    motivoParadaCodigo: hora.motivoParadaCodigo ?? null,
     motivoParada: hora.observacao,
     tipoSetup: hora.eventos.includes("troca_tamanho")
       ? ("troca_tamanho" as const)
@@ -110,19 +113,14 @@ export function EmpacotadoraRelatorio({
     () => calcularResumoHoraXHora(horas, codigosDoTurno),
     [horas, codigosDoTurno],
   );
-  const acumulados = useMemo(() => {
-    const valores = new Map<string, number>();
-    let acumulado = 0;
-    for (const codigo of codigosDoTurno) {
-      const hora = porCodigo.get(codigo);
-      if (hora && jaSalva(hora)) {
-        acumulado += hora.quantidade ?? 0;
-        valores.set(codigo, acumulado);
-      }
-    }
-    return valores;
-  }, [codigosDoTurno, porCodigo]);
+  const acumulados = useMemo(
+    () => new Map(calcularAcumulado(horas).map((hora) => [hora.horaCodigo, hora.quantidadeAcumulada])),
+    [horas],
+  );
   const selecionada = horaSelecionada ? porCodigo.get(horaSelecionada) : null;
+  const produtoAnterior = horaSelecionada
+    ? produtoAnteriorDoTurno(horas, codigosDoTurno, horaSelecionada)
+    : null;
 
   async function confirmarHora(base: ProducaoHora, entrada: EntradaHoraEmpacotadora) {
     if (error || conflito) {
@@ -142,6 +140,8 @@ export function EmpacotadoraRelatorio({
       pacotesPorPalete: entrada.pacotesPorPalete,
       naoRodou: entrada.quantidade === 0,
       tempoParadaMin: entrada.tempoParadaMin,
+      tempoParadaMetodo: entrada.tempoParadaMetodo,
+      motivoParadaCodigo: entrada.motivoParadaCodigo,
       reiniciaAcumulado: entrada.tipoSetup !== null,
       motivoReinicio: entrada.tipoSetup,
       eventos: entrada.tipoSetup ? [entrada.tipoSetup] : [],
@@ -221,11 +221,15 @@ export function EmpacotadoraRelatorio({
                 titulo="Meta atingida"
                 valor={resumo.atingimentoPct === null ? "—" : `${resumo.atingimentoPct}%`}
               />
-              <Resumo titulo="Minutos parados" valor={`${resumo.totalParadaMin} min`} />
+              <Resumo
+                titulo="Perda equivalente"
+                valor={`${resumo.totalPerdaEquivalenteMin} min${resumo.horasSemCalculo ? ` · ${resumo.horasSemCalculo} h sem cálculo` : ""}${resumo.totalParadaInformadaMin ? ` · ${resumo.totalParadaInformadaMin} min históricos` : ""}`}
+              />
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
               Após o fim de cada hora, informe paletes completos e a quebra. O app calcula os
-              pacotes e pede uma conferência antes de salvar.
+              pacotes e pede uma conferência antes de salvar. Marque a troca de sabor ou tamanho
+              na primeira hora do produto novo para reiniciar o acumulado.
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {codigosDoTurno.map((codigo) => {
@@ -271,18 +275,23 @@ export function EmpacotadoraRelatorio({
                         }
                       />
                       <Dado
-                        rotulo="Parada"
-                        valor={salva ? `${hora.tempoParadaMin ?? "—"} min` : "—"}
+                        rotulo={rotuloTempoParada(hora.tempoParadaMetodo, hora.tempoParadaMin)}
+                        valor={salva && hora.tempoParadaMin !== null ? `${hora.tempoParadaMin} min` : "—"}
                       />
                       <Dado
-                        rotulo="Acumulado do turno"
+                        rotulo="Acumulado do produto"
                         valor={
-                          acumulados.has(codigo)
+                          salva && typeof acumulados.get(codigo) === "number"
                             ? acumulados.get(codigo)!.toLocaleString("pt-BR")
                             : "—"
                         }
                       />
                     </div>
+                    {salva && (hora.produtoSabor || hora.produtoTamanho) && (
+                      <p className="mt-2 text-xs font-medium text-foreground">
+                        Produto: {[hora.produtoSabor, hora.produtoTamanho].filter(Boolean).join(" ")}
+                      </p>
+                    )}
                     {salva && ehHoraDeChecagemLider(codigo) && (
                       <p
                         className={`mt-3 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${hora.assinaturaLider?.dataUrl ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
@@ -317,6 +326,7 @@ export function EmpacotadoraRelatorio({
               <EmpacotadoraHoraForm
                 key={`${maquina.id}-${selecionada.horaCodigo}`}
                 maquina={maquina.nome}
+                produtoAnterior={produtoAnterior}
                 horaRotulo={`${selecionada.horaInicio} às ${selecionada.horaFim}`}
                 jaSalvo={jaSalva(selecionada)}
                 valorInicial={valorInicial(selecionada)}

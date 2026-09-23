@@ -1,5 +1,6 @@
 import type { AssinaturaDigital, Turno } from "@/lib/checklist/types";
 import type { EventoHora, MotivoReinicio, ProducaoHora } from "./types";
+import type { MotivoParadaCodigo } from "./motivos-parada";
 
 export interface ProducaoHoraRow {
   id: string;
@@ -20,6 +21,8 @@ export interface ProducaoHoraRow {
   pacotes_por_palete?: number | null;
   nao_rodou: boolean;
   tempo_parada_min: number | null;
+  tempo_parada_metodo?: "cadencia_equivalente" | null;
+  motivo_parada_codigo?: MotivoParadaCodigo | null;
   reinicia_acumulado: boolean;
   motivo_reinicio: MotivoReinicio | null;
   eventos?: string[] | null;
@@ -59,6 +62,8 @@ export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
     pacotesPorPalete: r.pacotes_por_palete ?? null,
     naoRodou: Boolean(r.nao_rodou),
     tempoParadaMin: r.tempo_parada_min,
+    tempoParadaMetodo: r.tempo_parada_metodo ?? null,
+    motivoParadaCodigo: r.motivo_parada_codigo ?? null,
     reiniciaAcumulado: Boolean(r.reinicia_acumulado),
     motivoReinicio: r.motivo_reinicio,
     // Linhas gravadas antes da migration 10 não têm a coluna; `?? []` evita
@@ -102,6 +107,8 @@ export function producaoHoraToRow(h: ProducaoHora, userId: string | null): Produ
     pacotes_por_palete: h.pacotesPorPalete ?? null,
     nao_rodou: h.naoRodou,
     tempo_parada_min: h.tempoParadaMin ?? null,
+    tempo_parada_metodo: h.tempoParadaMetodo ?? null,
+    motivo_parada_codigo: h.motivoParadaCodigo ?? null,
     reinicia_acumulado: h.reiniciaAcumulado,
     motivo_reinicio: h.reiniciaAcumulado ? h.motivoReinicio : null,
     eventos: h.eventos ?? [],

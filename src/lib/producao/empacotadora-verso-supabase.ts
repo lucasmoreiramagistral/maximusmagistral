@@ -30,6 +30,7 @@ interface BobinaRow extends BaseRow {
   peso_bruto_final_kg: number | string | null;
   hora_inicio: string | null;
   hora_termino: string | null;
+  data_termino_operacao: string | null;
 }
 
 interface ConsolidacaoRow extends BaseRow {
@@ -87,6 +88,7 @@ function bobinaDaLinha(row: BobinaRow): BobinaFilmeEmpacotadora {
     pesoBrutoFinalKg: numeroOuNulo(row.peso_bruto_final_kg),
     horaInicio: row.hora_inicio,
     horaTermino: row.hora_termino,
+    dataTerminoOperacao: row.data_termino_operacao,
   } as BobinaFilmeEmpacotadora;
 }
 
@@ -107,11 +109,12 @@ function consolidacaoDaLinha(row: ConsolidacaoRow): ConsolidacaoPersistida {
 export async function buscarVersoEmpacotadora(
   folhaDiaKey: string,
   maquina: "Empacotadora 2" | "Empacotadora 3",
+  dataOperacao: string,
 ): Promise<{
   bobinas: BobinaFilmeEmpacotadora[];
   consolidacoes: ConsolidacaoPersistida[];
 }> {
-  const [resultadoBobinas, resultadoConsolidacoes] = await Promise.all([
+  const [resultadoBobinas, resultadoConsolidacoes, bobinasAbertas] = await Promise.all([
     supabase
       .from("empacotadora_bobinas" as never)
       .select("*")
@@ -124,11 +127,20 @@ export async function buscarVersoEmpacotadora(
       .eq("folha_dia_key", folhaDiaKey)
       .eq("maquina", maquina)
       .order("ordem", { ascending: true }),
+    supabase
+      .from("empacotadora_bobinas" as never)
+      .select("*")
+      .eq("maquina", maquina)
+      .lt("data_operacao", dataOperacao)
+      .is("hora_termino", null)
+      .order("data_operacao", { ascending: false })
+      .limit(20),
   ]);
   if (resultadoBobinas.error) throw resultadoBobinas.error;
   if (resultadoConsolidacoes.error) throw resultadoConsolidacoes.error;
+  if (bobinasAbertas.error) throw bobinasAbertas.error;
   return {
-    bobinas: ((resultadoBobinas.data ?? []) as unknown as BobinaRow[]).map(bobinaDaLinha),
+    bobinas: ([...(bobinasAbertas.data ?? []), ...(resultadoBobinas.data ?? [])] as unknown as BobinaRow[]).map(bobinaDaLinha),
     consolidacoes: ((resultadoConsolidacoes.data ?? []) as unknown as ConsolidacaoRow[]).map(
       consolidacaoDaLinha,
     ),
@@ -161,6 +173,7 @@ function camposBobina(linha: BobinaFilmeEmpacotadora) {
     peso_bruto_final_kg: linha.pesoBrutoFinalKg,
     hora_inicio: linha.horaInicio,
     hora_termino: linha.horaTermino,
+    data_termino_operacao: linha.dataTerminoOperacao ?? null,
   };
 }
 
@@ -177,6 +190,18 @@ function camposConsolidacao(linha: ConsolidacaoPersistida) {
   };
 }
 
+function correspondeAoEnvio(
+  recebida: Record<string, unknown>,
+  enviada: Record<string, unknown>,
+): boolean {
+  return Object.entries(enviada).every(([campo, valor]) => {
+    const atual = recebida[campo];
+    return typeof valor === "number"
+      ? atual !== null && Number(atual) === valor
+      : atual === valor;
+  });
+}
+
 /**
  * A confirmação vem da resposta do servidor. Uma linha salva só é atualizada
  * quando seu updated_at ainda coincide com o que foi carregado na tela.
@@ -190,6 +215,7 @@ export async function salvarBobinaEmpacotadora(
     throw new Error("Sua sessão mudou. Entre novamente antes de salvar a bobina.");
   }
 
+  const enviada = { ...baseParaInserir(linha, usuarioId), ...camposBobina(linha) };
   const query = linha.createdAt
     ? supabase
         .from("empacotadora_bobinas" as never)
@@ -198,8 +224,17 @@ export async function salvarBobinaEmpacotadora(
         .eq("updated_at", linha.updatedAt ?? "")
     : supabase
         .from("empacotadora_bobinas" as never)
-        .insert({ ...baseParaInserir(linha, usuarioId), ...camposBobina(linha) } as never);
+        .insert(enviada as never);
   const { data, error } = await query.select("*").maybeSingle();
+  if (error?.code === "23505" && !linha.createdAt) {
+    const existente = await supabase.from("empacotadora_bobinas" as never)
+      .select("*").eq("id", linha.id).maybeSingle();
+    if (!existente.error && existente.data &&
+        correspondeAoEnvio(existente.data as Record<string, unknown>, enviada)) {
+      return bobinaDaLinha(existente.data as unknown as BobinaRow);
+    }
+    throw new Error("A bobina já existe com dados diferentes. Atualize a tela antes de salvar.");
+  }
   if (error) throw error;
   if (!data) {
     throw new Error(
@@ -218,17 +253,24 @@ export async function salvarConsolidacaoEmpacotadora(
     throw new Error("Sua sessão mudou. Entre novamente antes de salvar o fechamento.");
   }
 
+  const enviada = { ...baseParaInserir(linha, usuarioId), ...camposConsolidacao(linha) };
   const query = linha.createdAt
     ? supabase
         .from("empacotadora_consolidacoes" as never)
         .update(camposConsolidacao(linha) as never)
         .eq("id", linha.id)
         .eq("updated_at", linha.updatedAt ?? "")
-    : supabase.from("empacotadora_consolidacoes" as never).insert({
-        ...baseParaInserir(linha, usuarioId),
-        ...camposConsolidacao(linha),
-      } as never);
+    : supabase.from("empacotadora_consolidacoes" as never).insert(enviada as never);
   const { data, error } = await query.select("*").maybeSingle();
+  if (error?.code === "23505" && !linha.createdAt) {
+    const existente = await supabase.from("empacotadora_consolidacoes" as never)
+      .select("*").eq("id", linha.id).maybeSingle();
+    if (!existente.error && existente.data &&
+        correspondeAoEnvio(existente.data as Record<string, unknown>, enviada)) {
+      return consolidacaoDaLinha(existente.data as unknown as ConsolidacaoRow);
+    }
+    throw new Error("O fechamento já existe com dados diferentes. Atualize a tela antes de salvar.");
+  }
   if (error) throw error;
   if (!data) {
     throw new Error(

@@ -19,7 +19,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -59,8 +58,18 @@ import {
 import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 import { horaTerminou } from "@/lib/producao/horario";
 import { SignaturePad } from "@/components/signature-pad";
-import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
+import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno, type ProdutoAnterior } from "@/lib/producao/acumulado";
+import {
+  motivoParadaValido,
+  motivosParaMaquina,
+  rotuloMotivoParada,
+  type MotivoParadaCodigo,
+} from "@/lib/producao/motivos-parada";
+import { calcularPerdaCadenciaMin, rotuloTempoParada } from "@/lib/producao/perda-cadencia";
 import type { EventoHora, MotivoReinicio, ProducaoHora } from "@/lib/producao/types";
+
+const MOTIVOS_ENCHEDORA = motivosParaMaquina("enchedora");
+const GRUPOS_MOTIVOS_ENCHEDORA = [...new Set(MOTIVOS_ENCHEDORA.map((motivo) => motivo.grupo))];
 
 export const Route = createFileRoute("/operador/hora-x-hora")({
   head: () => ({
@@ -187,6 +196,10 @@ function HoraXHoraPage() {
     return null;
   }
 
+  function produtoSugerido(codigo: string) {
+    return produtoAnteriorDoTurno(horas, codigosDoTurno, codigo);
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <AppHeader
@@ -219,7 +232,10 @@ function HoraXHoraPage() {
                 titulo="Atingimento da meta"
                 valor={resumo.atingimentoPct !== null ? `${resumo.atingimentoPct}%` : "—"}
               />
-              <Cartao titulo="Parada total" valor={`${resumo.totalParadaMin} min`} />
+              <Cartao
+                titulo="Perda equivalente"
+                valor={`${resumo.totalPerdaEquivalenteMin} min${resumo.horasSemCalculo ? ` · ${resumo.horasSemCalculo} h sem cálculo` : ""}${resumo.totalParadaInformadaMin ? ` · ${resumo.totalParadaInformadaMin} min históricos` : ""}`}
+              />
             </div>
 
             {checagens.length > 0 && (
@@ -304,7 +320,7 @@ function HoraXHoraPage() {
                     </div>
 
                     <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-                      <Campo rotulo="Meta" valor={h.meta?.toLocaleString("pt-BR") ?? "—"} />
+                      <Campo rotulo="Cadência/h" valor={h.meta?.toLocaleString("pt-BR") ?? "—"} />
                       <Campo
                         rotulo="Quantidade"
                         valor={h.naoRodou ? "—" : (h.quantidade?.toLocaleString("pt-BR") ?? "—")}
@@ -314,10 +330,16 @@ function HoraXHoraPage() {
                         valor={h.quantidadeAcumulada?.toLocaleString("pt-BR") ?? "—"}
                       />
                       <Campo
-                        rotulo="Parada"
+                        rotulo={rotuloTempoParada(h.tempoParadaMetodo, h.tempoParadaMin)}
                         valor={h.tempoParadaMin !== null ? `${h.tempoParadaMin} min` : "—"}
                       />
                     </dl>
+
+                    {h.motivoParadaCodigo && (
+                      <p className="mt-2 text-xs font-medium text-foreground">
+                        Motivo: {rotuloMotivoParada(h.motivoParadaCodigo)}
+                      </p>
+                    )}
 
                     {h.eventos && h.eventos.length > 0 && (
                       <p className="mt-2 flex flex-wrap gap-1">
@@ -390,6 +412,7 @@ function HoraXHoraPage() {
           hora={horaEmEdicao}
           somenteAssinatura={horaJaConfirmada(horaEmEdicao)}
           metaSugerida={metaSugerida(horaEmEdicao.horaCodigo)}
+          produtoSugerido={produtoSugerido(horaEmEdicao.horaCodigo)}
           onFechar={() => setEditando(null)}
           onSalvar={async (nova) => {
             try {
@@ -460,12 +483,14 @@ function DialogHora({
   hora,
   somenteAssinatura,
   metaSugerida,
+  produtoSugerido,
   onFechar,
   onSalvar,
 }: {
   hora: ProducaoHora;
   somenteAssinatura: boolean;
   metaSugerida: number | null;
+  produtoSugerido: ProdutoAnterior | null;
   onFechar: () => void;
   onSalvar: (h: ProducaoHora) => Promise<void>;
 }) {
@@ -476,15 +501,21 @@ function DialogHora({
     hora.quantidade !== null && !hora.naoRodou ? String(hora.quantidade) : "",
   );
   const [naoRodou, setNaoRodou] = useState(hora.naoRodou);
-  const [parada, setParada] = useState<string>(
-    hora.tempoParadaMin !== null ? String(hora.tempoParadaMin) : "",
+  const [motivoCodigo, setMotivoCodigo] = useState<MotivoParadaCodigo | "">(
+    hora.motivoParadaCodigo ?? "",
   );
   // Os eventos substituem o par "Reiniciar acumulado + Motivo": aquele motivo
   // era exatamente os três tipos de setup. Manter os dois pediria a mesma
   // informação duas vezes, e permitiria que se contradissessem.
   const [eventos, setEventos] = useState<EventoHora[]>(hora.eventos ?? []);
-  const alternarEvento = (e: EventoHora) =>
+  const alternarEvento = (e: EventoHora) => {
+    const marcando = !eventos.includes(e);
     setEventos((atual) => (atual.includes(e) ? atual.filter((x) => x !== e) : [...atual, e]));
+    if (e === "troca_sabor" || e === "troca_tamanho" || e === "cip_assepsia") {
+      if (marcando && !motivoCodigo) setMotivoCodigo(e);
+      if (!marcando && motivoCodigo === e) setMotivoCodigo("");
+    }
+  };
 
   // Reinício do acumulado deixa de ser digitado e passa a ser consequência.
   const setupEscolhido = eventos.find((e) => EVENTO_REINICIA_ACUMULADO[e]);
@@ -492,9 +523,8 @@ function DialogHora({
   const motivo: MotivoReinicio | null = setupEscolhido
     ? (EVENTO_REINICIA_ACUMULADO[setupEscolhido] ?? null)
     : null;
-  const [sabor, setSabor] = useState(hora.produtoSabor ?? "");
-  const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? "");
-  const [observacao, setObservacao] = useState(hora.observacao ?? "");
+  const [sabor, setSabor] = useState(hora.produtoSabor ?? produtoSugerido?.sabor ?? "");
+  const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? produtoSugerido?.tamanho ?? "");
   // Mesma troca feita na validação do checklist: o líder se autentica, o nome
   // vem do banco. Quando a hora já foi assinada antes, o nome anterior fica
   // visível mas não é reaproveitável — reassinar exige identificar de novo.
@@ -505,6 +535,9 @@ function DialogHora({
   );
   const [salvando, setSalvando] = useState(false);
   const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
+  const quantidadePrevia = naoRodou ? 0 : quantidade.trim() === "" ? null : Number(quantidade);
+  const cadenciaPrevia = meta.trim() === "" ? null : Number(meta);
+  const perdaPrevia = calcularPerdaCadenciaMin(cadenciaPrevia, quantidadePrevia);
 
   async function handleSalvar() {
     if (somenteAssinatura) {
@@ -528,34 +561,61 @@ function DialogHora({
     }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
     const metaNum = meta.trim() === "" ? null : Number(meta);
-    const paradaNum = parada.trim() === "" ? null : Number(parada);
 
     if (!naoRodou && qtd === null) {
       toast.error('Informe a quantidade produzida ou marque "não rodou".');
       return;
     }
-    if (qtd !== null && (Number.isNaN(qtd) || qtd < 0)) {
+    if (qtd !== null && (!Number.isSafeInteger(qtd) || qtd < 0)) {
       toast.error("Quantidade inválida.");
       return;
     }
-    if (metaNum !== null && (Number.isNaN(metaNum) || metaNum < 0)) {
-      toast.error("Meta inválida.");
+    if (metaNum !== null && (!Number.isSafeInteger(metaNum) || metaNum <= 0)) {
+      toast.error("Cadência inválida. Informe garrafas por hora, acima de zero.");
       return;
     }
-    if (paradaNum !== null && (Number.isNaN(paradaNum) || paradaNum < 0 || paradaNum > 60)) {
-      toast.error("Tempo de parada deve estar entre 0 e 60 minutos.");
+    const quantidadeFinal = naoRodou ? 0 : qtd;
+    if (quantidadeFinal !== null && quantidadeFinal > 0 && metaNum === null) {
+      toast.error("Informe a cadência do produto para calcular a perda equivalente.");
+      return;
+    }
+    const paradaNum = calcularPerdaCadenciaMin(metaNum, quantidadeFinal);
+    if (((paradaNum !== null && paradaNum > 0) || quantidadeFinal === 0) && !motivoParadaValido(motivoCodigo, "enchedora")) {
+      toast.error("Selecione o motivo principal da parada nesta hora.");
+      return;
+    }
+    if (quantidadeFinal !== null && quantidadeFinal > 0 && !sabor.trim() && !tamanho.trim()) {
+      toast.error("Identifique o produto desta hora pelo sabor ou tamanho.");
+      return;
+    }
+    const produtoMudou = produtoSugerido && (
+      (produtoSugerido.sabor && sabor.trim().toLocaleLowerCase("pt-BR") !== produtoSugerido.sabor.trim().toLocaleLowerCase("pt-BR")) ||
+      (produtoSugerido.tamanho && tamanho.trim().toLocaleLowerCase("pt-BR") !== produtoSugerido.tamanho.trim().toLocaleLowerCase("pt-BR"))
+    );
+    if (quantidadeFinal !== null && quantidadeFinal > 0 && produtoMudou && !reinicia &&
+      !produtoSugerido?.setupSemProduto) {
+      toast.error("O produto mudou desde a última hora. Marque a troca de sabor ou tamanho para reiniciar o acumulado.");
       return;
     }
     if (reinicia && motivo !== "cip" && !sabor.trim() && !tamanho.trim()) {
       toast.error("Informe o sabor ou o tamanho do novo produto.");
       return;
     }
+    if (eventos.includes("troca_sabor") && produtoSugerido?.sabor &&
+      sabor.trim().toLocaleLowerCase("pt-BR") === produtoSugerido.sabor.trim().toLocaleLowerCase("pt-BR")) {
+      toast.error("Na troca de sabor, informe o novo sabor antes de salvar.");
+      return;
+    }
+    if (eventos.includes("troca_tamanho") && produtoSugerido?.tamanho &&
+      tamanho.trim().toLocaleLowerCase("pt-BR") === produtoSugerido.tamanho.trim().toLocaleLowerCase("pt-BR")) {
+      toast.error("Na troca de tamanho, informe o novo tamanho antes de salvar.");
+      return;
+    }
 
-    const quantidadeFinal = naoRodou ? 0 : qtd;
     const motivoFinal = reinicia ? motivo : null;
     const saborFinal = sabor.trim() || null;
     const tamanhoFinal = tamanho.trim() || null;
-    const observacaoFinal = observacao.trim() || null;
+    const observacaoFinal = hora.observacao ?? null;
     const eventosFinal = [...eventos].sort();
     const eventosAnteriores = [...(hora.eventos ?? [])].sort();
     const dadosAlterados =
@@ -563,6 +623,8 @@ function DialogHora({
       quantidadeFinal !== hora.quantidade ||
       naoRodou !== hora.naoRodou ||
       paradaNum !== hora.tempoParadaMin ||
+      (paradaNum === null ? null : "cadencia_equivalente") !== (hora.tempoParadaMetodo ?? null) ||
+      (motivoCodigo || null) !== (hora.motivoParadaCodigo ?? null) ||
       reinicia !== hora.reiniciaAcumulado ||
       motivoFinal !== hora.motivoReinicio ||
       // Mudar o evento muda o que o líder aprovou: uma hora que virou "CIP"
@@ -613,6 +675,8 @@ function DialogHora({
         quantidade: quantidadeFinal,
         naoRodou,
         tempoParadaMin: paradaNum,
+        tempoParadaMetodo: paradaNum === null ? null : "cadencia_equivalente",
+        motivoParadaCodigo: motivoCodigo || null,
         reiniciaAcumulado: reinicia,
         motivoReinicio: motivoFinal,
         eventos: eventosFinal,
@@ -654,7 +718,7 @@ function DialogHora({
           <fieldset disabled={somenteAssinatura} className="grid gap-4 disabled:opacity-70">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label htmlFor="meta">Meta (garrafas)</Label>
+              <Label htmlFor="meta">Cadência do produto (garrafas/h)</Label>
               <Input
                 id="meta"
                 inputMode="numeric"
@@ -663,6 +727,11 @@ function DialogHora({
                 placeholder="Ex.: 6000"
                 className="mt-1 h-12 text-base"
               />
+              {metaSugerida !== null && hora.meta === null && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Sugerida da hora anterior. Confirme se ainda corresponde ao produto atual.
+                </p>
+              )}
             </div>
             <div>
               <Label htmlFor="qtd">Quantidade produzida</Label>
@@ -689,15 +758,44 @@ function DialogHora({
           </div>
 
           <div>
-            <Label htmlFor="parada">Tempo de parada (min)</Label>
-            <Input
-              id="parada"
-              inputMode="numeric"
-              value={parada}
-              onChange={(e) => setParada(e.target.value)}
-              placeholder="0 a 60"
-              className="mt-1 h-12 text-base"
-            />
+            <p className="text-sm font-semibold text-foreground">
+              Perda equivalente: {perdaPrevia === null ? "não calculável sem cadência" : `${perdaPrevia} min`}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              (Cadência − garrafas produzidas) × 60 ÷ cadência. Não mede o tempo físico de máquina parada; redução de velocidade também entra na conta.
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="motivo-parada">Motivo principal da parada</Label>
+            <select
+              id="motivo-parada"
+              value={motivoCodigo}
+              onChange={(e) => {
+                const codigo = e.target.value;
+                if (codigo === "") {
+                  setMotivoCodigo("");
+                } else if (motivoParadaValido(codigo, "enchedora")) {
+                  setMotivoCodigo(codigo);
+                  if (codigo === "troca_sabor" || codigo === "troca_tamanho" || codigo === "cip_assepsia") {
+                    setEventos((atual) => atual.includes(codigo) ? atual : [...atual, codigo]);
+                  }
+                }
+              }}
+              className="mt-1 flex h-12 w-full rounded-md border border-input bg-background px-3 text-base text-foreground"
+            >
+              <option value="">Selecione se houve parada ou não produziu</option>
+              {GRUPOS_MOTIVOS_ENCHEDORA.map((grupo) => (
+                <optgroup key={grupo} label={grupo}>
+                  {MOTIVOS_ENCHEDORA.filter((motivo) => motivo.grupo === grupo).map((motivo) => (
+                    <option key={motivo.codigo} value={motivo.codigo}>{motivo.rotulo}</option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Se houve mais de uma causa, escolha a principal. A perda equivalente não é atribuída automaticamente a uma única causa.
+            </p>
           </div>
 
           <div className="rounded-xl border border-border p-3">
@@ -737,53 +835,45 @@ function DialogHora({
               ))}
             </div>
 
-            {reinicia && (
-              <div className="mt-3 grid gap-3">
+            <div className="mt-3 grid gap-3">
+              {reinicia && (
                 <p className="rounded-lg bg-primary-soft px-3 py-2 text-xs font-semibold text-primary">
                   Houve setup: o acumulado reinicia nesta hora, e o Pós-setup do checklist passa a
                   ser exigido.
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <Label htmlFor="sabor">Sabor</Label>
-                    <Input
-                      id="sabor"
-                      value={sabor}
-                      onChange={(e) => setSabor(e.target.value)}
-                      placeholder="Ex.: Regente"
-                      className="mt-1 h-12 text-base"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="tamanho">Tamanho</Label>
-                    <Input
-                      id="tamanho"
-                      list="tamanhos-sugeridos"
-                      value={tamanho}
-                      onChange={(e) => setTamanho(e.target.value)}
-                      placeholder="Ex.: 2L"
-                      className="mt-1 h-12 text-base"
-                    />
-                    <datalist id="tamanhos-sugeridos">
-                      {TAMANHOS_SUGERIDOS.map((t) => (
-                        <option key={t} value={t} />
-                      ))}
-                    </datalist>
-                  </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="sabor">Sabor / produto da hora</Label>
+                  <Input
+                    id="sabor"
+                    value={sabor}
+                    onChange={(e) => setSabor(e.target.value)}
+                    placeholder="Ex.: Regente"
+                    className="mt-1 h-12 text-base"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="tamanho">Tamanho</Label>
+                  <Input
+                    id="tamanho"
+                    list="tamanhos-sugeridos"
+                    value={tamanho}
+                    onChange={(e) => setTamanho(e.target.value)}
+                    placeholder="Ex.: 2L"
+                    className="mt-1 h-12 text-base"
+                  />
+                  <datalist id="tamanhos-sugeridos">
+                    {TAMANHOS_SUGERIDOS.map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
-            )}
-          </div>
-
-          <div>
-            <Label htmlFor="obs">Observação (opcional)</Label>
-            <Textarea
-              id="obs"
-              value={observacao}
-              onChange={(e) => setObservacao(e.target.value)}
-              placeholder="Ex.: parada por falta de tampa"
-              className="mt-1"
-            />
+              <p className="text-xs text-muted-foreground">
+                Confirme o produto. Se começou outro, marque a troca acima para iniciar um novo acumulado.
+              </p>
+            </div>
           </div>
 
           </fieldset>

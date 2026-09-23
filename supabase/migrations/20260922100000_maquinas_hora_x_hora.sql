@@ -8,6 +8,8 @@ alter table public.producao_horaria
   add column if not exists paletes_completos integer,
   add column if not exists quebra_pacotes integer,
   add column if not exists pacotes_por_palete integer,
+  add column if not exists motivo_parada_codigo text,
+  add column if not exists tempo_parada_metodo text,
   add column if not exists finalizado_em timestamptz;
 
 comment on column public.producao_horaria.paletes_completos is
@@ -18,6 +20,10 @@ comment on column public.producao_horaria.pacotes_por_palete is
   'Capacidade do produto usada no calculo daquela hora; snapshot para auditoria.';
 comment on column public.producao_horaria.finalizado_em is
   'Primeira confirmacao no servidor. NULL indica registro historico anterior a esta migracao.';
+comment on column public.producao_horaria.motivo_parada_codigo is
+  'Motivo principal padronizado da hora; minutos totais podem incluir mais de uma causa.';
+comment on column public.producao_horaria.tempo_parada_metodo is
+  'cadencia_equivalente: minutos de producao nao realizada pela cadencia, nao parada fisica medida. NULL nos registros antigos ou sem cadencia.';
 
 do $$
 begin
@@ -103,6 +109,68 @@ begin
           and data_operacao is not null
           and hora_codigo is not null
           and hora_codigo ~ '^H(0[1-9]|1[0-9]|2[0-4])$'
+        )
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.producao_horaria'::regclass
+      and conname = 'producao_horaria_motivo_catalogo'
+  ) then
+    alter table public.producao_horaria
+      add constraint producao_horaria_motivo_catalogo check (
+        motivo_parada_codigo is null
+        or motivo_parada_codigo in (
+          'parada_sopradora', 'sopradora_engate_saida',
+          'sopradora_forno_preforma', 'sopradora_eixo_servo',
+          'parada_rotuladora', 'rotuladora_marca_corte',
+          'falha_codificacao', 'transporte_aereo', 'baixa_pressao_ar',
+          'troca_sabor',
+          'troca_tamanho', 'limpeza', 'refeicao', 'inventario',
+          'troca_turno', 'falta_efetivo', 'falta_energia',
+          'aguardando_qualidade', 'sem_programacao',
+          'manutencao_planejada', 'nao_identificado', 'outro_nao_listado'
+        )
+        or (maquina in ('Enchedora 2', 'Enchedora 3')
+          and motivo_parada_codigo in (
+            'parada_empacotadora', 'ajuste_enchedora', 'falha_enchedora',
+            'falha_carbonatacao', 'cip_assepsia', 'falta_garrafas',
+            'falta_tampas', 'falta_xarope'
+          ))
+        or (maquina in ('Empacotadora 2', 'Empacotadora 3')
+          and motivo_parada_codigo in (
+            'parada_enchedora', 'ajuste_empacotadora', 'falha_empacotadora',
+            'troca_bobina_filme', 'filme_selagem', 'esteira_transporte',
+            'paletizacao', 'falta_filme'
+          ))
+      );
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.producao_horaria'::regclass
+      and conname = 'producao_horaria_motivo_obrigatorio'
+  ) then
+    alter table public.producao_horaria
+      add constraint producao_horaria_motivo_obrigatorio check (
+        finalizado_em is null or (
+          quantidade is not null and quantidade >= 0
+          and (
+            (meta is not null and meta > 0
+              and tempo_parada_metodo = 'cadencia_equivalente'
+              and tempo_parada_min is not null
+              and tempo_parada_min between 0 and 60
+              and tempo_parada_min::numeric = greatest(
+                0, round((meta::numeric - quantidade::numeric) * 60 / nullif(meta::numeric, 0))
+              ))
+            or (meta is null and quantidade = 0
+              and tempo_parada_min is null and tempo_parada_metodo is null)
+          )
+          and (
+            (quantidade > 0 and tempo_parada_min = 0)
+            or motivo_parada_codigo is not null
+          )
         )
       );
   end if;
@@ -369,6 +437,20 @@ begin
       perform public.maximus_exigir_hora_encerrada_manaus(
         new.data_operacao::date, new.hora_codigo
       );
+      if new.meta is null then
+        if new.quantidade > 0 then
+          raise exception 'Cadencia obrigatoria para hora com producao.' using errcode = '23514';
+        end if;
+        new.tempo_parada_min := null;
+        new.tempo_parada_metodo := null;
+      elsif new.meta <= 0 then
+        raise exception 'Cadencia deve ser positiva.' using errcode = '23514';
+      else
+        new.tempo_parada_min := greatest(
+          0, round((new.meta::numeric - new.quantidade::numeric) * 60 / new.meta::numeric)
+        );
+        new.tempo_parada_metodo := 'cadencia_equivalente';
+      end if;
     end if;
     new.finalizado_em := case
       when new.quantidade is not null or new.nao_rodou = true
@@ -412,6 +494,20 @@ begin
     new.quantidade := 0;
   end if;
   if new.quantidade is not null or new.nao_rodou = true then
+    if new.meta is null then
+      if new.quantidade > 0 then
+        raise exception 'Cadencia obrigatoria para hora com producao.' using errcode = '23514';
+      end if;
+      new.tempo_parada_min := null;
+      new.tempo_parada_metodo := null;
+    elsif new.meta <= 0 then
+      raise exception 'Cadencia deve ser positiva.' using errcode = '23514';
+    else
+      new.tempo_parada_min := greatest(
+        0, round((new.meta::numeric - new.quantidade::numeric) * 60 / new.meta::numeric)
+      );
+      new.tempo_parada_metodo := 'cadencia_equivalente';
+    end if;
     new.finalizado_em := clock_timestamp();
   else
     new.finalizado_em := null;

@@ -44,6 +44,7 @@ export function useProducaoHoraria(
   turno: Turno | null,
   operadorUserId?: string | null,
   maquina: MaquinaOperacional = MAQUINAS["enchedora-3"],
+  usarCacheLocal = true,
 ): UseProducaoHorariaResult {
   const { isOnline } = useConnectionStatus();
   const [horas, setHoras] = useState<ProducaoHora[]>([]);
@@ -79,20 +80,27 @@ export function useProducaoHoraria(
     setError(null);
     setLoading(true);
     try {
-      const local = producaoStorage.getHoras(folhaDiaKey);
+      if (!isOnline && !usarCacheLocal) {
+        throw new Error("Sem conexão para consultar o banco.");
+      }
+      const local = usarCacheLocal ? producaoStorage.getHoras(folhaDiaKey) : [];
       setHoras(mergeWithDefaults(local));
       if (isOnline) {
         const remotos = await fetchProducaoHoras(folhaDiaKey);
         setHoras(mergeWithDefaults(remotos));
-        producaoStorage.bulkSetHoras(folhaDiaKey, remotos);
+        if (usarCacheLocal) producaoStorage.bulkSetHoras(folhaDiaKey, remotos);
       }
     } catch (e) {
       console.error(e);
-      setError("Erro ao carregar Hora x Hora. Mostrando dados locais.");
+      setError(
+        usarCacheLocal
+          ? "Erro ao carregar Hora x Hora. Mostrando dados locais."
+          : "Não foi possível consultar o banco. Tente atualizar antes de avaliar as horas.",
+      );
     } finally {
       setLoading(false);
     }
-  }, [folhaDiaKey, isOnline, mergeWithDefaults]);
+  }, [folhaDiaKey, isOnline, mergeWithDefaults, usarCacheLocal]);
 
   useEffect(() => {
     void refetch();
