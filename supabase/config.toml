@@ -1,4 +1,7 @@
-project_id = "qztltpjsvqyxpxfnteoe"
+project_id = "jlmzujqkaoauzacouqgj"
 
 [functions.hora-x-hora-telegram]
+verify_jwt = false
+
+[functions.hora-x-hora-publico]
 verify_jwt = false

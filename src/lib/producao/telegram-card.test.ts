@@ -34,7 +34,8 @@ describe("card horário do Telegram", () => {
     expect(card).toContain("Falta de energia");
     expect(card).toContain("João &lt;L2&gt;");
     expect(card.match(/Não realizado/g)).toHaveLength(3);
-    expect(urlPainel(periodo, "https://maximusmagistral.digital/")).toContain("hora=H04");
+    expect(urlPainel("123e4567-e89b-42d3-a456-426614174000", "https://maximusmagistral.digital/"))
+      .toBe("https://maximusmagistral.digital/hora-x-hora-publico?token=123e4567-e89b-42d3-a456-426614174000");
   });
 
   it("tem rótulo legível para todos os códigos do formulário", () => {

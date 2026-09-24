@@ -49,12 +49,14 @@ Deno.serve(async (request: Request) => {
   }
   const registros = [...unicas.values()];
   const texto = montarCard(periodo, registros);
-  const painel = urlPainel(periodo, APP_URL);
+  const publicToken = crypto.randomUUID();
+  const painel = urlPainel(publicToken, APP_URL);
   const { data: reserva, error: erroReserva } = await supabase
     .from("telegram_hora_publicacoes")
     .insert({
       data_operacao: periodo.dataOperacao,
       hora_codigo: periodo.horaCodigo,
+      public_token: publicToken,
       corte_em: periodo.corteEm,
       status: "reservado",
       snapshot: { texto, painel, maquinas_presentes: [...unicas.keys()] },

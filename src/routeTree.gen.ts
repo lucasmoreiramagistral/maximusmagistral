@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HoraXHoraPublicoRouteImport } from './routes/hora-x-hora-publico'
 import { Route as GestaoIndexRouteImport } from './routes/gestao.index'
 import { Route as GestaoChecklistsRouteImport } from './routes/gestao.checklists'
 import { Route as GestaoDashboardRouteImport } from './routes/gestao.dashboard'
@@ -47,6 +48,11 @@ import { Route as OperadorVisualizarChecklistIdRouteImport } from './routes/oper
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HoraXHoraPublicoRoute = HoraXHoraPublicoRouteImport.update({
+  id: '/hora-x-hora-publico',
+  path: '/hora-x-hora-publico',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GestaoIndexRoute = GestaoIndexRouteImport.update({
@@ -221,6 +227,7 @@ const OperadorVisualizarChecklistIdRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/hora-x-hora-publico': typeof HoraXHoraPublicoRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -257,6 +264,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/hora-x-hora-publico': typeof HoraXHoraPublicoRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -294,6 +302,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/hora-x-hora-publico': typeof HoraXHoraPublicoRoute
   '/gestao/checklists': typeof GestaoChecklistsRoute
   '/gestao/dashboard': typeof GestaoDashboardRoute
   '/gestao/filtros': typeof GestaoFiltrosRoute
@@ -332,6 +341,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/hora-x-hora-publico'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -368,6 +378,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/hora-x-hora-publico'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -404,6 +415,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/hora-x-hora-publico'
     | '/gestao/checklists'
     | '/gestao/dashboard'
     | '/gestao/filtros'
@@ -441,6 +453,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  HoraXHoraPublicoRoute: typeof HoraXHoraPublicoRoute
   GestaoChecklistsRoute: typeof GestaoChecklistsRoute
   GestaoDashboardRoute: typeof GestaoDashboardRoute
   GestaoFiltrosRoute: typeof GestaoFiltrosRoute
@@ -480,6 +493,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hora-x-hora-publico': {
+      id: '/hora-x-hora-publico'
+      path: '/hora-x-hora-publico'
+      fullPath: '/hora-x-hora-publico'
+      preLoaderRoute: typeof HoraXHoraPublicoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gestao/': {
@@ -743,6 +763,7 @@ const OperadorVersoPtpRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  HoraXHoraPublicoRoute: HoraXHoraPublicoRoute,
   GestaoChecklistsRoute: GestaoChecklistsRoute,
   GestaoDashboardRoute: GestaoDashboardRoute,
   GestaoFiltrosRoute: GestaoFiltrosRoute,

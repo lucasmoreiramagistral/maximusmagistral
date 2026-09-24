@@ -119,9 +119,8 @@ export function montarCard(periodo: PeriodoCard, registros: readonly RegistroCar
   return linhas.join("\n");
 }
 
-export function urlPainel(periodo: PeriodoCard, baseUrl: string): string {
-  const url = new URL("/gestao/hora-x-hora", baseUrl);
-  url.searchParams.set("data", periodo.dataOperacao);
-  url.searchParams.set("hora", periodo.horaCodigo);
+export function urlPainel(token: string, baseUrl: string): string {
+  const url = new URL("/hora-x-hora-publico", baseUrl);
+  url.searchParams.set("token", token);
   return url.toString();
 }
