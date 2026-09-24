@@ -114,16 +114,15 @@ create table if not exists public.empacotadora_consolidacoes (
            + case when hora_inicio::time < time '06:00' then interval '1 day' else interval '0 day' end)
     )
   ),
+  -- Rascunhos podem ter contagens parciais; um total informado deve fechar.
   constraint empacotadora_consolidacoes_total check (
-    (quantidade_paletes is null and quebra_pacotes is null
-     and total_pacotes is null and pacotes_por_palete is null)
-    or (quantidade_paletes is null and quebra_pacotes is null
-        and total_pacotes is null and pacotes_por_palete is not null)
-    or (quantidade_paletes is not null and quebra_pacotes is not null
-        and total_pacotes is not null and pacotes_por_palete is not null
-        and quebra_pacotes < pacotes_por_palete
-        and total_pacotes::numeric =
-          quantidade_paletes::numeric * pacotes_por_palete::numeric + quebra_pacotes::numeric)
+    (quebra_pacotes is null or pacotes_por_palete is null
+     or quebra_pacotes < pacotes_por_palete)
+    and (total_pacotes is null
+         or (quantidade_paletes is not null and quebra_pacotes is not null
+             and pacotes_por_palete is not null
+             and total_pacotes::numeric =
+               quantidade_paletes::numeric * pacotes_por_palete::numeric + quebra_pacotes::numeric))
   )
 );
 

@@ -333,6 +333,14 @@ export function EmpacotadoraVersoSecoes(props: EmpacotadoraVersoSecoesProps) {
       return;
     }
     if (
+      calculada.quebraPacotes !== null &&
+      calculada.pacotesPorPalete !== null &&
+      calculada.quebraPacotes >= calculada.pacotesPorPalete
+    ) {
+      toast.error("A quebra deve ter menos pacotes que um palete completo.");
+      return;
+    }
+    if (
       calculada.quantidadePaletes !== null &&
       calculada.quebraPacotes !== null &&
       calculada.totalPacotes === null
