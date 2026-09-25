@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({
       { title: "Entrar — Checklist Operacional" },
       {
         name: "description",
-        content: "Entre no checklist operacional digital da Linha 3 — Enchedora 3.",
+        content: "Entre na rotina operacional digital das linhas 2 e 3.",
       },
     ],
   }),
@@ -176,7 +176,9 @@ function LoginPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
             Checklist Operacional
           </h1>
-          <p className="mt-2 text-base text-muted-foreground md:text-lg">Linha 3 — Enchedora 3</p>
+          <p className="mt-2 text-base text-muted-foreground md:text-lg">
+            Linhas 2 e 3 · Enchedoras e empacotadoras
+          </p>
         </div>
 
         <div className="w-full max-w-4xl rounded-2xl border border-border bg-card p-6 shadow-sm md:p-8">
