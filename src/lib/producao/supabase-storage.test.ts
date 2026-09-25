@@ -1,6 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { horaPersistidaIgual } from "./supabase-storage";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { horaPersistidaIgual, upsertProducaoHora, ConflitoVersaoError } from "./supabase-storage";
+import { producaoHoraFromRow } from "./mappers";
 import type { ProducaoHoraRow } from "./mappers";
+
+const db = vi.hoisted(() => ({
+  getUser: vi.fn(),
+  from: vi.fn(),
+  insert: vi.fn(),
+  update: vi.fn(),
+  eq: vi.fn(),
+  select: vi.fn(),
+  maybeSingle: vi.fn(),
+}));
+
+vi.mock("@/integrations/supabase/client", () => ({
+  supabase: { auth: { getUser: db.getUser }, from: db.from },
+}));
 
 const lancamento = {
   id: "hora-1",
@@ -52,5 +67,95 @@ describe("confirmação após resposta perdida", () => {
     const assinatura = { dataUrl: "data:image/png;base64,AQ==", nome: "Líder", assinadoEm: "2026-09-23T11:02:00Z" };
     expect(horaPersistidaIgual(lancamento, { ...lancamento, assinatura_lider: assinatura })).toBe(false);
     expect(horaPersistidaIgual({ ...lancamento, assinatura_lider: assinatura }, { ...lancamento, assinatura_lider: assinatura })).toBe(true);
+  });
+});
+
+describe("escrita de Hora x Hora", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const query = {
+      insert: db.insert,
+      update: db.update,
+      eq: db.eq,
+      select: db.select,
+      maybeSingle: db.maybeSingle,
+    };
+    db.from.mockReturnValue(query);
+    db.insert.mockReturnValue(query);
+    db.update.mockReturnValue(query);
+    db.eq.mockReturnValue(query);
+    db.select.mockReturnValue(query);
+    db.getUser.mockResolvedValue({ data: { user: { id: "operador-1" } } });
+  });
+
+  it("insere uma hora nova sem usar upsert", async () => {
+    const hora = producaoHoraFromRow({ ...lancamento, created_at: undefined, finalizado_em: null });
+    db.maybeSingle.mockResolvedValue({ data: lancamento, error: null });
+
+    await upsertProducaoHora(hora);
+
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
+  it("atualiza apenas a assinatura de uma hora já confirmada e confere a versão", async () => {
+    const assinatura = { dataUrl: "data:image/png;base64,AQ==", nome: "Líder", assinadoEm: "2026-09-23T11:02:00Z" };
+    const assinado = { ...lancamento, created_at: "2026-09-23T11:01:00Z",
+      updated_at: "2026-09-23T11:01:00Z", lider_nome: "Líder",
+      lider_assinou_em: assinatura.assinadoEm, assinatura_lider: assinatura };
+    db.maybeSingle.mockResolvedValue({ data: assinado, error: null });
+
+    await upsertProducaoHora(producaoHoraFromRow(assinado), {
+      expectedUpdatedAt: "2026-09-23T11:01:00Z",
+      somenteAssinatura: true,
+    });
+
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalledWith({
+      lider_nome: "Líder",
+      assinatura_lider: assinatura,
+      lider_assinou_em: assinatura.assinadoEm,
+    });
+    expect(db.eq).toHaveBeenCalledWith("id", "hora-1");
+    expect(db.eq).toHaveBeenCalledWith("updated_at", "2026-09-23T11:01:00Z");
+  });
+
+  it("atualiza uma linha em branco existente sem executar INSERT", async () => {
+    const existente = { ...lancamento, quantidade: null, finalizado_em: null,
+      created_at: "2026-09-23T10:00:00Z", updated_at: "2026-09-23T10:00:00Z" };
+    db.maybeSingle.mockResolvedValue({ data: lancamento, error: null });
+
+    await upsertProducaoHora(producaoHoraFromRow(existente), {
+      expectedUpdatedAt: existente.updated_at,
+    });
+
+    expect(db.update).toHaveBeenCalledOnce();
+    expect(db.insert).not.toHaveBeenCalled();
+  });
+
+  it("relê uma inserção confirmada quando a resposta da rede se perde", async () => {
+    const hora = producaoHoraFromRow({ ...lancamento, created_at: undefined, finalizado_em: null });
+    db.maybeSingle
+      .mockRejectedValueOnce(new Error("resposta perdida"))
+      .mockResolvedValueOnce({ data: lancamento, error: null });
+
+    const salva = await upsertProducaoHora(hora);
+
+    expect(salva.quantidade).toBe(8000);
+    expect(db.insert).toHaveBeenCalledOnce();
+    expect(db.from).toHaveBeenCalledTimes(2);
+  });
+
+  it("identifica mudança concorrente sem sobrescrever a hora", async () => {
+    const existente = { ...lancamento, created_at: "2026-09-23T11:01:00Z",
+      updated_at: "2026-09-23T11:01:00Z" };
+    db.maybeSingle
+      .mockResolvedValueOnce({ data: null, error: null })
+      .mockResolvedValueOnce({ data: { ...existente, quantidade: 7000,
+        updated_at: "2026-09-23T11:02:00Z" }, error: null });
+
+    await expect(upsertProducaoHora(producaoHoraFromRow(existente), {
+      expectedUpdatedAt: existente.updated_at,
+    })).rejects.toBeInstanceOf(ConflitoVersaoError);
   });
 });

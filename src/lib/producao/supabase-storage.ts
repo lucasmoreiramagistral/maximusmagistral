@@ -35,39 +35,41 @@ export async function fetchProducaoHoras(
 
 export async function upsertProducaoHora(
   h: ProducaoHora,
-  opts: { expectedUpdatedAt?: string | null } = {},
+  opts: { expectedUpdatedAt?: string | null; somenteAssinatura?: boolean } = {},
 ): Promise<ProducaoHora> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id ?? null;
-
-  if (opts.expectedUpdatedAt !== undefined) {
-    const { data: existing } = await supabase
-      .from("producao_horaria" as never)
-      .select("updated_at")
-      .eq("id", h.id)
-      .maybeSingle();
-    const remoto = (existing as { updated_at?: string } | null)?.updated_at;
-    if (remoto && remoto !== opts.expectedUpdatedAt) {
-      throw new ConflitoVersaoError(opts.expectedUpdatedAt ?? undefined, remoto);
-    }
+  const row = producaoHoraToRow(h, userId);
+  const existente = Boolean(h.createdAt);
+  if (opts.somenteAssinatura && !existente) {
+    throw new Error("Não é possível assinar uma hora que ainda não foi salva.");
   }
 
-  const row = producaoHoraToRow(h, userId);
   let falha: unknown;
   try {
-    const { data, error } = await supabase
-      .from("producao_horaria" as never)
-      .upsert(row as never, { onConflict: "id" })
-      .select("*")
-      .single();
-    if (!error) return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
-    falha = error;
+    const query = existente
+      ? supabase.from("producao_horaria" as never).update(
+          (opts.somenteAssinatura
+            ? {
+                lider_nome: row.lider_nome,
+                assinatura_lider: row.assinatura_lider,
+                lider_assinou_em: row.lider_assinou_em,
+              }
+            : row) as never,
+        ).eq("id", row.id)
+      : supabase.from("producao_horaria" as never).insert(row as never);
+    const guardada = existente && opts.expectedUpdatedAt
+      ? query.eq("updated_at", opts.expectedUpdatedAt)
+      : query;
+    const { data, error } = await guardada.select("*").maybeSingle();
+    if (!error && data) return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
+    falha = error ?? new Error("O banco não confirmou o salvamento da hora.");
   } catch (error) {
     falha = error;
   }
 
-  // Se a gravação ocorreu mas a resposta se perdeu, o retry encontra a hora
-  // imutável. Só aceitamos sucesso após reler o mesmo conteúdo confirmado.
+  // Uma resposta pode se perder depois do commit. Só aceitamos sucesso após
+  // reler exatamente o conteúdo confirmado no servidor.
   try {
     const { data, error } = await supabase
       .from("producao_horaria" as never)
@@ -77,7 +79,14 @@ export async function upsertProducaoHora(
     if (!error && data && horaPersistidaIgual(data as unknown as ProducaoHoraRow, row)) {
       return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
     }
-  } catch {
+    if (!error && existente && opts.expectedUpdatedAt && data) {
+      const remoto = (data as { updated_at?: string }).updated_at;
+      if (remoto && remoto !== opts.expectedUpdatedAt) {
+        throw new ConflitoVersaoError(opts.expectedUpdatedAt, remoto);
+      }
+    }
+  } catch (error) {
+    if (error instanceof ConflitoVersaoError) throw error;
     // Sem leitura remota não há confirmação, então devolvemos o erro original.
   }
   console.error("[upsertProducaoHora] supabase error:", falha);

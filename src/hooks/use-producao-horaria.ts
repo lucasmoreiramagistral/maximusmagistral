@@ -136,7 +136,10 @@ export function useProducaoHoraria(
       const expectedUpdatedAt = hora.updatedAt ?? opts?.anterior?.updatedAt;
 
       try {
-        const saved = await upsertProducaoHora(hora, { expectedUpdatedAt });
+        const saved = await upsertProducaoHora(hora, {
+          expectedUpdatedAt,
+          somenteAssinatura: opts?.somenteAssinatura,
+        });
         producaoStorage.saveHora(saved);
         setHoras((prev) => {
           const i = prev.findIndex((p) => p.horaCodigo === saved.horaCodigo);
