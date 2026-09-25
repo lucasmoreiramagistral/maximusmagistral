@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MOTIVOS_PARADA } from "./motivos-parada";
+import { fimDaHoraEpoch } from "./horario";
 import {
   montarCard,
   periodoParaPublicar,
@@ -22,6 +23,22 @@ describe("card horário do Telegram", () => {
       dataOperacao: "2026-09-22", dataCalendario: "2026-09-22",
       horaCodigo: "H18", inicio: "23:00", fim: "00:00",
     });
+  });
+
+  it("usa a mesma data e faixa do app nas 24 publicações do dia operacional", () => {
+    for (const dataOperacao of ["2026-09-23", "2026-12-31"]) {
+      for (let indice = 1; indice <= 24; indice++) {
+        const horaCodigo = `H${String(indice).padStart(2, "0")}`;
+        const instanteCorte = fimDaHoraEpoch(dataOperacao, horaCodigo) + 20 * 60_000;
+        const periodo = periodoParaPublicar(new Date(instanteCorte));
+        expect(periodo, `${dataOperacao} ${horaCodigo}`).toMatchObject({
+          dataOperacao,
+          horaCodigo,
+          corteEm: new Date(instanteCorte).toISOString(),
+        });
+        expect(periodoParaPublicar(new Date(instanteCorte - 1000))).toBeNull();
+      }
+    }
   });
 
   it("mostra ausências sem transformá-las em produção zero", () => {

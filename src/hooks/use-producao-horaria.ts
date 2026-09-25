@@ -12,6 +12,7 @@ import type {
   ProducaoHora,
   ProducaoHoraEdicaoPayload,
 } from "@/lib/producao/types";
+import { mesclarHorasComPadrao } from "@/lib/producao/mesclar-horas";
 import type { Turno } from "@/lib/checklist/types";
 import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
 
@@ -61,17 +62,7 @@ export function useProducaoHoraria(
         operadorUserId,
         maquina,
       );
-      const prioridade = (hora: ProducaoHora) =>
-        hora.finalizadoEm ? 3 : hora.naoRodou || typeof hora.quantidade === "number" ? 2 : 1;
-      const ordenados = [...remotos].sort(
-        (a, b) =>
-          prioridade(b) - prioridade(a) ||
-          (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
-      );
-      return defaults.map((d) => {
-        const found = ordenados.find((r) => r.horaCodigo === d.horaCodigo);
-        return found ?? d;
-      });
+      return mesclarHorasComPadrao(defaults, remotos, operadorUserId);
     },
     [folhaDiaKey, dataOperacao, turno, operadorUserId, maquina],
   );
