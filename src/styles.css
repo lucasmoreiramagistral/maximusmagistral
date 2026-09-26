@@ -4,6 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Oculta o badge que o Lovable pode inserir ao servir a página publicada. */
+#lovable-badge {
+  display: none !important;
+}
+
 /*
  * Design system definition.
  *
