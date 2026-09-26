@@ -35,28 +35,16 @@ export async function fetchProducaoHoras(
 
 export async function upsertProducaoHora(
   h: ProducaoHora,
-  opts: { expectedUpdatedAt?: string | null; somenteAssinatura?: boolean } = {},
+  opts: { expectedUpdatedAt?: string | null } = {},
 ): Promise<ProducaoHora> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id ?? null;
   const row = producaoHoraToRow(h, userId);
   const existente = Boolean(h.createdAt);
-  if (opts.somenteAssinatura && !existente) {
-    throw new Error("Não é possível assinar uma hora que ainda não foi salva.");
-  }
-
   let falha: unknown;
   try {
     const query = existente
-      ? supabase.from("producao_horaria" as never).update(
-          (opts.somenteAssinatura
-            ? {
-                lider_nome: row.lider_nome,
-                assinatura_lider: row.assinatura_lider,
-                lider_assinou_em: row.lider_assinou_em,
-              }
-            : row) as never,
-        ).eq("id", row.id)
+      ? supabase.from("producao_horaria" as never).update(row as never).eq("id", row.id)
       : supabase.from("producao_horaria" as never).insert(row as never);
     const guardada = existente && opts.expectedUpdatedAt
       ? query.eq("updated_at", opts.expectedUpdatedAt)

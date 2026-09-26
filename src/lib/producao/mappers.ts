@@ -33,7 +33,7 @@ export interface ProducaoHoraRow {
   operador_nome: string | null;
   operador_user_id: string | null;
   lider_nome: string | null;
-  assinatura_lider: AssinaturaDigital | null;
+  assinatura_lider: (AssinaturaDigital & { userId?: string }) | null;
   lider_assinou_em: string | null;
   ultima_edicao_por_login: string | null;
   ultima_edicao_por_nome: string | null;

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConnectionStatus } from "./use-connection-status";
 import { producaoStorage } from "@/lib/producao/storage";
+import { assinarHoraComLogin } from "@/lib/producao/assinatura-hora";
+import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import {
   ConflitoVersaoError,
   createProducaoHorasPadrao,
@@ -29,9 +31,14 @@ interface UseProducaoHorariaResult {
       motivoEdicao?: string;
       editadoPorLogin: string;
       editadoPorNome: string;
-      somenteAssinatura?: boolean;
     },
   ) => Promise<void>;
+  assinarHora: (
+    hora: ProducaoHora,
+    assinaturaDataUrl: string,
+    login: string,
+    senha: string,
+  ) => Promise<IdentidadeLider>;
 }
 
 /**
@@ -107,7 +114,7 @@ export function useProducaoHoraria(
         (opts.anterior.finalizadoEm ||
           (opts.anterior.createdAt &&
             (opts.anterior.naoRodou || typeof opts.anterior.quantidade === "number")));
-      if ((hora.finalizadoEm || anteriorConfirmado) && !opts?.somenteAssinatura) {
+      if (hora.finalizadoEm || anteriorConfirmado) {
         throw new Error("Esta hora já foi salva e não pode ser alterada.");
       }
 
@@ -129,7 +136,6 @@ export function useProducaoHoraria(
       try {
         const saved = await upsertProducaoHora(hora, {
           expectedUpdatedAt,
-          somenteAssinatura: opts?.somenteAssinatura,
         });
         producaoStorage.saveHora(saved);
         setHoras((prev) => {
@@ -162,5 +168,25 @@ export function useProducaoHoraria(
     [isOnline, refetch],
   );
 
-  return { horas, loading, error, conflito, refetch, salvarHora };
+  const assinarHora: UseProducaoHorariaResult["assinarHora"] = useCallback(
+    async (hora, assinaturaDataUrl, login, senha) => {
+      if (!isOnline) throw new Error("Conecte o tablet para validar a checagem do líder.");
+      try {
+        const resultado = await assinarHoraComLogin(hora, assinaturaDataUrl, login, senha);
+        if (usarCacheLocal) producaoStorage.saveHora(resultado.hora);
+        setHoras((prev) => prev.map((item) =>
+          item.id === resultado.hora.id ? resultado.hora : item,
+        ));
+        return resultado.lider;
+      } catch (e) {
+        if (e instanceof Error && /hora mudou|já assinada/i.test(e.message)) {
+          setConflito(true);
+        }
+        throw e;
+      }
+    },
+    [isOnline, usarCacheLocal],
+  );
+
+  return { horas, loading, error, conflito, refetch, salvarHora, assinarHora };
 }

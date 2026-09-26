@@ -2,6 +2,7 @@
 -- Nenhum agendamento ou envio e criado por essa migration.
 select
   to_regclass('public.telegram_hora_publicacoes') is not null as tabela_existe,
+  to_regclass('public.telegram_hora_config') is not null as tabela_config_existe,
   (select count(*) from information_schema.columns
    where table_schema = 'public' and table_name = 'telegram_hora_publicacoes'
      and column_name in ('public_token', 'revogado_em', 'data_operacao',
@@ -13,4 +14,6 @@ select
     as autenticado_pode_ler,
   has_table_privilege('service_role', 'public.telegram_hora_publicacoes', 'SELECT')
     as servico_pode_ler,
-  (select count(*) from public.telegram_hora_publicacoes) as publicacoes;
+  (select count(*) from public.telegram_hora_publicacoes) as publicacoes,
+  (select primeiro_corte_em from public.telegram_hora_config where id = 1)
+    as primeiro_corte_ativado_em;

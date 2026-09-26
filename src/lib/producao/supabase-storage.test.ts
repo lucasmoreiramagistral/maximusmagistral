@@ -98,28 +98,6 @@ describe("escrita de Hora x Hora", () => {
     expect(db.update).not.toHaveBeenCalled();
   });
 
-  it("atualiza apenas a assinatura de uma hora já confirmada e confere a versão", async () => {
-    const assinatura = { dataUrl: "data:image/png;base64,AQ==", nome: "Líder", assinadoEm: "2026-09-23T11:02:00Z" };
-    const assinado = { ...lancamento, created_at: "2026-09-23T11:01:00Z",
-      updated_at: "2026-09-23T11:01:00Z", lider_nome: "Líder",
-      lider_assinou_em: assinatura.assinadoEm, assinatura_lider: assinatura };
-    db.maybeSingle.mockResolvedValue({ data: assinado, error: null });
-
-    await upsertProducaoHora(producaoHoraFromRow(assinado), {
-      expectedUpdatedAt: "2026-09-23T11:01:00Z",
-      somenteAssinatura: true,
-    });
-
-    expect(db.insert).not.toHaveBeenCalled();
-    expect(db.update).toHaveBeenCalledWith({
-      lider_nome: "Líder",
-      assinatura_lider: assinatura,
-      lider_assinou_em: assinatura.assinadoEm,
-    });
-    expect(db.eq).toHaveBeenCalledWith("id", "hora-1");
-    expect(db.eq).toHaveBeenCalledWith("updated_at", "2026-09-23T11:01:00Z");
-  });
-
   it("atualiza uma linha em branco existente sem executar INSERT", async () => {
     const existente = { ...lancamento, quantidade: null, finalizado_em: null,
       created_at: "2026-09-23T10:00:00Z", updated_at: "2026-09-23T10:00:00Z" };

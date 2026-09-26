@@ -3,7 +3,10 @@ import { MOTIVOS_PARADA } from "./motivos-parada";
 import { fimDaHoraEpoch } from "./horario";
 import {
   montarCard,
+  periodoDoCorte,
   periodoParaPublicar,
+  proximoCortePendente,
+  statusTelegramFalhou,
   temRotuloTelegram,
   urlPainel,
 } from "../../../supabase/functions/hora-x-hora-telegram/cartao";
@@ -39,6 +42,41 @@ describe("card horário do Telegram", () => {
         expect(periodoParaPublicar(new Date(instanteCorte - 1000))).toBeNull();
       }
     }
+  });
+
+  it("retoma cada corte perdido sem mudar o limite de confirmação", () => {
+    const primeiro = new Date("2026-09-23T14:20:00Z");
+    const ultimo = new Date("2026-09-23T15:20:00Z");
+    expect(proximoCortePendente(new Date("2026-09-23T14:19:59Z"), primeiro, null)).toBeNull();
+    expect(proximoCortePendente(new Date("2026-09-23T17:35:00Z"), primeiro, null))
+      .toEqual(primeiro);
+    const proximo = proximoCortePendente(new Date("2026-09-23T17:35:00Z"), primeiro, ultimo);
+    expect(proximo?.toISOString()).toBe("2026-09-23T16:20:00.000Z");
+    expect(periodoDoCorte(proximo!)).toMatchObject({
+      dataOperacao: "2026-09-23", horaCodigo: "H06",
+      inicio: "11:00", fim: "12:00", corteEm: "2026-09-23T16:20:00.000Z",
+    });
+    expect(proximoCortePendente(new Date("2026-09-23T17:19:59Z"), primeiro,
+      new Date("2026-09-23T16:20:00Z"))).toBeNull();
+  });
+
+  it("aguarda o primeiro HH:20 depois da ativação", () => {
+    // O agendamento SQL ativado às 10:30 grava 11:20 como primeiro corte.
+    const primeiro = new Date("2026-09-23T11:20:00Z");
+    expect(proximoCortePendente(new Date("2026-09-23T10:30:00Z"), primeiro, null))
+      .toBeNull();
+    expect(proximoCortePendente(new Date("2026-09-23T11:19:59Z"), primeiro, null))
+      .toBeNull();
+    expect(proximoCortePendente(new Date("2026-09-23T11:20:00Z"), primeiro, null))
+      .toEqual(primeiro);
+  });
+
+  it("só permite nova tentativa quando a API confirmou que não enviou", () => {
+    expect(statusTelegramFalhou(400, false)).toBe(true);
+    expect(statusTelegramFalhou(429, false)).toBe(true);
+    expect(statusTelegramFalhou(500, false)).toBe(false);
+    expect(statusTelegramFalhou(502, undefined)).toBe(false);
+    expect(statusTelegramFalhou(200, true)).toBe(false);
   });
 
   it("mostra ausências sem transformá-las em produção zero", () => {

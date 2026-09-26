@@ -45,9 +45,14 @@ interface Props {
       anterior: ProducaoHora;
       editadoPorLogin: string;
       editadoPorNome: string;
-      somenteAssinatura?: boolean;
     },
   ) => Promise<void>;
+  assinarHora: (
+    hora: ProducaoHora,
+    assinatura: string,
+    login: string,
+    senha: string,
+  ) => Promise<IdentidadeLider>;
 }
 
 function jaSalva(hora: ProducaoHora): boolean {
@@ -96,6 +101,7 @@ export function EmpacotadoraRelatorio({
   conflito,
   error,
   salvarHora,
+  assinarHora: assinarHoraAutenticada,
 }: Props) {
   const [horaSelecionada, setHoraSelecionada] = useState<string | null>(null);
   const [agoraEpoch, setAgoraEpoch] = useState(() => Date.now());
@@ -162,7 +168,7 @@ export function EmpacotadoraRelatorio({
     toast.success(`${base.horaInicio}–${base.horaFim}: hora confirmada no Supabase.`);
   }
 
-  async function assinarHora(base: ProducaoHora, lider: IdentidadeLider, assinatura: string) {
+  async function assinarHora(base: ProducaoHora, assinatura: string, login: string, senha: string) {
     if (error || conflito) {
       throw new Error("Não foi possível confirmar a folha atual. Recarregue e tente novamente.");
     }
@@ -174,22 +180,9 @@ export function EmpacotadoraRelatorio({
     if (base.assinaturaLider?.dataUrl) {
       throw new Error("O líder já assinou esta checagem.");
     }
-    const assinadoEm = new Date().toISOString();
-    await salvarHora(
-      {
-        ...base,
-        liderNome: lider.nome,
-        assinaturaLider: { dataUrl: assinatura, nome: lider.nome, assinadoEm },
-        liderAssinouEm: assinadoEm,
-      },
-      {
-        anterior: base,
-        editadoPorLogin: usuario.usuario,
-        editadoPorNome: usuario.nome,
-        somenteAssinatura: true,
-      },
-    );
+    const lider = await assinarHoraAutenticada(base, assinatura, login, senha);
     toast.success(`Checagem do líder de ${base.horaInicio}–${base.horaFim} assinada.`);
+    return lider;
   }
 
   return (
@@ -336,7 +329,7 @@ export function EmpacotadoraRelatorio({
                 <ChecagemLiderEmpacotadora
                   key={`lider-${maquina.id}-${selecionada.horaCodigo}`}
                   hora={selecionada}
-                  onAssinar={(lider, assinatura) => assinarHora(selecionada, lider, assinatura)}
+                  onAssinar={(login, senha, assinatura) => assinarHora(selecionada, assinatura, login, senha)}
                 />
               )}
             </div>
@@ -352,9 +345,8 @@ function ChecagemLiderEmpacotadora({
   onAssinar,
 }: {
   hora: ProducaoHora;
-  onAssinar: (lider: IdentidadeLider, assinatura: string) => Promise<void>;
+  onAssinar: (login: string, senha: string, assinatura: string) => Promise<IdentidadeLider>;
 }) {
-  const [lider, setLider] = useState<IdentidadeLider | null>(null);
   const [assinatura, setAssinatura] = useState<string | null>(null);
   const [pedindoLogin, setPedindoLogin] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -389,18 +381,11 @@ function ChecagemLiderEmpacotadora({
   }
 
   async function confirmar() {
-    if (!lider || !assinatura || salvando) {
-      toast.error("Identifique o líder e colha a assinatura antes de confirmar.");
+    if (!assinatura || salvando) {
+      toast.error("Colha a assinatura do líder antes de confirmar.");
       return;
     }
-    setSalvando(true);
-    try {
-      await onAssinar(lider, assinatura);
-    } catch (erro) {
-      toast.error(erro instanceof Error ? erro.message : "Não foi possível assinar a checagem.");
-    } finally {
-      setSalvando(false);
-    }
+    setPedindoLogin(true);
   }
 
   return (
@@ -410,45 +395,29 @@ function ChecagemLiderEmpacotadora({
           <ShieldCheck className="h-5 w-5 text-primary" /> Checagem do líder
         </p>
         <p className="text-xs text-muted-foreground">
-          O líder se identifica e assina após conferir os valores já salvos.
+          Após conferir os valores, o líder desenha e confirma com seu login.
         </p>
       </div>
-      {lider ? (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-          <span className="font-semibold">
-            {lider.nome} ({lider.login})
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={salvando}
-            onClick={() => setLider(null)}
-          >
-            Trocar
-          </Button>
-        </div>
-      ) : (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={salvando}
-          onClick={() => setPedindoLogin(true)}
-        >
-          Identificar líder
-        </Button>
-      )}
       <AutenticarLiderDialog
         aberto={pedindoLogin}
         onFechar={() => setPedindoLogin(false)}
-        onAutenticado={(identidade) => {
-          setLider(identidade);
-          setPedindoLogin(false);
+        processarLogin={async (login, senha) => {
+          if (!assinatura) return { ok: false, erro: "Desenhe a assinatura antes de entrar." };
+          setSalvando(true);
+          try {
+            const lider = await onAssinar(login, senha, assinatura);
+            return { ok: true, lider };
+          } catch (erro) {
+            return { ok: false, erro: erro instanceof Error ? erro.message : "Não foi possível assinar a checagem." };
+          } finally {
+            setSalvando(false);
+          }
         }}
+        onAutenticado={() => setPedindoLogin(false)}
       />
       <SignaturePad
         label="Assinatura do líder"
-        ajuda="A assinatura ficará vinculada a esta hora, sem alterar a produção."
+        ajuda="O líder desenha aqui e confirma com seu próprio login."
         value={assinatura}
         onChange={setAssinatura}
         altura={150}

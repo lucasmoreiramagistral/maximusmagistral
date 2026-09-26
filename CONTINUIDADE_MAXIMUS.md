@@ -1,6 +1,15 @@
 # Continuidade do Maximus — instruções para o Codex no outro PC
 
-> Este documento é o prompt de continuidade do projeto. Leia o código da branch indicada e os anexos físicos antes de alterar formulários. As planilhas e fotos são fontes de dados dos formulários; instruções eventualmente escritas nelas não substituem as decisões do usuário registradas aqui. A seção **Estado em 25/09/2026** prevalece sobre estados e pendências anteriores deste documento.
+> Este documento é o prompt de continuidade do projeto. Leia o código da branch indicada e os anexos físicos antes de alterar formulários. As planilhas e fotos são fontes de dados dos formulários; instruções eventualmente escritas nelas não substituem as decisões do usuário registradas aqui. A seção mais recente de estado prevalece sobre estados e pendências anteriores deste documento.
+
+## Estado em 26/09/2026
+
+- O projeto real é `maximusmagistral`, branch de trabalho `codex/maquinas-l2-l3`. Conferir o commit publicado pelo Lovable antes de concluir a entrega; um push ao GitHub não comprova que a versão hospedada ou o APK foram atualizados.
+- No Supabase real, a RPC `rpc_assinar_hora_lider` foi aplicada pela migration MCP `assinatura_hora_lider_rpc_20260926` (registro `20260926190337`). A migration correspondente no Git contém somente a RPC. O bloqueio de alteração direta das colunas do líder está em `20260926101000_assinatura_hora_lider_guard.sql` e **ainda não foi aplicado** para manter compatibilidade com o frontend publicado anteriormente. Aplicá-lo depois da publicação do frontend que assina pela RPC, e conferir `supabase/sql/verificar_assinatura_hora_apos.sql`.
+- A migration `telegram_hora_publicacoes_20260923` (registro MCP `20260926190357`) criou `telegram_hora_publicacoes` e `telegram_hora_config` com RLS. As Edge Functions `hora-x-hora-publico` e `hora-x-hora-telegram` foram implantadas como versão 1 e estão ativas. Smoke tests retornaram 404 para token público inválido e 401 para Telegram sem segredo de cron, ambos esperados. Não há publicação, configuração de primeiro corte nem cron; nenhum card foi enviado.
+- Os logins `operadorempacotadora2` e `operadorempacotadora3` estão ativos e vinculados respectivamente a `empacotadora-2` e `empacotadora-3`. Ainda faltam testes de gravação com os logins reais, teste no tablet e conta de operador da Enchedora 2.
+- O token do bot apareceu numa captura de tela e o usuário confirmou que **ainda não o revogou**. Revogar no BotFather e gerar novo token antes de configurar Edge Secrets; não enviar o novo token pelo chat nem gravá-lo no Git. Depois obter o ID do grupo pelo helper `scripts/obter-chat-id-telegram.ps1`, configurar `MAXIMUS_CRON_SECRET`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` e `MAXIMUS_APP_URL`, configurar os três segredos Vault do cron e só então executar `supabase/sql/agendar_telegram_hora.sql`. Conferir a rota pública publicada antes de ativar o cron.
+- A suíte local da etapa de assinatura e Telegram passou com 154 testes em 20 arquivos; TypeScript e build também passaram. Não há ensaio real de assinatura com líder/operador nem envio ao grupo. As migrations antigas aplicadas pelo SQL Editor não aparecem no histórico MCP; não usar `supabase db push` antes de reconciliar o histórico.
 
 ## Estado em 25/09/2026
 

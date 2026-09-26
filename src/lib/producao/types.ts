@@ -76,7 +76,8 @@ export interface ProducaoHora {
   operadorNome?: string | null;
   operadorUserId?: string | null;
   liderNome?: string | null;
-  assinaturaLider?: AssinaturaDigital | null;
+  /** O userId é carimbado pela RPC; assinaturas antigas podem não tê-lo. */
+  assinaturaLider?: (AssinaturaDigital & { userId?: string }) | null;
   liderAssinouEm?: string | null;
   ultimaEdicaoPorLogin?: string | null;
   ultimaEdicaoPorNome?: string | null;

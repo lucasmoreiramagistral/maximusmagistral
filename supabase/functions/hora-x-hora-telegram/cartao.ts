@@ -33,18 +33,19 @@ function partesManaus(agora: Date) {
     hora: Number(parte("hour")), minuto: Number(parte("minute")) };
 }
 
-/** HH:20 fecha a hora anterior; 06:20 fecha H24 do dia operacional anterior. */
-export function periodoParaPublicar(agora: Date): PeriodoCard | null {
-  const local = partesManaus(agora);
-  if (local.minuto < 20 || local.minuto > 29) return null;
+/** Um corte ocorre em HH:20; 06:20 fecha H24 do dia operacional anterior. */
+export function periodoDoCorte(corte: Date): PeriodoCard {
+  const local = partesManaus(corte);
+  if (!Number.isFinite(corte.getTime()) || local.minuto !== 20 || corte.getUTCSeconds() !== 0
+      || corte.getUTCMilliseconds() !== 0) {
+    throw new Error("Corte horário inválido");
+  }
   const inicioHora = (local.hora + 23) % 24;
   const indice = ((inicioHora - 6 + 24) % 24) + 1;
   const data = new Date(`${local.data}T12:00:00Z`);
   if (local.hora <= 6) data.setUTCDate(data.getUTCDate() - 1);
   const calendario = new Date(`${local.data}T12:00:00Z`);
   if (local.hora === 0) calendario.setUTCDate(calendario.getUTCDate() - 1);
-  const corte = new Date(agora);
-  corte.setUTCMinutes(20, 0, 0);
   return {
     dataOperacao: data.toISOString().slice(0, 10),
     dataCalendario: calendario.toISOString().slice(0, 10),
@@ -53,6 +54,32 @@ export function periodoParaPublicar(agora: Date): PeriodoCard | null {
     fim: `${String(local.hora).padStart(2, "0")}:00`,
     corteEm: corte.toISOString(),
   };
+}
+
+/** A reserva mais recente avança o cursor; horas perdidas pelo cron são retomadas sem repetir card. */
+export function proximoCortePendente(
+  agora: Date, primeiroCorte: Date, ultimoReservado: Date | null,
+): Date | null {
+  if (!Number.isFinite(agora.getTime()) || !Number.isFinite(primeiroCorte.getTime())
+      || (ultimoReservado && !Number.isFinite(ultimoReservado.getTime()))) return null;
+  const candidato = ultimoReservado && ultimoReservado >= primeiroCorte
+    ? new Date(ultimoReservado.getTime() + 60 * 60_000)
+    : primeiroCorte;
+  return candidato <= agora ? candidato : null;
+}
+
+/** Mantido para a visualização/teste do instante de fechamento. */
+export function periodoParaPublicar(agora: Date): PeriodoCard | null {
+  const local = partesManaus(agora);
+  if (local.minuto < 20 || local.minuto > 29) return null;
+  const corte = new Date(agora);
+  corte.setUTCMinutes(20, 0, 0);
+  return periodoDoCorte(corte);
+}
+
+/** Só uma rejeição explícita do Telegram garante que a tentativa não publicou mensagem. */
+export function statusTelegramFalhou(httpStatus: number, ok: unknown): boolean {
+  return ok === false && httpStatus >= 400 && httpStatus < 500;
 }
 
 const ROTULOS_MOTIVOS: Record<string, string> = {

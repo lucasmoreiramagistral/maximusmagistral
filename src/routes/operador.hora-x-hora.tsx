@@ -9,7 +9,6 @@ import {
   MinusCircle,
   PenLine,
   RefreshCcw,
-  ShieldCheck,
   TrendingUp,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
@@ -119,6 +118,7 @@ function HoraXHoraPage() {
     error,
     conflito,
     salvarHora,
+    assinarHora,
   } = useProducaoHoraria(folhaDiaKey, data, turno, usuario?.userId ?? null, maquina);
 
   const [editando, setEditando] = useState<string | null>(null);
@@ -180,6 +180,7 @@ function HoraXHoraPage() {
         conflito={conflito}
         error={error}
         salvarHora={salvarHora}
+        assinarHora={assinarHora}
       />
     );
   }
@@ -420,7 +421,6 @@ function HoraXHoraPage() {
                 anterior: horaEmEdicao,
                 editadoPorLogin: usuario.usuario,
                 editadoPorNome: usuario.nome,
-                somenteAssinatura: horaJaConfirmada(horaEmEdicao),
               });
               toast.success(`Hora ${nova.horaInicio} salva.`);
               setEditando(null);
@@ -428,6 +428,11 @@ function HoraXHoraPage() {
               const msg = e instanceof Error ? e.message : String(e);
               toast.error(`Não foi possível salvar: ${msg}`);
             }
+          }}
+          onAssinar={async (assinatura, login, senha) => {
+            const lider = await assinarHora(horaEmEdicao, assinatura, login, senha);
+            toast.success(`Checagem de ${horaEmEdicao.horaInicio}–${horaEmEdicao.horaFim} assinada por ${lider.nome}.`);
+            return lider;
           }}
         />
       )}
@@ -486,6 +491,7 @@ function DialogHora({
   produtoSugerido,
   onFechar,
   onSalvar,
+  onAssinar,
 }: {
   hora: ProducaoHora;
   somenteAssinatura: boolean;
@@ -493,6 +499,7 @@ function DialogHora({
   produtoSugerido: ProdutoAnterior | null;
   onFechar: () => void;
   onSalvar: (h: ProducaoHora) => Promise<void>;
+  onAssinar: (assinatura: string, login: string, senha: string) => Promise<IdentidadeLider>;
 }) {
   const [meta, setMeta] = useState<string>(
     hora.meta !== null ? String(hora.meta) : metaSugerida !== null ? String(metaSugerida) : "",
@@ -525,14 +532,8 @@ function DialogHora({
     : null;
   const [sabor, setSabor] = useState(hora.produtoSabor ?? produtoSugerido?.sabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? produtoSugerido?.tamanho ?? "");
-  // Mesma troca feita na validação do checklist: o líder se autentica, o nome
-  // vem do banco. Quando a hora já foi assinada antes, o nome anterior fica
-  // visível mas não é reaproveitável — reassinar exige identificar de novo.
-  const [lider, setLider] = useState<IdentidadeLider | null>(null);
   const [pedindoLogin, setPedindoLogin] = useState(false);
-  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(
-    hora.assinaturaLider?.dataUrl ?? null,
-  );
+  const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
   const quantidadePrevia = naoRodou ? 0 : quantidade.trim() === "" ? null : Number(quantidade);
@@ -541,22 +542,11 @@ function DialogHora({
 
   async function handleSalvar() {
     if (somenteAssinatura) {
-      if (!exigeLider || !lider || !assinaturaLider || assinaturaLider === hora.assinaturaLider?.dataUrl) {
-        toast.error("Identifique o líder e colha a assinatura para concluir a checagem.");
+      if (!exigeLider || !assinaturaLider || hora.assinaturaLider?.dataUrl) {
+        toast.error("Colha a assinatura do líder para concluir a checagem.");
         return;
       }
-      const agora = new Date().toISOString();
-      setSalvando(true);
-      try {
-        await onSalvar({
-          ...hora,
-          liderNome: lider.nome,
-          assinaturaLider: { dataUrl: assinaturaLider, nome: lider.nome, assinadoEm: agora },
-          liderAssinouEm: agora,
-        });
-      } finally {
-        setSalvando(false);
-      }
+      setPedindoLogin(true);
       return;
     }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
@@ -618,58 +608,9 @@ function DialogHora({
     const tamanhoFinal = tamanho.trim() || null;
     const observacaoFinal = hora.observacao ?? null;
     const eventosFinal = [...eventos].sort();
-    const eventosAnteriores = [...(hora.eventos ?? [])].sort();
-    const dadosAlterados =
-      metaNum !== hora.meta ||
-      quantidadeFinal !== hora.quantidade ||
-      naoRodou !== hora.naoRodou ||
-      paradaNum !== hora.tempoParadaMin ||
-      (paradaNum === null ? null : "cadencia_equivalente") !== (hora.tempoParadaMetodo ?? null) ||
-      (motivoCodigo || null) !== (hora.motivoParadaCodigo ?? null) ||
-      reinicia !== hora.reiniciaAcumulado ||
-      motivoFinal !== hora.motivoReinicio ||
-      // Mudar o evento muda o que o líder aprovou: uma hora que virou "CIP"
-      // depois de assinada não é a mesma hora.
-      eventosFinal.join(",") !== eventosAnteriores.join(",") ||
-      saborFinal !== hora.produtoSabor ||
-      tamanhoFinal !== hora.produtoTamanho ||
-      observacaoFinal !== hora.observacao;
-
-    // A assinatura aprova o conteudo que existia naquele instante. Se a hora
-    // for editada, ela nao pode continuar carimbando os numeros novos.
-    const assinaturaNova = !!assinaturaLider && hora.assinaturaLider?.dataUrl !== assinaturaLider;
-    if (exigeLider && assinaturaNova && !lider) {
-      toast.error("O líder precisa se identificar para assinar a checagem.");
-      return;
-    }
-    if (
-      exigeLider &&
-      dadosAlterados &&
-      !!hora.assinaturaLider?.dataUrl &&
-      hora.assinaturaLider.dataUrl === assinaturaLider
-    ) {
-      toast.error(
-        "Os dados mudaram. Limpe a assinatura anterior ou identifique o líder e assine novamente.",
-      );
-      return;
-    }
 
     setSalvando(true);
     try {
-      const agora = new Date().toISOString();
-      const manterAssinaturaAnterior =
-        !dadosAlterados &&
-        !!hora.assinaturaLider?.dataUrl &&
-        hora.assinaturaLider.dataUrl === assinaturaLider;
-      const assinaturaFinal =
-        exigeLider && assinaturaNova && assinaturaLider
-          ? { dataUrl: assinaturaLider, nome: lider!.nome, assinadoEm: agora }
-          : exigeLider && manterAssinaturaAnterior
-            ? hora.assinaturaLider
-            : exigeLider
-              ? null
-              : hora.assinaturaLider;
-
       await onSalvar({
         ...hora,
         meta: metaNum,
@@ -684,14 +625,9 @@ function DialogHora({
         produtoSabor: saborFinal,
         produtoTamanho: tamanhoFinal,
         observacao: observacaoFinal,
-        liderNome: assinaturaFinal?.nome ?? null,
-        assinaturaLider: assinaturaFinal,
-        liderAssinouEm:
-          exigeLider && assinaturaNova
-            ? agora
-            : manterAssinaturaAnterior
-              ? (hora.liderAssinouEm ?? null)
-              : null,
+        liderNome: null,
+        assinaturaLider: null,
+        liderAssinouEm: null,
       });
     } finally {
       setSalvando(false);
@@ -878,64 +814,53 @@ function DialogHora({
           </div>
 
           </fieldset>
-          {exigeLider && (
+          {exigeLider && somenteAssinatura && hora.assinaturaLider?.dataUrl && (
+            <div className="rounded-xl border border-success/40 bg-success-soft/40 p-3">
+              <p className="text-sm font-bold text-success">Checagem do líder concluída</p>
+              <p className="mt-1 text-xs text-foreground">
+                {hora.liderNome ?? hora.assinaturaLider.nome}
+                {hora.liderAssinouEm
+                  ? ` · ${new Date(hora.liderAssinouEm).toLocaleString("pt-BR", { timeZone: "America/Manaus" })}`
+                  : ""}
+              </p>
+              <img
+                src={hora.assinaturaLider.dataUrl}
+                alt={`Assinatura de ${hora.liderNome ?? hora.assinaturaLider.nome}`}
+                className="mt-2 max-h-28 max-w-full rounded-md border border-border bg-white object-contain"
+              />
+            </div>
+          )}
+          {exigeLider && somenteAssinatura && !hora.assinaturaLider?.dataUrl && (
             <div className="rounded-xl border-2 border-primary/30 bg-primary-soft/40 p-3">
               <p className="text-sm font-bold text-foreground">
                 Checagem do líder ({hora.horaInicio} às {hora.horaFim})
               </p>
               <p className="mb-3 text-xs text-muted-foreground">
-                O líder assina só nesta checagem — são 2 assinaturas por turno.
+                Depois de desenhar, o líder informa seu login para gravar a checagem.
               </p>
-              <div className="mb-3">
-                {lider ? (
-                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-success/40 bg-success-soft/50 px-3 py-2">
-                    <ShieldCheck className="h-5 w-5 shrink-0 text-success" />
-                    <span className="flex-1 text-sm font-bold text-foreground">
-                      {lider.nome}
-                      <span className="ml-1 font-normal text-muted-foreground">
-                        ({lider.login})
-                      </span>
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setLider(null)}
-                    >
-                      Trocar
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-12"
-                      onClick={() => setPedindoLogin(true)}
-                    >
-                      <ShieldCheck className="mr-1 h-4 w-4" />
-                      Identificar líder
-                    </Button>
-                    {hora.liderNome && (
-                      <span className="text-xs text-muted-foreground">
-                        assinada antes por {hora.liderNome}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-
               <AutenticarLiderDialog
                 aberto={pedindoLogin}
                 onFechar={() => setPedindoLogin(false)}
-                onAutenticado={(l) => {
-                  setLider(l);
+                processarLogin={async (login, senha) => {
+                  if (!assinaturaLider) return { ok: false, erro: "Desenhe a assinatura antes de entrar." };
+                  setSalvando(true);
+                  try {
+                    const lider = await onAssinar(assinaturaLider, login, senha);
+                    return { ok: true, lider };
+                  } catch (erro) {
+                    return { ok: false, erro: erro instanceof Error ? erro.message : "Não foi possível assinar a checagem." };
+                  } finally {
+                    setSalvando(false);
+                  }
+                }}
+                onAutenticado={() => {
                   setPedindoLogin(false);
+                  onFechar();
                 }}
               />
               <SignaturePad
                 label="Assinatura do líder"
-                ajuda="Opcional agora — pode ser assinada quando o líder passar."
+                ajuda="O líder desenha aqui e confirma com seu próprio login."
                 value={assinaturaLider}
                 onChange={setAssinaturaLider}
                 altura={150}
@@ -946,11 +871,13 @@ function DialogHora({
 
         <DialogFooter>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>
-            Cancelar
+            {somenteAssinatura && (!exigeLider || !!hora.assinaturaLider?.dataUrl) ? "Fechar" : "Cancelar"}
           </Button>
-          <Button onClick={handleSalvar} disabled={salvando}>
-            {salvando ? "Salvando..." : somenteAssinatura ? "Salvar assinatura" : "Confirmar e salvar definitivamente"}
-          </Button>
+          {(!somenteAssinatura || (exigeLider && !hora.assinaturaLider?.dataUrl)) && (
+            <Button onClick={handleSalvar} disabled={salvando}>
+              {salvando ? "Salvando..." : somenteAssinatura ? "Assinar com login do líder" : "Confirmar e salvar definitivamente"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
