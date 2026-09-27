@@ -27,6 +27,7 @@ import {
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
 import { ValidarPendenciaDialog } from "@/components/validar-pendencia-dialog";
+import { ChecagensLiderFarol } from "@/components/producao/checagens-lider-farol";
 
 export const Route = createFileRoute("/lider/")({
   head: () => ({
@@ -427,6 +428,12 @@ function LiderHome() {
               planos={planos}
               onAbrirPlano={setPendenciaAberta}
               onValidar={validando ? undefined : validar}
+            />
+
+            <ChecagensLiderFarol
+              usuario={usuario}
+              operadoresEquipe={operadoresEquipe}
+              carregandoEquipe={carregandoEquipe}
             />
           </>
         )}

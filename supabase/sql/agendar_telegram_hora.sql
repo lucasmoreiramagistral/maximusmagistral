@@ -1,8 +1,8 @@
 -- Executar somente depois de aplicar as migrations, implantar a Edge Function
 -- e configurar os Edge Secrets MAXIMUS_CRON_SECRET, TELEGRAM_BOT_TOKEN,
 -- TELEGRAM_CHAT_ID e MAXIMUS_APP_URL (URL HTTPS publicada do aplicativo).
--- Revogar antes o token do bot que apareceu na captura; validar a rota publica
--- e a resposta da Edge Function antes de habilitar pg_cron e pg_net.
+-- Validar a rota publica e a resposta da Edge Function antes de habilitar
+-- pg_cron e pg_net. O token deve ficar apenas em Edge Secrets, fora do Git.
 -- Criar no Vault, sem colar valores neste arquivo:
 --   maximus_project_url       = https://<projeto>.supabase.co
 --   maximus_publishable_key   = chave publica do projeto

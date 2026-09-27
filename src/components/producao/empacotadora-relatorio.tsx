@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Clock, Lock, PackageCheck, ShieldCheck } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
-import { AutenticarLiderDialog } from "@/components/autenticar-lider-dialog";
 import {
   EmpacotadoraHoraForm,
   type EntradaHoraEmpacotadora,
@@ -11,6 +10,8 @@ import { EmpacotadoraVersoSecoes } from "@/components/producao/empacotadora-vers
 import { SignaturePad } from "@/components/signature-pad";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno } from "@/lib/producao/acumulado";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
@@ -21,7 +22,6 @@ import {
 } from "@/lib/producao/paletizacao";
 import type { ProducaoHora } from "@/lib/producao/types";
 import type { Usuario, Turno } from "@/lib/checklist/types";
-import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import type { MaquinaOperacional } from "@/lib/maquinas/catalogo";
 import { formatarDataBR } from "@/lib/operacao/data-operacional";
 import { rotuloTempoParada } from "@/lib/producao/perda-cadencia";
@@ -50,9 +50,8 @@ interface Props {
   assinarHora: (
     hora: ProducaoHora,
     assinatura: string,
-    login: string,
-    senha: string,
-  ) => Promise<IdentidadeLider>;
+    nomeLider: string,
+  ) => Promise<void>;
 }
 
 function jaSalva(hora: ProducaoHora): boolean {
@@ -168,7 +167,7 @@ export function EmpacotadoraRelatorio({
     toast.success(`${base.horaInicio}–${base.horaFim}: hora confirmada no Supabase.`);
   }
 
-  async function assinarHora(base: ProducaoHora, assinatura: string, login: string, senha: string) {
+  async function assinarHora(base: ProducaoHora, assinatura: string, nomeLider: string) {
     if (error || conflito) {
       throw new Error("Não foi possível confirmar a folha atual. Recarregue e tente novamente.");
     }
@@ -180,9 +179,8 @@ export function EmpacotadoraRelatorio({
     if (base.assinaturaLider?.dataUrl) {
       throw new Error("O líder já assinou esta checagem.");
     }
-    const lider = await assinarHoraAutenticada(base, assinatura, login, senha);
+    await assinarHoraAutenticada(base, assinatura, nomeLider);
     toast.success(`Checagem do líder de ${base.horaInicio}–${base.horaFim} assinada.`);
-    return lider;
   }
 
   return (
@@ -329,7 +327,7 @@ export function EmpacotadoraRelatorio({
                 <ChecagemLiderEmpacotadora
                   key={`lider-${maquina.id}-${selecionada.horaCodigo}`}
                   hora={selecionada}
-                  onAssinar={(login, senha, assinatura) => assinarHora(selecionada, assinatura, login, senha)}
+                  onAssinar={(assinatura, nomeLider) => assinarHora(selecionada, assinatura, nomeLider)}
                 />
               )}
             </div>
@@ -345,10 +343,10 @@ function ChecagemLiderEmpacotadora({
   onAssinar,
 }: {
   hora: ProducaoHora;
-  onAssinar: (login: string, senha: string, assinatura: string) => Promise<IdentidadeLider>;
+  onAssinar: (assinatura: string, nomeLider: string) => Promise<void>;
 }) {
   const [assinatura, setAssinatura] = useState<string | null>(null);
-  const [pedindoLogin, setPedindoLogin] = useState(false);
+  const [nomeLider, setNomeLider] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   if (!jaSalva(hora)) {
@@ -381,11 +379,18 @@ function ChecagemLiderEmpacotadora({
   }
 
   async function confirmar() {
-    if (!assinatura || salvando) {
-      toast.error("Colha a assinatura do líder antes de confirmar.");
+    if (!assinatura || !nomeLider.trim() || salvando) {
+      toast.error("Informe o nome e colha a assinatura do líder antes de confirmar.");
       return;
     }
-    setPedindoLogin(true);
+    setSalvando(true);
+    try {
+      await onAssinar(assinatura, nomeLider);
+    } catch (erro) {
+      toast.error(erro instanceof Error ? erro.message : "Não foi possível salvar a assinatura.");
+    } finally {
+      setSalvando(false);
+    }
   }
 
   return (
@@ -395,29 +400,21 @@ function ChecagemLiderEmpacotadora({
           <ShieldCheck className="h-5 w-5 text-primary" /> Checagem do líder
         </p>
         <p className="text-xs text-muted-foreground">
-          Após conferir os valores, o líder desenha e confirma com seu login.
+          Após conferir o turno, o líder informa seu nome e assina neste tablet.
         </p>
       </div>
-      <AutenticarLiderDialog
-        aberto={pedindoLogin}
-        onFechar={() => setPedindoLogin(false)}
-        processarLogin={async (login, senha) => {
-          if (!assinatura) return { ok: false, erro: "Desenhe a assinatura antes de entrar." };
-          setSalvando(true);
-          try {
-            const lider = await onAssinar(login, senha, assinatura);
-            return { ok: true, lider };
-          } catch (erro) {
-            return { ok: false, erro: erro instanceof Error ? erro.message : "Não foi possível assinar a checagem." };
-          } finally {
-            setSalvando(false);
-          }
-        }}
-        onAutenticado={() => setPedindoLogin(false)}
+      <Label htmlFor="nome-lider-empacotadora">Nome do líder que assina</Label>
+      <Input
+        id="nome-lider-empacotadora"
+        value={nomeLider}
+        onChange={(e) => setNomeLider(e.target.value)}
+        maxLength={120}
+        placeholder="Nome completo"
+        className="h-12 text-base"
       />
       <SignaturePad
         label="Assinatura do líder"
-        ajuda="O líder desenha aqui e confirma com seu próprio login."
+        ajuda="O líder desenha aqui após conferir a produção do turno."
         value={assinatura}
         onChange={setAssinatura}
         altura={150}

@@ -27,9 +27,15 @@ select
   exists (
     select 1 from pg_trigger
      where tgrelid = 'public.producao_horaria'::regclass
+       and tgname = 'trg_maximus_assinatura_fim_turno'
+       and tgenabled = 'O' and not tgisinternal
+  ) as trigger_fim_turno_ativo,
+  exists (
+    select 1 from pg_trigger
+     where tgrelid = 'public.producao_horaria'::regclass
        and tgname = 'trg_maximus_assinatura_hora_direta'
        and tgenabled = 'O' and not tgisinternal
-  ) as trigger_bloqueio_ativo,
+  ) as trigger_antigo_bloqueio_ativo,
   assinatura_resumo.assinaturas_existentes,
   assinatura_resumo.assinaturas_legadas_sem_uid,
   assinatura_resumo.assinatura_fingerprint

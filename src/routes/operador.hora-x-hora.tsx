@@ -12,8 +12,6 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { AppHeader } from "@/components/app-header";
-import { AutenticarLiderDialog } from "@/components/autenticar-lider-dialog";
-import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -133,7 +131,7 @@ function HoraXHoraPage() {
     [horas, codigosDoTurno],
   );
 
-  // As 2 checagens do líder do turno (meio e fim do turno).
+  // A checagem do líder na última hora do turno.
   const checagens = useMemo(() => checagensLiderDoTurno(codigosDoTurno), [codigosDoTurno]);
   const checagensAssinadas = checagens.filter(
     (c) => !!porCodigo.get(c)?.assinaturaLider?.dataUrl,
@@ -429,10 +427,9 @@ function HoraXHoraPage() {
               toast.error(`Não foi possível salvar: ${msg}`);
             }
           }}
-          onAssinar={async (assinatura, login, senha) => {
-            const lider = await assinarHora(horaEmEdicao, assinatura, login, senha);
-            toast.success(`Checagem de ${horaEmEdicao.horaInicio}–${horaEmEdicao.horaFim} assinada por ${lider.nome}.`);
-            return lider;
+          onAssinar={async (assinatura, nomeLider) => {
+            await assinarHora(horaEmEdicao, assinatura, nomeLider);
+            toast.success(`Checagem de ${horaEmEdicao.horaInicio}–${horaEmEdicao.horaFim} assinada por ${nomeLider.trim()}.`);
           }}
         />
       )}
@@ -499,7 +496,7 @@ function DialogHora({
   produtoSugerido: ProdutoAnterior | null;
   onFechar: () => void;
   onSalvar: (h: ProducaoHora) => Promise<void>;
-  onAssinar: (assinatura: string, login: string, senha: string) => Promise<IdentidadeLider>;
+  onAssinar: (assinatura: string, nomeLider: string) => Promise<void>;
 }) {
   const [meta, setMeta] = useState<string>(
     hora.meta !== null ? String(hora.meta) : metaSugerida !== null ? String(metaSugerida) : "",
@@ -532,7 +529,7 @@ function DialogHora({
     : null;
   const [sabor, setSabor] = useState(hora.produtoSabor ?? produtoSugerido?.sabor ?? "");
   const [tamanho, setTamanho] = useState(hora.produtoTamanho ?? produtoSugerido?.tamanho ?? "");
-  const [pedindoLogin, setPedindoLogin] = useState(false);
+  const [nomeLider, setNomeLider] = useState("");
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
@@ -542,11 +539,19 @@ function DialogHora({
 
   async function handleSalvar() {
     if (somenteAssinatura) {
-      if (!exigeLider || !assinaturaLider || hora.assinaturaLider?.dataUrl) {
+      if (!exigeLider || !assinaturaLider || !nomeLider.trim() || hora.assinaturaLider?.dataUrl) {
         toast.error("Colha a assinatura do líder para concluir a checagem.");
         return;
       }
-      setPedindoLogin(true);
+      setSalvando(true);
+      try {
+        await onAssinar(assinaturaLider, nomeLider);
+        onFechar();
+      } catch (erro) {
+        toast.error(erro instanceof Error ? erro.message : "Não foi possível salvar a assinatura.");
+      } finally {
+        setSalvando(false);
+      }
       return;
     }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
@@ -836,31 +841,20 @@ function DialogHora({
                 Checagem do líder ({hora.horaInicio} às {hora.horaFim})
               </p>
               <p className="mb-3 text-xs text-muted-foreground">
-                Depois de desenhar, o líder informa seu login para gravar a checagem.
+                O líder informa seu nome e assina neste tablet. Não é necessário trocar de usuário.
               </p>
-              <AutenticarLiderDialog
-                aberto={pedindoLogin}
-                onFechar={() => setPedindoLogin(false)}
-                processarLogin={async (login, senha) => {
-                  if (!assinaturaLider) return { ok: false, erro: "Desenhe a assinatura antes de entrar." };
-                  setSalvando(true);
-                  try {
-                    const lider = await onAssinar(assinaturaLider, login, senha);
-                    return { ok: true, lider };
-                  } catch (erro) {
-                    return { ok: false, erro: erro instanceof Error ? erro.message : "Não foi possível assinar a checagem." };
-                  } finally {
-                    setSalvando(false);
-                  }
-                }}
-                onAutenticado={() => {
-                  setPedindoLogin(false);
-                  onFechar();
-                }}
+              <Label htmlFor="nome-lider-hora">Nome do líder que assina</Label>
+              <Input
+                id="nome-lider-hora"
+                value={nomeLider}
+                onChange={(e) => setNomeLider(e.target.value)}
+                maxLength={120}
+                placeholder="Nome completo"
+                className="mb-3 mt-1 h-12 text-base"
               />
               <SignaturePad
                 label="Assinatura do líder"
-                ajuda="O líder desenha aqui e confirma com seu próprio login."
+                ajuda="O líder desenha aqui após conferir a produção do turno."
                 value={assinaturaLider}
                 onChange={setAssinaturaLider}
                 altura={150}
@@ -875,7 +869,7 @@ function DialogHora({
           </Button>
           {(!somenteAssinatura || (exigeLider && !hora.assinaturaLider?.dataUrl)) && (
             <Button onClick={handleSalvar} disabled={salvando}>
-              {salvando ? "Salvando..." : somenteAssinatura ? "Assinar com login do líder" : "Confirmar e salvar definitivamente"}
+              {salvando ? "Salvando..." : somenteAssinatura ? "Salvar assinatura do líder" : "Confirmar e salvar definitivamente"}
             </Button>
           )}
         </DialogFooter>

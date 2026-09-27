@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConnectionStatus } from "./use-connection-status";
 import { producaoStorage } from "@/lib/producao/storage";
-import { assinarHoraComLogin } from "@/lib/producao/assinatura-hora";
-import type { IdentidadeLider } from "@/lib/farol/autenticar-lider";
+import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
 import {
   ConflitoVersaoError,
   createProducaoHorasPadrao,
@@ -36,9 +35,8 @@ interface UseProducaoHorariaResult {
   assinarHora: (
     hora: ProducaoHora,
     assinaturaDataUrl: string,
-    login: string,
-    senha: string,
-  ) => Promise<IdentidadeLider>;
+    nomeLider: string,
+  ) => Promise<void>;
 }
 
 /**
@@ -169,17 +167,35 @@ export function useProducaoHoraria(
   );
 
   const assinarHora: UseProducaoHorariaResult["assinarHora"] = useCallback(
-    async (hora, assinaturaDataUrl, login, senha) => {
-      if (!isOnline) throw new Error("Conecte o tablet para validar a checagem do líder.");
+    async (hora, assinaturaDataUrl, nomeLider) => {
+      if (!isOnline) throw new Error("Conecte o tablet para salvar a assinatura do líder.");
+      if (!ehHoraDeChecagemLider(hora.horaCodigo) || !hora.createdAt || !hora.updatedAt ||
+          !(hora.finalizadoEm || hora.naoRodou || typeof hora.quantidade === "number")) {
+        throw new Error("A assinatura fica disponível após confirmar a última hora do turno.");
+      }
+      if (hora.assinaturaLider?.dataUrl) throw new Error("Esta checagem já foi assinada.");
+      const nome = nomeLider.trim();
+      if (nome.length < 2 || nome.length > 120) {
+        throw new Error("Informe o nome de quem assinou (2 a 120 caracteres).");
+      }
+      if (!assinaturaDataUrl.startsWith("data:image/png;base64,") || assinaturaDataUrl.length < 100) {
+        throw new Error("Peça ao líder para desenhar a assinatura antes de salvar.");
+      }
+      const assinadoEm = new Date().toISOString();
       try {
-        const resultado = await assinarHoraComLogin(hora, assinaturaDataUrl, login, senha);
-        if (usarCacheLocal) producaoStorage.saveHora(resultado.hora);
+        const salva = await upsertProducaoHora({
+          ...hora,
+          liderNome: nome,
+          assinaturaLider: { dataUrl: assinaturaDataUrl, nome, assinadoEm },
+          liderAssinouEm: assinadoEm,
+        }, { expectedUpdatedAt: hora.updatedAt, somenteAssinatura: true });
+        if (usarCacheLocal) producaoStorage.saveHora(salva);
         setHoras((prev) => prev.map((item) =>
-          item.id === resultado.hora.id ? resultado.hora : item,
+          item.id === salva.id ? salva : item,
         ));
-        return resultado.lider;
       } catch (e) {
-        if (e instanceof Error && /hora mudou|já assinada/i.test(e.message)) {
+        if (e instanceof ConflitoVersaoError ||
+            (e instanceof Error && /hora mudou|já assinada/i.test(e.message))) {
           setConflito(true);
         }
         throw e;

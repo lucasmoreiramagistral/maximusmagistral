@@ -111,6 +111,81 @@ describe("escrita de Hora x Hora", () => {
     expect(db.insert).not.toHaveBeenCalled();
   });
 
+  it("grava a assinatura posterior sem reenviar ou alterar os números da produção", async () => {
+    const assinatura = {
+      dataUrl: "data:image/png;base64,AQ==", nome: "Líder do turno",
+      assinadoEm: "2026-09-23T18:03:00Z",
+    };
+    const assinada = { ...lancamento, created_at: "2026-09-23T18:01:00Z",
+      updated_at: "2026-09-23T18:01:00Z", lider_nome: assinatura.nome,
+      assinatura_lider: assinatura, lider_assinou_em: assinatura.assinadoEm };
+    db.maybeSingle.mockResolvedValue({ data: assinada, error: null });
+
+    await upsertProducaoHora(producaoHoraFromRow(assinada), {
+      expectedUpdatedAt: assinada.updated_at,
+      somenteAssinatura: true,
+    });
+
+    expect(db.insert).not.toHaveBeenCalled();
+    expect(db.update).toHaveBeenCalledWith({
+      lider_nome: assinatura.nome,
+      assinatura_lider: assinatura,
+      lider_assinou_em: assinatura.assinadoEm,
+    });
+    expect(db.eq).toHaveBeenCalledWith("id", assinada.id);
+    expect(db.eq).toHaveBeenCalledWith("updated_at", assinada.updated_at);
+  });
+
+  it("reconhece a assinatura salva quando a resposta se perde após o carimbo do banco", async () => {
+    const nome = "Líder do turno";
+    const dataUrl = `data:image/png;base64,${"A".repeat(120)}`;
+    const assinaturaCliente = {
+      dataUrl,
+      nome,
+      assinadoEm: "2026-09-23T18:03:00Z",
+    };
+    const baseHora = {
+      ...lancamento,
+      created_at: "2026-09-23T18:01:00Z",
+      updated_at: "2026-09-23T18:01:00Z",
+    };
+    const assinadaNoServidor = {
+      ...baseHora,
+      updated_at: "2026-09-23T18:03:01Z",
+      lider_nome: nome,
+      lider_assinou_em: "2026-09-23T18:03:01Z",
+      assinatura_lider: {
+        ...assinaturaCliente,
+        assinadoEm: "2026-09-23T18:03:01Z",
+        registradoPorUserId: "operador-1",
+        origem: "sessao_operador",
+      },
+    };
+    db.maybeSingle
+      .mockRejectedValueOnce(new Error("resposta perdida"))
+      .mockResolvedValueOnce({ data: assinadaNoServidor, error: null });
+
+    const salva = await upsertProducaoHora(
+      producaoHoraFromRow({
+        ...baseHora,
+        lider_nome: nome,
+        lider_assinou_em: assinaturaCliente.assinadoEm,
+        assinatura_lider: assinaturaCliente,
+      }),
+      { expectedUpdatedAt: baseHora.updated_at, somenteAssinatura: true },
+    );
+
+    expect(salva.assinaturaLider?.dataUrl).toBe(dataUrl);
+    expect(db.maybeSingle).toHaveBeenCalledTimes(2);
+  });
+
+  it("não assina uma hora sem versão confirmada no servidor", async () => {
+    await expect(upsertProducaoHora(producaoHoraFromRow(lancamento), {
+      somenteAssinatura: true,
+    })).rejects.toThrow("Recarregue a hora confirmada");
+    expect(db.update).not.toHaveBeenCalled();
+  });
+
   it("relê uma inserção confirmada quando a resposta da rede se perde", async () => {
     const hora = producaoHoraFromRow({ ...lancamento, created_at: undefined, finalizado_em: null });
     db.maybeSingle

@@ -35,16 +35,27 @@ export async function fetchProducaoHoras(
 
 export async function upsertProducaoHora(
   h: ProducaoHora,
-  opts: { expectedUpdatedAt?: string | null } = {},
+  opts: { expectedUpdatedAt?: string | null; somenteAssinatura?: boolean } = {},
 ): Promise<ProducaoHora> {
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData.user?.id ?? null;
   const row = producaoHoraToRow(h, userId);
   const existente = Boolean(h.createdAt);
+  if (opts.somenteAssinatura && (!existente || !opts.expectedUpdatedAt)) {
+    throw new Error("Recarregue a hora confirmada antes de colher a assinatura.");
+  }
   let falha: unknown;
   try {
     const query = existente
-      ? supabase.from("producao_horaria" as never).update(row as never).eq("id", row.id)
+      ? supabase.from("producao_horaria" as never).update(
+          (opts.somenteAssinatura
+            ? {
+                lider_nome: row.lider_nome,
+                assinatura_lider: row.assinatura_lider,
+                lider_assinou_em: row.lider_assinou_em,
+              }
+            : row) as never,
+        ).eq("id", row.id)
       : supabase.from("producao_horaria" as never).insert(row as never);
     const guardada = existente && opts.expectedUpdatedAt
       ? query.eq("updated_at", opts.expectedUpdatedAt)
@@ -64,8 +75,12 @@ export async function upsertProducaoHora(
       .select("*")
       .eq("id", row.id)
       .maybeSingle();
-    if (!error && data && horaPersistidaIgual(data as unknown as ProducaoHoraRow, row)) {
-      return producaoHoraFromRow(data as unknown as ProducaoHoraRow);
+    if (!error && data) {
+      const persistida = data as unknown as ProducaoHoraRow;
+      const confirmada = opts.somenteAssinatura
+        ? assinaturaPersistidaIgual(persistida, row, userId)
+        : horaPersistidaIgual(persistida, row);
+      if (confirmada) return producaoHoraFromRow(persistida);
     }
     if (!error && existente && opts.expectedUpdatedAt && data) {
       const remoto = (data as { updated_at?: string }).updated_at;
@@ -87,8 +102,15 @@ const CAMPOS_LANCAMENTO = [
   "paletes_completos", "quebra_pacotes", "pacotes_por_palete",
   "nao_rodou", "tempo_parada_min", "tempo_parada_metodo", "motivo_parada_codigo",
   "reinicia_acumulado", "motivo_reinicio", "produto_sabor", "produto_tamanho",
-  "observacao", "operador_user_id", "lider_nome", "lider_assinou_em",
+  "observacao", "operador_user_id", "lider_nome",
 ] as const satisfies readonly (keyof ProducaoHoraRow)[];
+
+function mesmoInstante(a: string | null | undefined, b: string | null | undefined): boolean {
+  if (!a || !b) return !a && !b;
+  const primeiro = Date.parse(a);
+  const segundo = Date.parse(b);
+  return Number.isFinite(primeiro) && primeiro === segundo;
+}
 
 /** Mesmo lançamento salvo pelo servidor, sem comparar timestamps ou assinatura posterior. */
 export function horaPersistidaIgual(
@@ -104,9 +126,35 @@ export function horaPersistidaIgual(
   const assinaturaPersistida = persistida.assinatura_lider;
   const assinaturaEnviada = enviada.assinatura_lider;
   return JSON.stringify(eventosPersistidos) === JSON.stringify(eventosEnviados)
+    && mesmoInstante(persistida.lider_assinou_em, enviada.lider_assinou_em)
     && (assinaturaPersistida?.dataUrl ?? null) === (assinaturaEnviada?.dataUrl ?? null)
     && (assinaturaPersistida?.nome ?? null) === (assinaturaEnviada?.nome ?? null)
-    && (assinaturaPersistida?.assinadoEm ?? null) === (assinaturaEnviada?.assinadoEm ?? null);
+    && mesmoInstante(assinaturaPersistida?.assinadoEm, assinaturaEnviada?.assinadoEm);
+}
+
+/** Confirma uma assinatura mesmo se a resposta do servidor foi perdida.
+ * O trigger acrescenta a origem e refaz os timestamps no banco.
+ */
+function assinaturaPersistidaIgual(
+  persistida: ProducaoHoraRow,
+  enviada: ProducaoHoraRow,
+  userId: string | null,
+): boolean {
+  if (!userId || persistida.id !== enviada.id || persistida.lider_nome !== enviada.lider_nome) {
+    return false;
+  }
+  const assinatura = persistida.assinatura_lider as
+    | (NonNullable<ProducaoHoraRow["assinatura_lider"]> & {
+        registradoPorUserId?: string | null;
+        origem?: string;
+      })
+    | null;
+  const assinaturaEnviada = enviada.assinatura_lider;
+  return assinatura?.dataUrl === assinaturaEnviada?.dataUrl
+    && assinatura?.nome === assinaturaEnviada?.nome
+    && assinatura?.registradoPorUserId === userId
+    && assinatura.origem === "sessao_operador"
+    && mesmoInstante(assinatura.assinadoEm, persistida.lider_assinou_em);
 }
 
 export async function insertProducaoHoraEdicao(p: ProducaoHoraEdicaoPayload): Promise<void> {
