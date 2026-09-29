@@ -1,3 +1,4 @@
+-- Ativar somente depois de publicar o novo app e recarregar os tablets.
 -- O card das HH:20 registra definitivamente o que foi confirmado até o corte.
 -- Rejeitar uma confirmação posterior evita que o painel passe a mostrar uma
 -- hora que o card imutável marcou como "Não realizado".

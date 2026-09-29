@@ -1,4 +1,4 @@
--- Consulta somente de leitura após as migrações 20260928100000 e 20260928110000.
+-- Consulta somente de leitura após as migrações 20260928100000, 110000 e 120000.
 -- Todas as colunas booleanas devem retornar true.
 select
   exists (

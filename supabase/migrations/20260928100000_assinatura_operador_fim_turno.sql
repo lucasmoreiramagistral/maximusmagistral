@@ -210,37 +210,6 @@ create trigger trg_maximus_assinatura_operador_fim_turno
   before insert or update on public.producao_horaria
   for each row execute function public.maximus_validar_assinatura_operador_fim_turno();
 
--- Em horas novas, a validação do líder vem depois da assinatura do operador.
--- Testa OLD para impedir que ambos sejam gravados no mesmo UPDATE. Horas
--- históricas já preenchidas sem finalizado_em mantêm o fluxo anterior.
-create or replace function public.maximus_exigir_operador_antes_lider()
-returns trigger
-language plpgsql
-set search_path = ''
-as $$
-begin
-  if new.lider_nome is not distinct from old.lider_nome
-     and new.assinatura_lider is not distinct from old.assinatura_lider
-     and new.lider_assinou_em is not distinct from old.lider_assinou_em then
-    return new;
-  end if;
-  if old.finalizado_em is not null and old.assinatura_operador is null then
-    raise exception 'O operador deve assinar o turno antes da validação do líder.'
-      using errcode = '23514';
-  end if;
-  return new;
-end;
-$$;
-
-revoke all on function public.maximus_exigir_operador_antes_lider()
-  from public;
-
-drop trigger if exists trg_maximus_exigir_operador_antes_lider
-  on public.producao_horaria;
-create trigger trg_maximus_exigir_operador_antes_lider
-  before update on public.producao_horaria
-  for each row execute function public.maximus_exigir_operador_antes_lider();
-
 create or replace function public.rpc_assinar_hora_operador(
   p_hora_id uuid,
   p_updated_at timestamptz,
