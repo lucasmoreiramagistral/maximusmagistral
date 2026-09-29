@@ -10,7 +10,9 @@ select data_operacao, hora_codigo, status, message_id, public_token
  order by corte_em desc
  limit 1;
 '@ -Encoding utf8
-    $raw = (& npx --yes supabase db query --linked --project-ref $ProjectRef --file $queryFile 2>&1 | Out-String)
+    # A CLI escreve avisos no stderr; no Windows PowerShell 5.1, mesclar stderr
+    # com stdout transforma esses avisos em erro antes de ler o JSON.
+    $raw = (& npx --yes supabase db query --linked --project-ref $ProjectRef --file $queryFile | Out-String)
     if ($LASTEXITCODE -ne 0) { throw 'Falha ao consultar a ultima publicacao.' }
     $jsonStart = $raw.IndexOf('{')
     if ($jsonStart -lt 0) { throw 'Resposta inesperada do banco.' }
