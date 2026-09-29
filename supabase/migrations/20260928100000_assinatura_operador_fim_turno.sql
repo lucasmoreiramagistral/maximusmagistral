@@ -1,3 +1,4 @@
+-- Etapa aditiva: pode ser aplicada antes da publicação do novo app.
 -- O operador desenha uma assinatura uma vez, depois de confirmar H12/H24.
 -- A identidade e o horário são carimbados pelo banco. O líder continua
 -- assinando de forma independente, também uma vez no fim do turno.
