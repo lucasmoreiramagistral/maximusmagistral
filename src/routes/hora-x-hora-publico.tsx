@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { MAQUINAS_ORDENADAS } from "@/lib/maquinas/catalogo";
 import { HORA_X_HORA_FAIXAS } from "@/lib/producao/constants";
-import { fimDaHoraEpoch } from "@/lib/producao/horario";
+import { prazoDaHoraEpoch } from "@/lib/producao/horario";
 import { rotuloMotivoParada } from "@/lib/producao/motivos-parada";
 import {
   EmpacotadoraVersoConsulta,
@@ -129,7 +129,7 @@ function PainelHoraXHoraPublico() {
             <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-4 shadow-sm">
               <div>
                 <p className="text-sm font-semibold">Linhas 2 e 3 · Enchedora e Empacotadora</p>
-                <p className="text-xs text-slate-600">Atualizado ao abrir a página. Registros feitos depois do card aparecem aqui após atualizar.</p>
+                <p className="text-xs text-slate-600">Atualizado ao abrir a página. Atualize para consultar as horas seguintes já confirmadas.</p>
               </div>
               <Button variant="outline" onClick={() => setTentativa((atual) => atual + 1)}>
                 <RefreshCw className="mr-2 h-4 w-4" /> Atualizar
@@ -137,7 +137,7 @@ function PainelHoraXHoraPublico() {
             </div>
             <div className="space-y-4">
               {HORA_X_HORA_FAIXAS.map((faixa) => {
-                const futura = fimDaHoraEpoch(painel.dataOperacao, faixa.codigo) > agora;
+                const aguardandoPrazo = prazoDaHoraEpoch(painel.dataOperacao, faixa.codigo) > agora;
                 return (
                   <section key={faixa.codigo} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
                     painel.horaReferencia === faixa.codigo ? "border-sky-500" : "border-slate-200"
@@ -169,7 +169,7 @@ function PainelHoraXHoraPublico() {
                               </>
                             ) : (
                               <p className="mt-2 text-sm font-medium text-slate-500">
-                                {futura ? "Aguardando fechamento" : "Não realizado"}
+                                {aguardandoPrazo ? "Aguardando fechamento" : "Não realizado"}
                               </p>
                             )}
                           </div>
