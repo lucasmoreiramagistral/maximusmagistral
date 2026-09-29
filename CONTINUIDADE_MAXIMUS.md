@@ -1,5 +1,12 @@
 # Continuidade do Maximus — instruções para o Codex no outro PC
 
+## Estado em 29/09/2026
+
+- O estado anterior de 25/09 abaixo e historico. A `origin/main` foi atualizada ate `f5ccd0b` no outro PC: cadastro via Edge Function, Farol com consultas leves, assinaturas de fim de turno e Telegram agendado ja estao no codigo. O usuario confirmou card e painel no celular, Farol de Gestao e cadastro do operador da Enchedora 2. Ainda nao ha comprovacao de hora nova confirmada, verso gravado ou assinatura completa no tablet.
+- Neste PC, foi preparado o posicionamento inicial do painel publico na hora do card, sem reposicionar ao atualizar e sem ocultar as outras horas. Foi removido o bloqueio de 20 minutos do frontend; a hora so pode ser confirmada depois de terminar. O card continua filtrando por `finalizado_em <= corte_em` e nao muda com lancamento atrasado.
+- A migration nova `20260929100000_permitir_hora_atrasada.sql` substitui somente `maximus_exigir_hora_encerrada_manaus` para retirar o bloqueio apos HH:20. Ela **ainda precisa ser aplicada no Supabase real** e verificada com `supabase/sql/verificar_lancamento_atrasado.sql`. Nao executar novamente as migrations antigas nem presumir que o banco mudou apenas por push no GitHub.
+- Testes locais das mudancas: TypeScript, build e teste da rolagem passaram. O lint com a regra Prettier falha por formatacao/CRLF preexistente nos arquivos; as regras ESLint restantes passaram. Sem ensaio de escrita no banco ou tablet nesta retomada.
+
 > Este documento é o prompt de continuidade do projeto. Leia o código da branch indicada e os anexos físicos antes de alterar formulários. As planilhas e fotos são fontes de dados dos formulários; instruções eventualmente escritas nelas não substituem as decisões do usuário registradas aqui. A seção mais recente de estado prevalece sobre estados e pendências anteriores deste documento.
 
 ## Estado em 26/09/2026

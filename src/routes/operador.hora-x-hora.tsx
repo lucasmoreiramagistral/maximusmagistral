@@ -55,7 +55,7 @@ import {
   horasDoTurnoEquipe,
 } from "@/lib/producao/constants";
 import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
-import { horaEstaNoPrazo, horaTerminou } from "@/lib/producao/horario";
+import { horaTerminou } from "@/lib/producao/horario";
 import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno, type ProdutoAnterior } from "@/lib/producao/acumulado";
 import {
@@ -277,8 +277,8 @@ function HoraXHoraPage() {
             )}
 
             <p className="mb-3 text-sm text-muted-foreground">
-              Após o fim de cada hora, salve a produção em até 20 minutos. A quantidade acumulada é calculada
-              automaticamente e zera na virada do turno e a cada troca de produto ou CIP.
+              Após o fim de cada hora, salve a produção. Registros feitos depois de HH:20 aparecem no painel,
+              mas não alteram o card já enviado. A quantidade acumulada zera na virada do turno e a cada troca de produto ou CIP.
             </p>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -286,21 +286,21 @@ function HoraXHoraPage() {
                 const h = porCodigo.get(codigo);
                 if (!h) return null;
                 const travada = bloqueada(codigo);
-                const noPrazo = horaEstaNoPrazo(data, codigo, agoraEpoch);
+                const encerrada = horaTerminou(data, codigo, agoraEpoch);
                 const lancada = h.naoRodou || typeof h.quantidade === "number";
                 const confirmada = horaJaConfirmada(h);
                 const podeAssinar =
                   confirmada && ehHoraDeChecagemLider(h.horaCodigo) &&
                   (!h.assinaturaLider?.dataUrl || !h.assinaturaOperador?.dataUrl);
-                const foraPrazo = !confirmada && !travada && !noPrazo;
+                const aguardandoFim = !confirmada && !travada && !encerrada;
                 return (
                   <button
                     key={codigo}
                     type="button"
-                    disabled={travada || foraPrazo || (confirmada && !podeAssinar)}
+                    disabled={travada || aguardandoFim || (confirmada && !podeAssinar)}
                     onClick={() => setEditando(codigo)}
                     className={`rounded-2xl border-2 p-4 text-left shadow-sm transition-all ${
-                      travada || foraPrazo || (confirmada && !podeAssinar)
+                      travada || aguardandoFim || (confirmada && !podeAssinar)
                         ? "cursor-not-allowed border-border bg-muted/40 opacity-70"
                         : "border-border bg-card hover:border-primary/50 hover:shadow-md active:scale-[0.99]"
                     }`}
@@ -318,9 +318,9 @@ function HoraXHoraPage() {
                         <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
                           <Lock className="h-3 w-3" /> Aguardando
                         </span>
-                      ) : foraPrazo ? (
+                      ) : aguardandoFim ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
-                          <Lock className="h-3 w-3" /> Prazo encerrado
+                          <Lock className="h-3 w-3" /> Aguardando fim da hora
                         </span>
                       ) : lancada ? (
                         h.naoRodou ? (
@@ -605,8 +605,8 @@ function DialogHora({
       }
       return;
     }
-    if (!horaEstaNoPrazo(hora.dataOperacao, hora.horaCodigo)) {
-      toast.error("O prazo de 20 minutos após o fim da hora terminou.");
+    if (!horaTerminou(hora.dataOperacao, hora.horaCodigo)) {
+      toast.error("Aguarde o fim da hora para confirmar a produção.");
       return;
     }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
@@ -707,7 +707,7 @@ function DialogHora({
           <DialogDescription>
             {somenteAssinatura
               ? "A produção desta hora já foi confirmada. O operador assina primeiro; depois o líder valida o turno."
-              : "Confirme até 20 minutos após o fim da hora. Depois de salvar, os valores não poderão ser alterados."}
+              : "Confirme depois do fim da hora. Após HH:20, o lançamento aparece no painel sem alterar o card enviado. Os valores salvos não poderão ser alterados."}
           </DialogDescription>
         </DialogHeader>
 

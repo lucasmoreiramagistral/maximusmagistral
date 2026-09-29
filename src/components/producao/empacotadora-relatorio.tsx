@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno } from "@/lib/producao/acumulado";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
-import { horaEstaNoPrazo, horaTerminou } from "@/lib/producao/horario";
+import { horaTerminou } from "@/lib/producao/horario";
 import {
   PALETIZACAO_EMPACOTADORA,
   type TamanhoProdutoEmpacotadora,
@@ -136,8 +136,8 @@ export function EmpacotadoraRelatorio({
       throw new Error("Não foi possível confirmar a folha atual. Recarregue e tente novamente.");
     }
     if (jaSalva(base)) throw new Error("Esta hora já foi confirmada.");
-    if (!horaEstaNoPrazo(data, base.horaCodigo)) {
-      throw new Error("Confirme a hora entre seu encerramento e os 20 minutos seguintes.");
+    if (!horaTerminou(data, base.horaCodigo)) {
+      throw new Error("Aguarde o fim da hora para confirmar a produção.");
     }
     const nova: ProducaoHora = {
       ...base,
@@ -225,8 +225,9 @@ export function EmpacotadoraRelatorio({
               />
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
-              Em até 20 minutos após o fim de cada hora, informe paletes completos e a quebra. O app calcula os
-              pacotes e pede uma conferência antes de salvar. Marque a troca de sabor ou tamanho
+              Após o fim de cada hora, informe paletes completos e a quebra. O app calcula os pacotes e pede uma
+              conferência antes de salvar. Após HH:20, o lançamento aparece no painel sem alterar o card enviado.
+              Marque a troca de sabor ou tamanho
               na primeira hora do produto novo para reiniciar o acumulado.
             </p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -235,8 +236,7 @@ export function EmpacotadoraRelatorio({
                 if (!hora) return null;
                 const salva = jaSalva(hora);
                 const iniciou = horaTerminou(data, codigo, agoraEpoch);
-                const noPrazo = horaEstaNoPrazo(data, codigo, agoraEpoch);
-                const disponivel = salva || noPrazo;
+                const disponivel = salva || iniciou;
                 return (
                   <button
                     key={codigo}
@@ -252,10 +252,10 @@ export function EmpacotadoraRelatorio({
                       <span className="text-xs font-bold text-muted-foreground">
                         {salva ? (
                           <PackageCheck className="h-5 w-5 text-success" aria-label="Salva" />
-                        ) : noPrazo ? (
+                        ) : iniciou ? (
                           <Clock className="h-5 w-5" aria-label="Pendente" />
                         ) : (
-                          <Lock className="h-5 w-5" aria-label={iniciou ? "Prazo encerrado" : "Aguardando"} />
+                          <Lock className="h-5 w-5" aria-label={iniciou ? "Indisponível" : "Aguardando fim da hora"} />
                         )}
                       </span>
                     </div>

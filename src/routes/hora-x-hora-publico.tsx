@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,23 +56,28 @@ function motivo(registro: RegistroPublico): string {
   return registro.perdaMin > 0 ? "Motivo não informado" : "Sem perda pela cadência";
 }
 
-function PainelHoraXHoraPublico() {
+export function PainelHoraXHoraPublico() {
   const { token } = Route.useSearch();
   const [painel, setPainel] = useState<PainelPublico | null>(null);
+  const [tokenCarregado, setTokenCarregado] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [tentativa, setTentativa] = useState(0);
+  const horaDoCardRef = useRef<HTMLElement | null>(null);
+  const tokenPosicionadoRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!token) {
       setErro("Link inválido ou revogado.");
       setPainel(null);
+      setTokenCarregado(null);
       setCarregando(false);
       return;
     }
     let ativo = true;
     setCarregando(true);
     setErro(null);
+    setTokenCarregado(null);
     supabase.functions.invoke<PainelPublico>("hora-x-hora-publico", { body: { token } })
       .then(({ data, error }) => {
         if (!ativo) return;
@@ -83,6 +88,7 @@ function PainelHoraXHoraPublico() {
           return;
         }
         setPainel(data);
+        setTokenCarregado(token);
       })
       .catch(() => {
         if (ativo) {
@@ -95,6 +101,14 @@ function PainelHoraXHoraPublico() {
       });
     return () => { ativo = false; };
   }, [token, tentativa]);
+
+  useEffect(() => {
+    if (!token || tokenCarregado !== token || carregando || erro || !painel ||
+        tokenPosicionadoRef.current === token) return;
+    if (!horaDoCardRef.current) return;
+    horaDoCardRef.current.scrollIntoView({ block: "start", behavior: "auto" });
+    tokenPosicionadoRef.current = token;
+  }, [token, tokenCarregado, carregando, erro, painel]);
 
   const porHora = useMemo(() => new Map(
     (painel?.registros ?? []).map((registro) => [`${registro.horaCodigo}:${registro.maquina}`, registro]),
@@ -139,7 +153,8 @@ function PainelHoraXHoraPublico() {
               {HORA_X_HORA_FAIXAS.map((faixa) => {
                 const aguardandoPrazo = prazoDaHoraEpoch(painel.dataOperacao, faixa.codigo) > agora;
                 return (
-                  <section key={faixa.codigo} className={`overflow-hidden rounded-xl border bg-white shadow-sm ${
+                  <section key={faixa.codigo} ref={painel.horaReferencia === faixa.codigo ? horaDoCardRef : undefined}
+                    className={`scroll-mt-4 overflow-hidden rounded-xl border bg-white shadow-sm ${
                     painel.horaReferencia === faixa.codigo ? "border-sky-500" : "border-slate-200"
                   }`}>
                     <div className="border-b bg-slate-100 px-4 py-3 text-sm font-semibold">

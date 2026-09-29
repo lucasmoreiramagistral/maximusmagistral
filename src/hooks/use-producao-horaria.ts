@@ -3,7 +3,7 @@ import { useConnectionStatus } from "./use-connection-status";
 import { producaoStorage } from "@/lib/producao/storage";
 import { assinarHoraOperador } from "@/lib/producao/assinatura-operador";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
-import { horaEstaNoPrazo } from "@/lib/producao/horario";
+import { horaTerminou } from "@/lib/producao/horario";
 import {
   ConflitoVersaoError,
   createProducaoHorasPadrao,
@@ -118,8 +118,8 @@ export function useProducaoHoraria(
       if (hora.finalizadoEm || anteriorConfirmado) {
         throw new Error("Esta hora já foi salva e não pode ser alterada.");
       }
-      if (!horaEstaNoPrazo(hora.dataOperacao, hora.horaCodigo)) {
-        throw new Error(`O prazo para salvar ${hora.horaInicio}–${hora.horaFim} terminou 20 minutos após o fim da hora.`);
+      if (!horaTerminou(hora.dataOperacao, hora.horaCodigo)) {
+        throw new Error(`A hora ${hora.horaInicio}–${hora.horaFim} ainda não terminou.`);
       }
 
       const edicao: ProducaoHoraEdicaoPayload | null = opts?.anterior?.createdAt
