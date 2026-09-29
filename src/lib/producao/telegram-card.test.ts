@@ -84,8 +84,10 @@ describe("card horário do Telegram", () => {
     const card = montarCard(periodo, [{
       maquina: "Enchedora 2", quantidade: 0, tempo_parada_min: 60,
       motivo_parada_codigo: "falta_energia", operador_nome: "João <L2>",
+      produto_sabor: "Guaraná <Zero>", produto_tamanho: "2 L",
     }]);
     expect(card).toContain("Enchedora 2</b> · 0 garrafas");
+    expect(card).toContain("Produto: Guaraná &lt;Zero&gt; · 2 L");
     expect(card).toContain("Falta de energia");
     expect(card).toContain("João &lt;L2&gt;");
     expect(card.match(/Não realizado/g)).toHaveLength(3);

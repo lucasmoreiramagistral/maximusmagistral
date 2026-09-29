@@ -1,11 +1,10 @@
 /**
  * Helpers de login usados no NAVEGADOR.
  *
- * Ficam separados de `usuarios.functions.ts` de propósito: aquele módulo
- * importa o cliente `service_role` e é server-only; puxá-lo para um componente
- * arrastaria a chave privilegiada para dentro do bundle.
+ * Ficam separados do cadastro administrativo: a chave privilegiada só é
+ * usada na Edge Function do Supabase e nunca entra no bundle do navegador.
  *
- * Cuidado ao unificar com o `loginParaEmail` de `usuarios.functions.ts`: os
+ * Cuidado ao unificar com a normalização de login da Edge Function: os
  * dois NÃO são equivalentes. Aquele normaliza agressivamente (espaço vira
  * ponto, caractere inválido some) porque cria a conta; este aqui deixa passar
  * um e-mail completo se a pessoa digitar um, porque é a porta de entrada de

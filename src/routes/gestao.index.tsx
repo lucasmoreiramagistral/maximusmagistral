@@ -30,8 +30,11 @@ import { useGuard } from "@/hooks/use-guard";
 import { contarNcNrUltimosDias } from "@/lib/checklist/nao-conformidades";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
-import type { LimpezaTurnoRow, PtpJanelaRow } from "@/lib/verso/mappers";
-import { limpezaTurnoFromRow, ptpJanelaFromRow } from "@/lib/verso/mappers";
+import type { LimpezaTurnoFarolRow, PtpJanelaFarolRow } from "@/lib/verso/mappers";
+import {
+  limpezaTurnoFarolFromRow, LIMPEZA_FAROL_SELECT,
+  ptpJanelaFarolFromRow, PTP_FAROL_SELECT,
+} from "@/lib/verso/mappers";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 
 export const Route = createFileRoute("/gestao/")({
@@ -106,16 +109,16 @@ function GestaoHome() {
       // justamente as que mais envergonham. O card de NC/NR abaixo continua
       // usando a janela de DIAS_NCNR, que é outra pergunta.
       try {
-        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoFarolRow>(async (inicio, fim) => {
           const { data, error, count } = await supabase
             .from("limpeza_turnos" as never)
-            .select("*", { count: "exact" })
+            .select(LIMPEZA_FAROL_SELECT, { count: "exact" })
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (data ?? []) as unknown as LimpezaTurnoRow[], error, count };
+          return { data: (data ?? []) as unknown as LimpezaTurnoFarolRow[], error, count };
         });
-        if (!cancelado) setTurnosLimpeza(linhas.map(limpezaTurnoFromRow));
+        if (!cancelado) setTurnosLimpeza(linhas.map(limpezaTurnoFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[gestao.index] limpeza fetch:", error);
@@ -155,17 +158,17 @@ function GestaoHome() {
       setCarregandoPtp(true);
       // Ocorrências PTP antigas permanecem até receber plano eficaz.
       try {
-        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<PtpJanelaFarolRow>(async (inicio, fim) => {
           const { data, error, count } = await supabase
             .from("ptp_janelas" as never)
-            .select("*", { count: "exact" })
+            .select(PTP_FAROL_SELECT, { count: "exact" })
             .lte("data_operacao", hoje)
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (data ?? []) as unknown as PtpJanelaRow[], error, count };
+          return { data: (data ?? []) as unknown as PtpJanelaFarolRow[], error, count };
         });
-        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[gestao.index] ptp:", error);

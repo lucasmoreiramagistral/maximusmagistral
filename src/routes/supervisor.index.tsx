@@ -29,10 +29,12 @@ import { MAQUINAS, MAQUINAS_ORDENADAS, type MaquinaId } from "@/lib/maquinas/cat
 import { inicioCoberturaObservada } from "@/lib/farol/cobertura-observada";
 import { buscarTodasPaginas } from "@/lib/supabase/buscar-todas-paginas";
 import {
-  limpezaTurnoFromRow,
-  ptpJanelaFromRow,
-  type LimpezaTurnoRow,
-  type PtpJanelaRow,
+  limpezaTurnoFarolFromRow,
+  LIMPEZA_FAROL_SELECT,
+  ptpJanelaFarolFromRow,
+  PTP_FAROL_SELECT,
+  type LimpezaTurnoFarolRow,
+  type PtpJanelaFarolRow,
 } from "@/lib/verso/mappers";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 
@@ -123,16 +125,16 @@ function SupervisorHome() {
       // de 7/15/30. calcularCumprimentoPeriodo filtra por dia internamente,
       // entao passar tudo nao afeta o percentual.
       try {
-        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoFarolRow>(async (inicio, fim) => {
           const { data, error, count } = await supabase
             .from("limpeza_turnos" as never)
-            .select("*", { count: "exact" })
+            .select(LIMPEZA_FAROL_SELECT, { count: "exact" })
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (data ?? []) as unknown as LimpezaTurnoRow[], error, count };
+          return { data: (data ?? []) as unknown as LimpezaTurnoFarolRow[], error, count };
         });
-        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFromRow));
+        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[supervisor] limpezas:", error);
@@ -171,17 +173,17 @@ function SupervisorHome() {
       setErroPtp("");
       setCarregandoPtp(true);
       try {
-        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<PtpJanelaFarolRow>(async (inicio, fim) => {
           const { data, error, count } = await supabase
             .from("ptp_janelas" as never)
-            .select("*", { count: "exact" })
+            .select(PTP_FAROL_SELECT, { count: "exact" })
             .lte("data_operacao", hoje)
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (data ?? []) as unknown as PtpJanelaRow[], error, count };
+          return { data: (data ?? []) as unknown as PtpJanelaFarolRow[], error, count };
         });
-        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[supervisor] ptp:", error);

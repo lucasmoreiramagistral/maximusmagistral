@@ -76,7 +76,7 @@ import {
   editarUsuario,
   listarUsuarios,
   trocarSenhaUsuario,
-} from "@/lib/usuarios/usuarios.functions";
+} from "@/lib/usuarios/usuarios-api";
 
 const HIERARQUIAS_ADMIN: ReadonlyArray<Hierarquia> = [
   "desenvolvedor",

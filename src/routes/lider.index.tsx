@@ -20,10 +20,12 @@ import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
 import {
-  limpezaTurnoFromRow,
-  ptpJanelaFromRow,
-  type LimpezaTurnoRow,
-  type PtpJanelaRow,
+  limpezaTurnoFarolFromRow,
+  LIMPEZA_FAROL_SELECT,
+  ptpJanelaFarolFromRow,
+  PTP_FAROL_SELECT,
+  type LimpezaTurnoFarolRow,
+  type PtpJanelaFarolRow,
 } from "@/lib/verso/mappers";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
@@ -178,16 +180,16 @@ function LiderHome() {
       setErroLimpezas("");
       setCarregandoLimpezas(true);
       try {
-        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoFarolRow>(async (inicio, fim) => {
           const { data: pagina, error, count } = await supabase
             .from("limpeza_turnos" as never)
-            .select("*", { count: "exact" })
+            .select(LIMPEZA_FAROL_SELECT, { count: "exact" })
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (pagina ?? []) as unknown as LimpezaTurnoRow[], error, count };
+          return { data: (pagina ?? []) as unknown as LimpezaTurnoFarolRow[], error, count };
         });
-        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFromRow));
+        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[lider] limpezas:", error);
@@ -227,17 +229,17 @@ function LiderHome() {
       setCarregandoPtp(true);
       // O passivo PTP permanece até ser tratado, inclusive após virar o dia.
       try {
-        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+        const linhas = await buscarTodasPaginas<PtpJanelaFarolRow>(async (inicio, fim) => {
           const { data: pagina, error, count } = await supabase
             .from("ptp_janelas" as never)
-            .select("*", { count: "exact" })
+            .select(PTP_FAROL_SELECT, { count: "exact" })
             .lte("data_operacao", data)
             .order("data_operacao", { ascending: false })
             .order("id", { ascending: false })
             .range(inicio, fim);
-          return { data: (pagina ?? []) as unknown as PtpJanelaRow[], error, count };
+          return { data: (pagina ?? []) as unknown as PtpJanelaFarolRow[], error, count };
         });
-        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFarolFromRow));
       } catch (error) {
         if (cancelado) return;
         console.error("[lider] ptp:", error);

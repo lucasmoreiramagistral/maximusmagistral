@@ -36,6 +36,22 @@ export interface PtpJanelaRow {
   updated_at?: string;
 }
 
+// O Farol usa os itens e o estado, mas não as imagens das assinaturas.
+// Essas imagens representam quase todo o tamanho histórico de ptp_janelas.
+export const PTP_FAROL_SELECT = [
+  "id", "folha_dia_key", "data_operacao", "linha", "area", "maquina", "equipamento",
+  "janela_codigo", "janela_inicio", "janela_fim", "status_janela", "itens_json",
+  "analise_angulo_json", "observacao", "operador_login", "operador_nome",
+  "operador_user_id", "assinado_em", "ultima_edicao_por_login",
+  "ultima_edicao_por_nome", "created_at", "updated_at",
+].join(",");
+
+export type PtpJanelaFarolRow = Omit<PtpJanelaRow, "assinatura_operador">;
+
+export function ptpJanelaFarolFromRow(r: PtpJanelaFarolRow): PtpJanela {
+  return ptpJanelaFromRow({ ...r, assinatura_operador: null });
+}
+
 export function ptpJanelaFromRow(r: PtpJanelaRow): PtpJanela {
   return {
     id: r.id,
@@ -115,6 +131,21 @@ export interface LimpezaTurnoRow {
   ultima_edicao_por_nome: string | null;
   created_at?: string;
   updated_at?: string;
+}
+
+export const LIMPEZA_FAROL_SELECT = [
+  "id", "folha_dia_key", "data_operacao", "linha", "area", "maquina", "equipamento",
+  "turno", "status", "itens_json", "observacao", "operador_login", "operador_nome",
+  "operador_user_id", "operador_assinou_em", "lider_nome", "lider_assinou_em",
+  "ultima_edicao_por_login", "ultima_edicao_por_nome", "created_at", "updated_at",
+].join(",");
+
+export type LimpezaTurnoFarolRow = Omit<
+  LimpezaTurnoRow, "assinatura_operador" | "assinatura_lider"
+>;
+
+export function limpezaTurnoFarolFromRow(r: LimpezaTurnoFarolRow): LimpezaTurno {
+  return limpezaTurnoFromRow({ ...r, assinatura_operador: null, assinatura_lider: null });
 }
 
 export function limpezaTurnoFromRow(r: LimpezaTurnoRow): LimpezaTurno {

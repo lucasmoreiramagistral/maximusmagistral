@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.hora-x-hora-publico]
 verify_jwt = false
+
+[functions.admin-usuarios]
+verify_jwt = true

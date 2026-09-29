@@ -66,7 +66,7 @@ Deno.serve(async (request: Request) => {
     const periodo = periodoDoCorte(corte);
     const { data: horas, error: erroConsulta } = await supabase
       .from("producao_horaria")
-      .select("maquina,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,finalizado_em")
+      .select("maquina,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,produto_sabor,produto_tamanho,finalizado_em")
       .eq("data_operacao", periodo.dataOperacao)
       .eq("hora_codigo", periodo.horaCodigo)
       .in("maquina", MAQUINAS_CARD.map((maquina) => maquina.nome))

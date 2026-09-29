@@ -20,6 +20,8 @@ export interface RegistroCard {
   tempo_parada_min: number | null;
   motivo_parada_codigo: string | null;
   operador_nome: string | null;
+  produto_sabor?: string | null;
+  produto_tamanho?: string | null;
 }
 
 function partesManaus(agora: Date) {
@@ -135,8 +137,14 @@ export function montarCard(periodo: PeriodoCard, registros: readonly RegistroCar
       const motivo = registro.motivo_parada_codigo
         ? (ROTULOS_MOTIVOS[registro.motivo_parada_codigo] ?? "Código não reconhecido")
         : parada === null ? "Cadência não informada" : parada > 0 ? "Não informado" : "Sem perda pela cadência";
+      const produto = [registro.produto_sabor, registro.produto_tamanho]
+        .map((parte) => parte?.trim())
+        .filter((parte): parte is string => Boolean(parte))
+        .map(html)
+        .join(" · ") || "Não informado";
       linhas.push(
         `<b>${maquina.nome}</b> · ${registro.quantidade.toLocaleString("pt-BR")} ${maquina.unidade}`,
+        `Produto: ${produto}`,
         `Perda equivalente: ${parada === null ? "—" : `${parada} min`} · ${html(motivo)}`,
         `Operador: ${html(registro.operador_nome ?? "Não informado")}`,
       );
