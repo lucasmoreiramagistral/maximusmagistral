@@ -18,3 +18,18 @@ export function horaTerminou(
 ): boolean {
   return agoraEpoch >= fimDaHoraEpoch(dataOperacao, horaCodigo);
 }
+
+/** Prazo final para confirmar a hora: 20 minutos após o fim da faixa. */
+export function prazoDaHoraEpoch(dataOperacao: string, horaCodigo: string): number {
+  return fimDaHoraEpoch(dataOperacao, horaCodigo) + 20 * 60 * 1000;
+}
+
+/** A assinatura de fim de turno é independente deste prazo de produção. */
+export function horaEstaNoPrazo(
+  dataOperacao: string,
+  horaCodigo: string,
+  agoraEpoch = Date.now(),
+): boolean {
+  const fim = fimDaHoraEpoch(dataOperacao, horaCodigo);
+  return agoraEpoch >= fim && agoraEpoch < fim + 20 * 60 * 1000;
+}

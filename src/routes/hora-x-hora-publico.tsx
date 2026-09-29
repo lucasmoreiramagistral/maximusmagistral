@@ -7,6 +7,10 @@ import { MAQUINAS_ORDENADAS } from "@/lib/maquinas/catalogo";
 import { HORA_X_HORA_FAIXAS } from "@/lib/producao/constants";
 import { fimDaHoraEpoch } from "@/lib/producao/horario";
 import { rotuloMotivoParada } from "@/lib/producao/motivos-parada";
+import {
+  EmpacotadoraVersoConsulta,
+  type VersoEmpacotadoraConsulta,
+} from "@/components/producao/empacotadora-verso-consulta";
 
 interface RegistroPublico {
   maquina: string;
@@ -26,6 +30,7 @@ interface PainelPublico {
   horaReferencia: string;
   consultadoEm: string;
   registros: RegistroPublico[];
+  versoEmpacotadoras?: Array<VersoEmpacotadoraConsulta & { maquina: string }>;
 }
 
 export const Route = createFileRoute("/hora-x-hora-publico")({
@@ -172,6 +177,18 @@ function PainelHoraXHoraPublico() {
                       })}
                     </div>
                   </section>
+                );
+              })}
+            </div>
+            <div className="mt-6 grid gap-4">
+              {(["Empacotadora 2", "Empacotadora 3"] as const).map((maquina) => {
+                const verso = painel.versoEmpacotadoras?.find((item) => item.maquina === maquina);
+                return verso ? (
+                  <EmpacotadoraVersoConsulta key={maquina} dados={verso} titulo={`${maquina} · verso da folha`} />
+                ) : (
+                  <p key={maquina} className="rounded-xl border bg-white p-4 text-sm text-slate-600">
+                    {maquina}: verso indisponível nesta versão do painel.
+                  </p>
                 );
               })}
             </div>

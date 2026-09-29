@@ -116,7 +116,7 @@ export function ChecklistDiaDetalhe({
 }: {
   folha: FolhaChecklistDia;
   anomalias: Anomalia[];
-  onExportar: () => void;
+  onExportar?: () => void;
 }) {
   const idsChecklists = useMemo(
     () =>
@@ -153,9 +153,9 @@ export function ChecklistDiaDetalhe({
               </span>
             )}
           </div>
-          <Button variant="outline" onClick={onExportar}>
+          {onExportar && <Button variant="outline" onClick={onExportar}>
             Exportar Excel
-          </Button>
+          </Button>}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">

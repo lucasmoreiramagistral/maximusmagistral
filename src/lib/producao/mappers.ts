@@ -32,6 +32,8 @@ export interface ProducaoHoraRow {
   operador_login: string | null;
   operador_nome: string | null;
   operador_user_id: string | null;
+  assinatura_operador?: (AssinaturaDigital & { userId?: string }) | null;
+  operador_assinou_em?: string | null;
   lider_nome: string | null;
   assinatura_lider: (AssinaturaDigital & { userId?: string }) | null;
   lider_assinou_em: string | null;
@@ -75,6 +77,8 @@ export function producaoHoraFromRow(r: ProducaoHoraRow): ProducaoHora {
     operadorLogin: r.operador_login,
     operadorNome: r.operador_nome,
     operadorUserId: r.operador_user_id,
+    assinaturaOperador: r.assinatura_operador ?? null,
+    operadorAssinouEm: r.operador_assinou_em ?? null,
     liderNome: r.lider_nome,
     assinaturaLider: r.assinatura_lider,
     liderAssinouEm: r.lider_assinou_em,
@@ -118,6 +122,8 @@ export function producaoHoraToRow(h: ProducaoHora, userId: string | null): Produ
     operador_login: h.operadorLogin ?? null,
     operador_nome: h.operadorNome ?? null,
     operador_user_id: h.operadorUserId ?? userId,
+    assinatura_operador: h.assinaturaOperador ?? null,
+    operador_assinou_em: h.operadorAssinouEm ?? null,
     lider_nome: h.liderNome ?? null,
     assinatura_lider: h.assinaturaLider ?? null,
     lider_assinou_em: h.liderAssinouEm ?? null,

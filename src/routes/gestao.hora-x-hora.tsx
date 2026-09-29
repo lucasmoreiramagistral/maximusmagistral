@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -34,6 +34,12 @@ import {
 } from "@/lib/producao/constants";
 import { calcularAcumulado, calcularResumoHoraXHora } from "@/lib/producao/acumulado";
 import { rotuloMotivoParada } from "@/lib/producao/motivos-parada";
+import { formatarDataHora } from "@/lib/checklist/format";
+import { buscarVersoEmpacotadoraConsulta } from "@/lib/producao/empacotadora-verso-supabase";
+import {
+  EmpacotadoraVersoConsulta,
+  type VersoEmpacotadoraConsulta,
+} from "@/components/producao/empacotadora-verso-consulta";
 import type { Turno } from "@/lib/checklist/types";
 
 export const Route = createFileRoute("/gestao/hora-x-hora")({
@@ -88,6 +94,10 @@ function GestaoHoraXHoraPage() {
     search.hora && Number(search.hora.slice(1)) > 12 ? "12x36 Noite" : "12x36 Dia",
   );
   const [maquinaId, setMaquinaId] = useState<MaquinaId>("enchedora-3");
+  const [verso, setVerso] = useState<VersoEmpacotadoraConsulta | null>(null);
+  const [versoCarregando, setVersoCarregando] = useState(false);
+  const [versoErro, setVersoErro] = useState<string | null>(null);
+  const [tentativaVerso, setTentativaVerso] = useState(0);
   const maquina = MAQUINAS[maquinaId];
 
   const folhaDiaKey = useMemo(
@@ -104,6 +114,35 @@ function GestaoHoraXHoraPage() {
     maquina,
     false,
   );
+
+  useEffect(() => {
+    if (!usuario || maquina.tipo !== "empacotadora" || !/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      setVerso(null);
+      setVersoErro(null);
+      setVersoCarregando(false);
+      return;
+    }
+    let ativo = true;
+    setVerso(null);
+    setVersoErro(null);
+    setVersoCarregando(true);
+    buscarVersoEmpacotadoraConsulta(folhaDiaKey, maquina.nome, data)
+      .then((resultado) => {
+        if (!ativo) return;
+        setVerso({
+          bobinas: resultado.bobinas.map((linha) => ({
+            ...linha,
+            dataTerminoOperacao: linha.dataTerminoOperacao ?? null,
+          })),
+          consolidacoes: resultado.consolidacoes,
+        });
+      })
+      .catch(() => {
+        if (ativo) setVersoErro("Não foi possível consultar o verso da empacotadora.");
+      })
+      .finally(() => { if (ativo) setVersoCarregando(false); });
+    return () => { ativo = false; };
+  }, [usuario, maquina, data, folhaDiaKey, tentativaVerso]);
 
   const codigosDoTurno = useMemo(() => horasDoTurnoEquipe(turno, null), [turno]);
   const calculadas = useMemo(() => calcularAcumulado(horas), [horas]);
@@ -128,6 +167,7 @@ function GestaoHoraXHoraPage() {
   const checagensAssinadas = checagens.filter(
     (c) => !!porCodigo.get(c)?.assinaturaLider?.dataUrl,
   ).length;
+  const horaFechamento = checagens.length ? porCodigo.get(checagens[0]) : undefined;
 
   if (loading || !usuario) return <TelaCarregando />;
 
@@ -234,27 +274,36 @@ function GestaoHoraXHoraPage() {
             </div>
 
             {checagens.length > 0 && (
-              <div
-                className={`mb-4 flex items-start gap-2 rounded-xl border p-3 text-sm ${
-                  checagensAssinadas === checagens.length
-                    ? "border-success/40 bg-success/10"
-                    : "border-warning/40 bg-warning/10"
-                }`}
-              >
-                <PenLine className="mt-0.5 h-4 w-4 shrink-0 text-foreground/70" />
-                <p className="text-foreground">
-                  <span className="font-semibold">
-                    Checagem do líder: {checagensAssinadas}/{checagens.length}
-                  </span>{" "}
-                  — assinaturas nas horas{" "}
-                  {checagens
-                    .map((c) => {
-                      const f = HORA_X_HORA_FAIXAS.find((x) => x.codigo === c);
-                      return f ? `${f.inicio} às ${f.fim}` : c;
-                    })
-                    .join(" e ")}
-                  .
+              <div className="mb-4 rounded-xl border border-border bg-card p-4 text-sm">
+                <p className="mb-3 flex items-center gap-2 font-semibold text-foreground">
+                  <PenLine className="h-4 w-4" /> Encerramento do turno ·{" "}
+                  {checagens.map((c) => {
+                    const f = HORA_X_HORA_FAIXAS.find((x) => x.codigo === c);
+                    return f ? `${f.inicio} às ${f.fim}` : c;
+                  }).join(" e ")}
                 </p>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <AssinaturaConsulta
+                    titulo="Assinatura do operador"
+                    dataUrl={horaFechamento?.assinaturaOperador?.dataUrl}
+                    nome={horaFechamento?.assinaturaOperador?.nome ?? horaFechamento?.operadorNome}
+                    assinadoEm={horaFechamento?.operadorAssinouEm}
+                    pendente={horaFechamento?.finalizadoEm
+                      ? "Aguardando assinatura do operador"
+                      : "Aguardando lançamento da hora final"}
+                  />
+                  <AssinaturaConsulta
+                    titulo={`Validação do líder (${checagensAssinadas}/${checagens.length})`}
+                    dataUrl={horaFechamento?.assinaturaLider?.dataUrl}
+                    nome={horaFechamento?.liderNome ?? horaFechamento?.assinaturaLider?.nome}
+                    assinadoEm={horaFechamento?.liderAssinouEm}
+                    pendente={!horaFechamento?.finalizadoEm
+                      ? "Aguardando lançamento da hora final"
+                      : horaFechamento.assinaturaOperador?.dataUrl
+                        ? "Aguardando validação do líder"
+                        : "Aguardando assinatura do operador"}
+                  />
+                </div>
               </div>
             )}
 
@@ -383,6 +432,19 @@ function GestaoHoraXHoraPage() {
               )}
             </div>
 
+            {maquina.tipo === "empacotadora" && (
+              versoCarregando ? (
+                <p className="mt-6 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">Carregando bobinas e fechamento por produto…</p>
+              ) : versoErro ? (
+                <div role="alert" className="mt-6 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
+                  {versoErro}
+                  <Button variant="outline" className="ml-3" onClick={() => setTentativaVerso((n) => n + 1)}>Tentar novamente</Button>
+                </div>
+              ) : verso ? (
+                <EmpacotadoraVersoConsulta dados={verso} />
+              ) : null
+            )}
+
             <p className="mt-6 text-sm text-muted-foreground">
               <FileClock className="mr-1 inline h-4 w-4" />
               Dados consultados no banco. A quantidade acumulada zera na virada do turno e a
@@ -404,6 +466,26 @@ function Cartao({ titulo, valor }: { titulo: string; valor: string | number }) {
         {titulo}
       </p>
       <p className="mt-1 text-2xl font-bold text-primary md:text-3xl">{valor}</p>
+    </div>
+  );
+}
+
+function AssinaturaConsulta({
+  titulo, dataUrl, nome, assinadoEm, pendente,
+}: {
+  titulo: string;
+  dataUrl?: string | null;
+  nome?: string | null;
+  assinadoEm?: string | null;
+  pendente: string;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-muted/20 p-3">
+      <p className="text-xs font-semibold text-foreground">{titulo}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {dataUrl ? `${nome || "Nome não informado"}${assinadoEm ? ` · ${formatarDataHora(assinadoEm)}` : ""}` : pendente}
+      </p>
+      {dataUrl && <img src={dataUrl} alt={titulo} className="mt-2 h-14 max-w-full rounded border border-border bg-white object-contain" />}
     </div>
   );
 }

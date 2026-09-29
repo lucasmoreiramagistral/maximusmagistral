@@ -6,7 +6,8 @@ import { TelaCarregando } from "@/components/tela-carregando";
 import { useGuard } from "@/hooks/use-guard";
 import { useChecklistsRemote } from "@/hooks/use-storage";
 import { supabase } from "@/integrations/supabase/client";
-import { montarFarol, ROTINA_ENCHEDORA_3, type CelulaFarol } from "@/lib/farol/farol";
+import { montarFarol, type CelulaFarol } from "@/lib/farol/farol";
+import { buscarTodasPaginas } from "@/lib/supabase/buscar-todas-paginas";
 import { carregarResolvidas, levantarPendencias, type Pendencia } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import {
@@ -64,7 +65,7 @@ function LiderHome() {
   // Mesma armadilha já corrigida na tela da GI, e que eu tinha deixado passar
   // aqui: enquanto limpezas e planos não chegam, as duas filas renderizam
   // vazias e a tela anuncia "Nada aguardando validação" — com 55 em aberto.
-  // Só travam a primeira carga; recarregar não pisca a tela.
+  // Em cada recarga, o farol aguarda todas as páginas antes de mostrar números.
   const [carregandoLimpezas, setCarregandoLimpezas] = useState(true);
   const [carregandoPlanos, setCarregandoPlanos] = useState(true);
 
@@ -175,20 +176,25 @@ function LiderHome() {
     let cancelado = false;
     void (async () => {
       setErroLimpezas("");
-      // NÃO desestruturar como `data`: sombrearia a data selecionada acima.
-      const { data: linhasLimpeza, error } = await supabase
-        .from("limpeza_turnos" as never)
-        .select("*")
-        .order("data_operacao", { ascending: false });
-      if (cancelado) return;
-      if (error) {
+      setCarregandoLimpezas(true);
+      try {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+          const { data: pagina, error, count } = await supabase
+            .from("limpeza_turnos" as never)
+            .select("*", { count: "exact" })
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (pagina ?? []) as unknown as LimpezaTurnoRow[], error, count };
+        });
+        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[lider] limpezas:", error);
         setErroLimpezas("Nao foi possivel carregar a limpeza operacional.");
-        setCarregandoLimpezas(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoLimpezas(false);
       }
-      setLimpezas(((linhasLimpeza ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
-      setCarregandoLimpezas(false);
     })();
     return () => {
       cancelado = true;
@@ -218,25 +224,27 @@ function LiderHome() {
     let cancelado = false;
     void (async () => {
       setErroPtp("");
-      // Desde o início oficial do piloto: ocorrências PTP continuam abertas
-      // depois que o dia vira e precisam alimentar o plano de ação.
-      const { data: linhasPtp, error } = await supabase
-        .from("ptp_janelas" as never)
-        .select("*")
-        .gte(
-          "data_operacao",
-          data < ROTINA_ENCHEDORA_3.vigenteDesde ? data : ROTINA_ENCHEDORA_3.vigenteDesde,
-        )
-        .lte("data_operacao", data);
-      if (cancelado) return;
-      if (error) {
+      setCarregandoPtp(true);
+      // O passivo PTP permanece até ser tratado, inclusive após virar o dia.
+      try {
+        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+          const { data: pagina, error, count } = await supabase
+            .from("ptp_janelas" as never)
+            .select("*", { count: "exact" })
+            .lte("data_operacao", data)
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (pagina ?? []) as unknown as PtpJanelaRow[], error, count };
+        });
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[lider] ptp:", error);
         setErroPtp("Nao foi possivel carregar o PTP.");
-        setCarregandoPtp(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoPtp(false);
       }
-      setPtp(((linhasPtp ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
-      setCarregandoPtp(false);
     })();
     return () => {
       cancelado = true;
@@ -344,7 +352,7 @@ function LiderHome() {
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="Liderança"
-        subtitulo={`Equipe ${usuario.equipePadrao ?? "—"} · ${usuario.turnoPadrao ?? "—"} · Linha 3 · ${formatarDataBR(data)}`}
+        subtitulo={`Equipe ${usuario.equipePadrao ?? "—"} · ${usuario.turnoPadrao ?? "—"} · Linhas 2 e 3 · ${formatarDataBR(data)}`}
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
         <div className="mb-4 flex flex-wrap items-center gap-2">

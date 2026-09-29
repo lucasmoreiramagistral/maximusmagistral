@@ -69,7 +69,7 @@ function ListaChecklists() {
     () => buildFolhasAgrupadas(checklists, anomalias),
     [checklists, anomalias],
   );
-  const { resumos: resumosVerso } = useVersosDosDiasRemote(todasFolhas);
+  const { resumos: resumosVerso, error: erroVerso, refetch: refetchVerso } = useVersosDosDiasRemote(todasFolhas);
   const folhas = useMemo(
     () => filtrarFolhas(todasFolhas, filtros, anomalias, resumosVerso),
     [todasFolhas, anomalias, filtros, resumosVerso],
@@ -82,7 +82,7 @@ function ListaChecklists() {
 
   const totalLabel =
     visao === "verso"
-      ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha de Linha 3" : "folhas de Linha 3"}`
+      ? `${folhasVerso.length} ${folhasVerso.length === 1 ? "folha com PTP" : "folhas com PTP"}`
       : visao === "dia"
         ? `${folhas.length} ${folhas.length === 1 ? "folha do turno" : "folhas do turno"}`
         : `${lista.length} ${lista.length === 1 ? "registro" : "registros"}`;
@@ -147,11 +147,19 @@ function ListaChecklists() {
             {erro}
           </p>
         )}
+        {erroVerso && (
+          <div role="alert" className="mb-4 rounded-md bg-destructive-soft px-3 py-2 text-sm font-semibold text-destructive">
+            {erroVerso}
+            <Button variant="outline" size="sm" className="ml-3" onClick={() => void refetchVerso()}>
+              Tentar novamente
+            </Button>
+          </div>
+        )}
         {loading ? (
           <div className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card p-10 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" /> Carregando…
           </div>
-        ) : visao === "verso" ? (
+        ) : erroVerso && visao !== "momento" ? null : visao === "verso" ? (
           folhasVerso.length === 0 ? (
             <FolhasVazio filtros={filtros} visao="verso" />
           ) : (
@@ -265,7 +273,7 @@ function ChipsFiltroVerso({ estadoAtual }: { estadoAtual: EstadoVersoFiltro | un
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2">
       <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-        Verso (Linha 3):
+        Verso (PTP por máquina):
       </span>
       {CHIPS.map((chip) => {
         const ativo = estadoAtual === chip.valor;
@@ -312,7 +320,7 @@ function FolhasVazio({
       return (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="mb-4 text-muted-foreground">
-            Nenhuma folha de Linha 3 corresponde aos filtros aplicados.
+            Nenhuma folha com PTP corresponde aos filtros aplicados.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <Button variant="outline" size="sm" onClick={limparVerso}>
@@ -329,7 +337,7 @@ function FolhasVazio({
       return (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="mb-4 text-muted-foreground">
-            Nenhuma folha de Linha 3 com este estado.
+            Nenhuma folha com PTP neste estado.
           </p>
           <Button variant="outline" size="sm" onClick={limparVerso}>
             Limpar filtro de verso
@@ -341,7 +349,7 @@ function FolhasVazio({
       return (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="mb-4 text-muted-foreground">
-            Filtros atuais não retornam folhas de Linha 3.
+            Filtros atuais não retornam folhas com PTP.
           </p>
           <Button variant="outline" size="sm" onClick={limparTudo}>
             Limpar todos os filtros
@@ -351,7 +359,7 @@ function FolhasVazio({
     }
     return (
       <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-muted-foreground">
-        Nenhuma folha de Linha 3 disponível.
+        Nenhuma folha com PTP disponível.
       </p>
     );
   }

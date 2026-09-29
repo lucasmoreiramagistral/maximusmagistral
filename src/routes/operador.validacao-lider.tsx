@@ -19,10 +19,10 @@ import { useChecklistsRemote } from "@/hooks/use-storage";
 import { useLimpezaTurnos } from "@/hooks/use-limpeza-turnos";
 import { buildFolhaDiaKey, formatarDataBR } from "@/lib/operacao/data-operacional";
 import { useTurnoAtivoDoDia } from "@/lib/operacao/turno-ativo";
-import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
+import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
 import { formatarDataHora } from "@/lib/checklist/format";
-import type { Checklist } from "@/lib/checklist/types";
 import type { LimpezaTurno } from "@/lib/verso/types";
+import { checklistPosSetupParaValidar } from "@/lib/farol/validacao-pendencias";
 import {
   finalizarValidacaoComLogin,
   finalizarValidacaoContingencia,
@@ -37,7 +37,7 @@ export const Route = createFileRoute("/operador/validacao-lider")({
       { title: "Validação de Relatório pelo Líder" },
       {
         name: "description",
-        content: "Tela de assinaturas finais do líder: checklist e limpeza da sala de envase.",
+        content: "Tela de assinaturas finais do líder para a máquina do operador.",
       },
     ],
   }),
@@ -46,6 +46,7 @@ export const Route = createFileRoute("/operador/validacao-lider")({
 
 function ValidacaoLiderPage() {
   const { usuario, loading } = useGuard("operador");
+  const maquina = maquinaDoUsuario(usuario);
   const navigate = useNavigate();
   const {
     data: checklistsRemote,
@@ -57,39 +58,25 @@ function ValidacaoLiderPage() {
   const equipe = turnoAtivo.equipe;
   const turno = turnoAtivo.turno;
   const data = turnoAtivo.data;
-  const folhaDiaKey = buildFolhaDiaKey(
-    data,
-    VERSO_CONTEXTO_FIXO.linha,
-    VERSO_CONTEXTO_FIXO.maquina,
-  );
+  const folhaDiaKey = buildFolhaDiaKey(data, maquina.linha, maquina.nome);
 
-  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null);
+  const limpeza = useLimpezaTurnos(folhaDiaKey, data, usuario?.userId ?? null, maquina);
 
   // ── Localizar checklist Pós-setup do dia ──
-  const posSetup: Checklist | null = useMemo(() => {
-    if (!turno || !equipe) return null;
-    return (
-      checklistsRemote.find(
-        (c) =>
-          c.contexto.data === data &&
-          c.contexto.turno === turno &&
-          c.contexto.equipe === equipe &&
-          c.contexto.linha === "Linha 3" &&
-          c.contexto.maquina === "Enchedora 3" &&
-          c.momento === "Pós-setup" &&
-          c.status === "concluido",
-      ) ?? null
-    );
-  }, [turno, equipe, data, checklistsRemote]);
+  const posSetup = useMemo(
+    () => checklistPosSetupParaValidar(checklistsRemote, { data, turno, equipe }, maquina),
+    [turno, equipe, data, checklistsRemote, maquina],
+  );
 
   // ── Limpeza do turno do operador aguardando validação ──
   const limpezaTurno: LimpezaTurno | null = useMemo(() => {
-    if (!turno) return null;
+    if (!turno || !maquina.formularios.limpeza) return null;
     return limpeza.turnos.find((t) => t.turno === turno) ?? null;
-  }, [turno, limpeza.turnos]);
+  }, [turno, limpeza.turnos, maquina]);
 
   const checklistPendente = !!posSetup?.assinaturaOperador && !posSetup?.assinaturaLider;
-  const limpezaPendente = limpezaTurno?.status === "aguardando_validacao";
+  const limpezaPendente =
+    maquina.formularios.limpeza && limpezaTurno?.status === "aguardando_validacao";
 
   const [pedindoLogin, setPedindoLogin] = useState(false);
   const [assinaturaChecklist, setAssinaturaChecklist] = useState<string | null>(null);
@@ -197,7 +184,7 @@ function ValidacaoLiderPage() {
             </div>
             <p className="text-xl font-bold text-foreground md:text-2xl">Nada para validar agora</p>
             <p className="mt-2 text-sm text-muted-foreground md:text-base">
-              Não há checklist nem limpeza aguardando a assinatura do líder neste turno.
+              Não há rotina aguardando a assinatura do líder neste turno.
             </p>
             <Button asChild className="mt-5">
               <Link to="/operador">Voltar para a home</Link>
@@ -214,7 +201,8 @@ function ValidacaoLiderPage() {
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     O operador já concluiu e assinou. Sua assinatura libera o fechamento do dia.
-                    Você pode usar a mesma assinatura para os dois itens.
+                    {maquina.formularios.limpeza &&
+                      " Você pode usar a mesma assinatura para os dois itens."}
                   </p>
                 </div>
               </div>

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertCircle,
@@ -35,6 +35,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ApoioSecoes } from "@/components/producao/apoio-secoes";
 import { VersoSecoes } from "@/components/producao/verso-secoes";
 import { EmpacotadoraRelatorio } from "@/components/producao/empacotadora-relatorio";
+import { AssinaturaOperadorTurno } from "@/components/producao/assinatura-operador-turno";
+import { AssinaturaOperadorHistorico } from "@/components/producao/assinatura-operador-historico";
 import { TelaCarregando } from "@/components/tela-carregando";
 
 import { useGuard } from "@/hooks/use-guard";
@@ -53,7 +55,7 @@ import {
   horasDoTurnoEquipe,
 } from "@/lib/producao/constants";
 import { maquinaDoUsuario } from "@/lib/maquinas/catalogo";
-import { horaTerminou } from "@/lib/producao/horario";
+import { horaEstaNoPrazo, horaTerminou } from "@/lib/producao/horario";
 import { SignaturePad } from "@/components/signature-pad";
 import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno, type ProdutoAnterior } from "@/lib/producao/acumulado";
 import {
@@ -117,9 +119,20 @@ function HoraXHoraPage() {
     conflito,
     salvarHora,
     assinarHora,
+    assinarTurnoOperador,
   } = useProducaoHoraria(folhaDiaKey, data, turno, usuario?.userId ?? null, maquina);
 
   const [editando, setEditando] = useState<string | null>(null);
+  const [agoraEpoch, setAgoraEpoch] = useState(() => Date.now());
+  useEffect(() => {
+    const atualizarRelogio = () => setAgoraEpoch(Date.now());
+    const timer = window.setInterval(atualizarRelogio, 15_000);
+    document.addEventListener("visibilitychange", atualizarRelogio);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", atualizarRelogio);
+    };
+  }, []);
 
   const codigosDoTurno = useMemo(() => horasDoTurnoEquipe(turno, equipe), [turno, equipe]);
 
@@ -138,7 +151,7 @@ function HoraXHoraPage() {
   ).length;
 
   // A produção da faixa só é definitiva depois que a hora termina.
-  const bloqueada = (codigo: string) => !horaTerminou(data, codigo);
+  const bloqueada = (codigo: string) => !horaTerminou(data, codigo, agoraEpoch);
 
   if (loading || !usuario || carregando) return <TelaCarregando />;
 
@@ -179,6 +192,7 @@ function HoraXHoraPage() {
         error={error}
         salvarHora={salvarHora}
         assinarHora={assinarHora}
+        assinarTurnoOperador={assinarTurnoOperador}
       />
     );
   }
@@ -263,7 +277,7 @@ function HoraXHoraPage() {
             )}
 
             <p className="mb-3 text-sm text-muted-foreground">
-              Após o fim de cada hora, toque nela para lançar a produção. A quantidade acumulada é calculada
+              Após o fim de cada hora, salve a produção em até 20 minutos. A quantidade acumulada é calculada
               automaticamente e zera na virada do turno e a cada troca de produto ou CIP.
             </p>
 
@@ -272,18 +286,21 @@ function HoraXHoraPage() {
                 const h = porCodigo.get(codigo);
                 if (!h) return null;
                 const travada = bloqueada(codigo);
+                const noPrazo = horaEstaNoPrazo(data, codigo, agoraEpoch);
                 const lancada = h.naoRodou || typeof h.quantidade === "number";
                 const confirmada = horaJaConfirmada(h);
                 const podeAssinar =
-                  confirmada && ehHoraDeChecagemLider(h.horaCodigo) && !h.assinaturaLider?.dataUrl;
+                  confirmada && ehHoraDeChecagemLider(h.horaCodigo) &&
+                  (!h.assinaturaLider?.dataUrl || !h.assinaturaOperador?.dataUrl);
+                const foraPrazo = !confirmada && !travada && !noPrazo;
                 return (
                   <button
                     key={codigo}
                     type="button"
-                    disabled={travada || (confirmada && !podeAssinar)}
+                    disabled={travada || foraPrazo || (confirmada && !podeAssinar)}
                     onClick={() => setEditando(codigo)}
                     className={`rounded-2xl border-2 p-4 text-left shadow-sm transition-all ${
-                      travada || (confirmada && !podeAssinar)
+                      travada || foraPrazo || (confirmada && !podeAssinar)
                         ? "cursor-not-allowed border-border bg-muted/40 opacity-70"
                         : "border-border bg-card hover:border-primary/50 hover:shadow-md active:scale-[0.99]"
                     }`}
@@ -300,6 +317,10 @@ function HoraXHoraPage() {
                       {travada ? (
                         <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
                           <Lock className="h-3 w-3" /> Aguardando
+                        </span>
+                      ) : foraPrazo ? (
+                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">
+                          <Lock className="h-3 w-3" /> Prazo encerrado
                         </span>
                       ) : lancada ? (
                         h.naoRodou ? (
@@ -368,6 +389,18 @@ function HoraXHoraPage() {
                     {ehHoraDeChecagemLider(h.horaCodigo) && (
                       <p
                         className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
+                          h.assinaturaOperador?.dataUrl
+                            ? "bg-success/15 text-success"
+                            : "bg-warning/15 text-warning"
+                        }`}
+                      >
+                        <PenLine className="h-3 w-3" />
+                        {h.assinaturaOperador?.dataUrl ? "Operador assinou" : "Assinatura do operador pendente"}
+                      </p>
+                    )}
+                    {ehHoraDeChecagemLider(h.horaCodigo) && (
+                      <p
+                        className={`mt-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold ${
                           h.assinaturaLider?.dataUrl
                             ? "bg-success/15 text-success"
                             : "bg-warning/15 text-warning"
@@ -403,6 +436,11 @@ function HoraXHoraPage() {
             <VersoSecoes usuario={usuario} turno={turno} data={data} folhaDiaKey={folhaDiaKey} maquina={maquina} />
           </TabsContent>
         </Tabs>
+        <AssinaturaOperadorHistorico
+          dataAtual={data}
+          maquina={maquina}
+          operadorUserId={usuario.userId}
+        />
       </main>
 
       {horaEmEdicao && (
@@ -412,6 +450,7 @@ function HoraXHoraPage() {
           somenteAssinatura={horaJaConfirmada(horaEmEdicao)}
           metaSugerida={metaSugerida(horaEmEdicao.horaCodigo)}
           produtoSugerido={produtoSugerido(horaEmEdicao.horaCodigo)}
+          operadorUserId={usuario.userId}
           onFechar={() => setEditando(null)}
           onSalvar={async (nova) => {
             try {
@@ -430,6 +469,9 @@ function HoraXHoraPage() {
           onAssinar={async (assinatura, nomeLider) => {
             await assinarHora(horaEmEdicao, assinatura, nomeLider);
             toast.success(`Checagem de ${horaEmEdicao.horaInicio}–${horaEmEdicao.horaFim} assinada por ${nomeLider.trim()}.`);
+          }}
+          onAssinarOperador={async (assinatura) => {
+            await assinarTurnoOperador(horaEmEdicao, assinatura);
           }}
         />
       )}
@@ -486,17 +528,21 @@ function DialogHora({
   somenteAssinatura,
   metaSugerida,
   produtoSugerido,
+  operadorUserId,
   onFechar,
   onSalvar,
   onAssinar,
+  onAssinarOperador,
 }: {
   hora: ProducaoHora;
   somenteAssinatura: boolean;
   metaSugerida: number | null;
   produtoSugerido: ProdutoAnterior | null;
+  operadorUserId: string | null | undefined;
   onFechar: () => void;
   onSalvar: (h: ProducaoHora) => Promise<void>;
   onAssinar: (assinatura: string, nomeLider: string) => Promise<void>;
+  onAssinarOperador: (assinatura: string) => Promise<void>;
 }) {
   const [meta, setMeta] = useState<string>(
     hora.meta !== null ? String(hora.meta) : metaSugerida !== null ? String(metaSugerida) : "",
@@ -533,12 +579,17 @@ function DialogHora({
   const [assinaturaLider, setAssinaturaLider] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
   const exigeLider = ehHoraDeChecagemLider(hora.horaCodigo);
+  const liderPodeValidar = !hora.finalizadoEm || !!hora.assinaturaOperador?.dataUrl;
   const quantidadePrevia = naoRodou ? 0 : quantidade.trim() === "" ? null : Number(quantidade);
   const cadenciaPrevia = meta.trim() === "" ? null : Number(meta);
   const perdaPrevia = calcularPerdaCadenciaMin(cadenciaPrevia, quantidadePrevia);
 
   async function handleSalvar() {
     if (somenteAssinatura) {
+      if (!liderPodeValidar) {
+        toast.error("O operador deve assinar o turno antes da validação do líder.");
+        return;
+      }
       if (!exigeLider || !assinaturaLider || !nomeLider.trim() || hora.assinaturaLider?.dataUrl) {
         toast.error("Colha a assinatura do líder para concluir a checagem.");
         return;
@@ -552,6 +603,10 @@ function DialogHora({
       } finally {
         setSalvando(false);
       }
+      return;
+    }
+    if (!horaEstaNoPrazo(hora.dataOperacao, hora.horaCodigo)) {
+      toast.error("O prazo de 20 minutos após o fim da hora terminou.");
       return;
     }
     const qtd = quantidade.trim() === "" ? null : Number(quantidade);
@@ -651,8 +706,8 @@ function DialogHora({
           </DialogTitle>
           <DialogDescription>
             {somenteAssinatura
-              ? "A produção desta hora já foi confirmada. O líder pode acrescentar a assinatura."
-              : "Lance a produção desta hora. Depois de confirmar, os valores não poderão ser alterados."}
+              ? "A produção desta hora já foi confirmada. O operador assina primeiro; depois o líder valida o turno."
+              : "Confirme até 20 minutos após o fim da hora. Depois de salvar, os valores não poderão ser alterados."}
           </DialogDescription>
         </DialogHeader>
 
@@ -835,7 +890,12 @@ function DialogHora({
               />
             </div>
           )}
-          {exigeLider && somenteAssinatura && !hora.assinaturaLider?.dataUrl && (
+          {exigeLider && somenteAssinatura && !hora.assinaturaLider?.dataUrl && !liderPodeValidar && (
+            <p className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+              Aguardando a assinatura do operador para o líder validar este turno.
+            </p>
+          )}
+          {exigeLider && somenteAssinatura && !hora.assinaturaLider?.dataUrl && liderPodeValidar && (
             <div className="rounded-xl border-2 border-primary/30 bg-primary-soft/40 p-3">
               <p className="text-sm font-bold text-foreground">
                 Checagem do líder ({hora.horaInicio} às {hora.horaFim})
@@ -861,13 +921,20 @@ function DialogHora({
               />
             </div>
           )}
+          {exigeLider && somenteAssinatura && (
+            <AssinaturaOperadorTurno
+              hora={hora}
+              operadorUserId={operadorUserId}
+              onAssinar={onAssinarOperador}
+            />
+          )}
         </div>
 
         <DialogFooter>
           <Button variant="ghost" onClick={onFechar} disabled={salvando}>
-            {somenteAssinatura && (!exigeLider || !!hora.assinaturaLider?.dataUrl) ? "Fechar" : "Cancelar"}
+            {somenteAssinatura && (!exigeLider || !!hora.assinaturaLider?.dataUrl || !liderPodeValidar) ? "Fechar" : "Cancelar"}
           </Button>
-          {(!somenteAssinatura || (exigeLider && !hora.assinaturaLider?.dataUrl)) && (
+          {(!somenteAssinatura || (exigeLider && !hora.assinaturaLider?.dataUrl && liderPodeValidar)) && (
             <Button onClick={handleSalvar} disabled={salvando}>
               {salvando ? "Salvando..." : somenteAssinatura ? "Salvar assinatura do líder" : "Confirmar e salvar definitivamente"}
             </Button>

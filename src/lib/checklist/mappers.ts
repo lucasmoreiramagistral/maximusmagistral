@@ -1,4 +1,5 @@
 import type { Anomalia, AnomaliaAtualizacao, Checklist, ContextoChecklist, Equipe, MomentoChecklist, RespostaItem, StatusAnomalia, Turno } from "./types";
+import { maquinaPorNome } from "@/lib/maquinas/catalogo";
 
 // ─────────── Checklist row (snake_case do banco) ───────────
 export interface ChecklistRow {
@@ -160,7 +161,10 @@ export function checklistToRow(
     linha: c.contexto.linha,
     area: c.contexto.area ?? "Envase",
     maquina: c.contexto.maquina,
-    equipamento: c.contexto.equipamento ?? "Enchedora Zegla 50V",
+    equipamento:
+      c.contexto.equipamento ??
+      maquinaPorNome(c.contexto.maquina)?.equipamento ??
+      c.contexto.maquina,
     folha_key: c.folhaKey ?? "",
     verificacao_numero: (c.verificacaoNumero ?? 1) as 1 | 2 | 3,
     total_conformes: conformes,
@@ -176,9 +180,9 @@ export function anomaliaFromRow(row: AnomaliaRow): Anomalia {
   return {
     id: row.id,
     criadoEm: row.criado_em,
-    linha: (row.linha ?? "Linha 3") as "Linha 3",
+    linha: (row.linha ?? "Linha 3") as Anomalia["linha"],
     area: (row.area ?? "Envase") as "Envase",
-    maquina: (row.maquina ?? "Enchedora 3") as "Enchedora 3",
+    maquina: (row.maquina ?? "Enchedora 3") as Anomalia["maquina"],
     itemOrigem: row.item_origem ?? undefined,
     checklistId: row.checklist_id ?? undefined,
     categoria: row.categoria as Anomalia["categoria"],
@@ -204,7 +208,7 @@ export function anomaliaFromRow(row: AnomaliaRow): Anomalia {
     abertoPorPerfil: row.aberto_por_perfil ?? undefined,
     tecnicoResponsavel: row.tecnico_responsavel ?? undefined,
     emAndamentoEm: row.em_andamento_em ?? undefined,
-    equipamentoAfetado: row.equipamento_afetado ?? "Enchedora 3",
+    equipamentoAfetado: row.equipamento_afetado ?? row.maquina ?? "Enchedora 3",
   };
 }
 
@@ -224,7 +228,7 @@ export function anomaliaToRow(
     linha: a.linha,
     area: a.area,
     maquina: a.maquina,
-    equipamento: "Enchedora Zegla 50V",
+    equipamento: maquinaPorNome(a.maquina)?.equipamento ?? a.maquina,
     data_operacao: data,
     turno: a.turno,
     equipe: a.equipe,
@@ -247,6 +251,6 @@ export function anomaliaToRow(
     aberto_por_perfil: a.abertoPorPerfil ?? null,
     tecnico_responsavel: a.tecnicoResponsavel ?? null,
     em_andamento_em: a.emAndamentoEm ?? null,
-    equipamento_afetado: a.equipamentoAfetado ?? "Enchedora 3",
+    equipamento_afetado: a.equipamentoAfetado ?? a.maquina,
   };
 }

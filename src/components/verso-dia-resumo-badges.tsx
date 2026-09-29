@@ -39,14 +39,14 @@ function labelLimpeza(status: ResumoVerso["limpeza"]["dia"]): string {
 }
 
 /**
- * Mostra os badges de saúde do verso (PTP + Limpeza) no card da folha do dia.
+ * Mostra os badges de saúde do verso (PTP e limpeza, quando aplicável).
  * Renderiza apenas se `resumo` foi calculado (chamador deve gatear por
  * `temVerso(folha)`).
  */
 export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefined }) {
   if (!resumo) return null;
 
-  const { ptp, limpeza, saude } = resumo;
+  const { ptp, limpeza, saude, limpezaAplicavel } = resumo;
   const totalJanelas = ptp.totalJanelasTurno;
 
   // PTP ─────
@@ -115,7 +115,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
           </TooltipTrigger>
           <TooltipContent className="max-w-xs">
             <p className="text-xs">
-              <strong>PTP Garrafas</strong> — 12 janelas de 2h cada, ciclo
+                <strong>{resumo.tituloPtp}</strong> — janelas do turno, ciclo
               operacional <strong>06h → 06h do dia seguinte</strong>.
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -126,7 +126,7 @@ export function VersoDiaResumoBadges({ resumo }: { resumo: ResumoVerso | undefin
           </TooltipContent>
         </Tooltip>
 
-        {(["dia", "noite"] as const).map((slot) => {
+        {limpezaAplicavel && (["dia", "noite"] as const).map((slot) => {
           const status = slot === "dia" ? limpeza.dia : limpeza.noite;
           if (!status) return null;
           const { tone, Icon } = tonLimpeza(status);

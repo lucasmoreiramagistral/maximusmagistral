@@ -349,6 +349,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      rpc_assinar_hora_operador: {
+        Args: {
+          p_hora_id: string;
+          p_updated_at: string;
+          p_assinatura_data_url: string;
+        };
+        Returns: Json;
+      };
       rpc_assinar_hora_lider: {
         Args: {
           p_hora_id: string;

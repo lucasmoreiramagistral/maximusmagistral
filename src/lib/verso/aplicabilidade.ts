@@ -1,17 +1,14 @@
 import type { FolhaChecklistDia } from "@/lib/checklist/types";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
-import { VERSO_CONTEXTO_FIXO } from "./constants";
+import { maquinaPorNome } from "@/lib/maquinas/catalogo";
 
 /**
- * O verso da folha (PTP + Limpeza Sala de Envase) só existe na Linha 3 /
- * Enchedora 3 (Zegla 50V). Todas as demais linhas/máquinas não têm verso —
- * a UI de gestão precisa pular badges e ignorar filtros de verso pra elas.
+ * Todas as quatro máquinas têm PTP no verso do checklist. A limpeza só se
+ * aplica às enchedoras e é tratada separadamente no resumo.
  */
 export function temVerso(folha: FolhaChecklistDia): boolean {
-  return (
-    folha.contexto.linha === VERSO_CONTEXTO_FIXO.linha &&
-    folha.contexto.maquina === VERSO_CONTEXTO_FIXO.maquina
-  );
+  const maquina = maquinaPorNome(folha.contexto.maquina);
+  return !!maquina && maquina.linha === folha.contexto.linha && maquina.formularios.ptp;
 }
 
 /**

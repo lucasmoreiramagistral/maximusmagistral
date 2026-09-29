@@ -17,6 +17,7 @@
 
 import type { Checklist, MomentoChecklist } from "@/lib/checklist/types";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
+import { MAQUINAS_ORDENADAS, maquinaPorNome } from "@/lib/maquinas/catalogo";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import type { Pendencia } from "./pendencias";
 
@@ -151,6 +152,8 @@ export interface CelulaFarol {
   maquinaId: string;
   coluna: ColunaFarol;
   estado: EstadoFarol;
+  /** Rotina inexistente nesta máquina: mostra NA, mas não entra no cumprimento. */
+  rotinaNaoAplicavel?: boolean;
   /** Itens fora do padrão nesta rotina, no dia mostrado. */
   totalNc: number;
   /**
@@ -213,17 +216,21 @@ export interface ResumoFarol {
 }
 
 /**
- * Máquinas do farol. Hoje só a Enchedora 3 está implantada; as demais
- * ficam cinza para mostrar o caminho de expansão sem prometer o que não existe.
+ * Máquinas operacionais do farol vêm do mesmo catálogo usado no login.
+ * As máquinas ainda sem formulário implantado continuam cinza.
  *
  * Os nomes vêm do V-GRAF do FM0x (Análise Horária de Liderança), que lista
  * as máquinas reais da linha: Optima, Enchedora, Rotuladora, Empacotadora.
  */
 export const MAQUINAS_FAROL: ReadonlyArray<MaquinaFarol> = [
-  { id: "Enchedora 3", nome: "Enchedora 3", detalhe: "Zegla 50V", ativa: true },
+  ...MAQUINAS_ORDENADAS.map((maquina) => ({
+    id: maquina.nome,
+    nome: maquina.nome,
+    detalhe: maquina.equipamento,
+    ativa: true,
+  })),
   { id: "Sopradora Optima", nome: "Sopradora Optima", detalhe: "Sopro", ativa: false },
   { id: "Rotuladora 3", nome: "Rotuladora 3", detalhe: "Rotulagem", ativa: false },
-  { id: "Empacotadora 3", nome: "Empacotadora 3", detalhe: "Empacotamento", ativa: false },
 ];
 
 function contarNcDoChecklist(c: Checklist): number {
@@ -359,6 +366,15 @@ export function montarFarol(entrada: EntradaFarol): LinhaFarol[] {
 
       if (!maquina.ativa) {
         return { ...vazia, estado: "sem_escopo" as EstadoFarol };
+      }
+
+      if (coluna.tipo === "limpeza" && maquinaPorNome(maquina.id)?.formularios.limpeza === false) {
+        return {
+          ...vazia,
+          estado: "na" as EstadoFarol,
+          detalhe: "Rotina não aplicável",
+          rotinaNaoAplicavel: true,
+        };
       }
 
       // Pendências abertas desta rotina, de qualquer data. Cada uma agora tem
@@ -633,7 +649,7 @@ export function resumirFarol(linhas: LinhaFarol[]): ResumoFarol {
   };
   for (const linha of linhas) {
     for (const c of linha.celulas) {
-      if (c.estado === "sem_escopo") continue;
+      if (c.estado === "sem_escopo" || c.rotinaNaoAplicavel) continue;
       // Momento que ainda não venceu não entra na conta: não é acerto nem erro.
       if (c.estado === "aguardando") {
         r.aguardando += 1;
@@ -733,8 +749,10 @@ export interface ParadaJustificada {
  *                   O passivo histórico não é apagado: ele vive nas pendências,
  *                   com idade, em tela própria.
  */
+export const TURNOS_ESPERADOS_12X36 = ["12x36 Dia", "12x36 Noite"] as const;
+
 export const ROTINA_ENCHEDORA_3: RotinaEsperada = {
-  turnos: ["12x36 Dia", "12x36 Noite"],
+  turnos: TURNOS_ESPERADOS_12X36,
   vigenteDesde: "2026-08-10",
 };
 
@@ -827,7 +845,9 @@ export function calcularCumprimentoPeriodo(
 
   const detalhe: DiaCumprimento[] = dias.map((dia) => {
     const cs = checklists.filter((c) => c.contexto.data === dia && c.contexto.maquina === maquina);
-    const ls = limpezas.filter((l) => l.dataOperacao === dia);
+    const ls = limpezas.filter(
+      (l) => l.dataOperacao === dia && (l.maquina ?? "Enchedora 3") === maquina,
+    );
 
     let esperado = 0;
     let realizado = 0;

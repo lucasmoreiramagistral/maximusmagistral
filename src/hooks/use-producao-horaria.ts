@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { useConnectionStatus } from "./use-connection-status";
 import { producaoStorage } from "@/lib/producao/storage";
+import { assinarHoraOperador } from "@/lib/producao/assinatura-operador";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
+import { horaEstaNoPrazo } from "@/lib/producao/horario";
 import {
   ConflitoVersaoError,
   createProducaoHorasPadrao,
@@ -37,6 +39,7 @@ interface UseProducaoHorariaResult {
     assinaturaDataUrl: string,
     nomeLider: string,
   ) => Promise<void>;
+  assinarTurnoOperador: (hora: ProducaoHora, assinaturaDataUrl: string) => Promise<void>;
 }
 
 /**
@@ -115,6 +118,9 @@ export function useProducaoHoraria(
       if (hora.finalizadoEm || anteriorConfirmado) {
         throw new Error("Esta hora já foi salva e não pode ser alterada.");
       }
+      if (!horaEstaNoPrazo(hora.dataOperacao, hora.horaCodigo)) {
+        throw new Error(`O prazo para salvar ${hora.horaInicio}–${hora.horaFim} terminou 20 minutos após o fim da hora.`);
+      }
 
       const edicao: ProducaoHoraEdicaoPayload | null = opts?.anterior?.createdAt
         ? {
@@ -174,6 +180,9 @@ export function useProducaoHoraria(
         throw new Error("A assinatura fica disponível após confirmar a última hora do turno.");
       }
       if (hora.assinaturaLider?.dataUrl) throw new Error("Esta checagem já foi assinada.");
+      if (hora.finalizadoEm && !hora.assinaturaOperador?.dataUrl) {
+        throw new Error("O operador deve assinar o turno antes da validação do líder.");
+      }
       const nome = nomeLider.trim();
       if (nome.length < 2 || nome.length > 120) {
         throw new Error("Informe o nome de quem assinou (2 a 120 caracteres).");
@@ -204,5 +213,22 @@ export function useProducaoHoraria(
     [isOnline, usarCacheLocal],
   );
 
-  return { horas, loading, error, conflito, refetch, salvarHora, assinarHora };
+  const assinarTurnoOperador: UseProducaoHorariaResult["assinarTurnoOperador"] = useCallback(
+    async (hora, assinaturaDataUrl) => {
+      if (!isOnline) throw new Error("Conecte o tablet para salvar a assinatura do operador.");
+      try {
+        const salva = await assinarHoraOperador(hora, assinaturaDataUrl);
+        if (usarCacheLocal) producaoStorage.saveHora(salva);
+        setHoras((prev) => prev.map((item) => item.id === salva.id ? salva : item));
+      } catch (e) {
+        if (e instanceof Error && /hora mudou|já assinou|já assinada/i.test(e.message)) {
+          setConflito(true);
+        }
+        throw e;
+      }
+    },
+    [isOnline, usarCacheLocal],
+  );
+
+  return { horas, loading, error, conflito, refetch, salvarHora, assinarHora, assinarTurnoOperador };
 }

@@ -8,10 +8,7 @@ import {
   insertPtpEdicao,
   ConflitoVersaoError,
 } from "@/lib/verso/supabase-storage";
-import {
-  upsertObservacaoVerso,
-  labelPtpJanela,
-} from "@/lib/verso/observacoes";
+import { upsertObservacaoVerso, labelPtpJanela } from "@/lib/verso/observacoes";
 import type { PtpEdicaoPayload, PtpJanela } from "@/lib/verso/types";
 import { VERSO_CONTEXTO_FIXO } from "@/lib/verso/constants";
 import { MAQUINAS, type MaquinaOperacional } from "@/lib/maquinas/catalogo";
@@ -94,15 +91,16 @@ export function usePtpJanelas(
 
   const salvarJanela: UsePtpResult["salvarJanela"] = useCallback(
     async (janela, opts) => {
-      // 1) atualiza UI + storage local imediatamente
-      versoStorage.savePtpJanela(janela);
-      setJanelas((prev) => {
-        const i = prev.findIndex((p) => p.janelaCodigo === janela.janelaCodigo);
-        if (i < 0) return [...prev, janela];
-        const next = [...prev];
-        next[i] = janela;
-        return next;
-      });
+      const salvarLocal = (valor: typeof janela) => {
+        versoStorage.savePtpJanela(valor);
+        setJanelas((prev) => {
+          const i = prev.findIndex((p) => p.janelaCodigo === valor.janelaCodigo);
+          if (i < 0) return [...prev, valor];
+          const next = [...prev];
+          next[i] = valor;
+          return next;
+        });
+      };
 
       const edicao: PtpEdicaoPayload | null = opts?.anterior
         ? {
@@ -122,8 +120,9 @@ export function usePtpJanelas(
       // Se for a primeira gravação, será undefined e a checagem é pulada.
       const expectedUpdatedAt = janela.updatedAt ?? opts?.anterior?.updatedAt;
 
-      // 2) tenta enviar agora; se falhar, vai pra fila
+      // Offline e erro de rede preservam rascunho na fila; erro de regra/RLS não.
       if (!isOnline) {
+        salvarLocal(janela);
         enfileirar("ptp_janela", {
           janela,
           expectedUpdatedAt: expectedUpdatedAt ?? null,
@@ -135,14 +134,7 @@ export function usePtpJanelas(
         const saved = await upsertPtpJanela(janela, {
           expectedUpdatedAt: expectedUpdatedAt,
         });
-        versoStorage.savePtpJanela(saved);
-        setJanelas((prev) => {
-          const i = prev.findIndex((p) => p.janelaCodigo === saved.janelaCodigo);
-          if (i < 0) return [...prev, saved];
-          const next = [...prev];
-          next[i] = saved;
-          return next;
-        });
+        salvarLocal(saved);
         if (edicao) {
           try {
             await insertPtpEdicao(edicao);
@@ -187,6 +179,7 @@ export function usePtpJanelas(
           );
         if (isNetwork) {
           // Rede caiu — fica na fila e o operador é avisado pelo badge.
+          salvarLocal(janela);
           enfileirar("ptp_janela", {
             janela,
             expectedUpdatedAt: expectedUpdatedAt ?? null,
@@ -194,12 +187,11 @@ export function usePtpJanelas(
           });
           return;
         }
-        // Erro de aplicação (RLS, CHECK do banco, validação) — NÃO enfileira.
-        // Relança para o handleConcluir/handleSalvarRascunho mostrar toast vermelho.
+        // Erro de aplicação (RLS, CHECK do banco, validação) — NÃO enfileira
+        // nem marca a janela como concluída no aparelho.
         console.error("[usePtpJanelas] erro de aplicação:", e);
         throw e;
       }
-
     },
     [enfileirar, isOnline],
   );

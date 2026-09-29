@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { dataOperacionalAnterior } from "@/lib/operacao/data-operacional";
 import type {
   BobinaFilmeEmpacotadora,
   ConsolidacaoProdutoEmpacotadora,
@@ -131,7 +132,7 @@ export async function buscarVersoEmpacotadora(
       .from("empacotadora_bobinas" as never)
       .select("*")
       .eq("maquina", maquina)
-      .lt("data_operacao", dataOperacao)
+      .eq("data_operacao", dataOperacionalAnterior(dataOperacao))
       .is("hora_termino", null)
       .order("data_operacao", { ascending: false })
       .limit(20),
@@ -144,6 +145,33 @@ export async function buscarVersoEmpacotadora(
     consolidacoes: ((resultadoConsolidacoes.data ?? []) as unknown as ConsolidacaoRow[]).map(
       consolidacaoDaLinha,
     ),
+  };
+}
+
+/** Consulta completa da gestão: inclui bobina iniciada antes e encerrada neste dia. */
+export async function buscarVersoEmpacotadoraConsulta(
+  folhaDiaKey: string,
+  maquina: "Empacotadora 2" | "Empacotadora 3",
+  dataOperacao: string,
+): Promise<{
+  bobinas: BobinaFilmeEmpacotadora[];
+  consolidacoes: ConsolidacaoPersistida[];
+}> {
+  const [atual, anteriores] = await Promise.all([
+    buscarVersoEmpacotadora(folhaDiaKey, maquina, dataOperacao),
+    supabase.from("empacotadora_bobinas" as never).select("*")
+      .eq("maquina", maquina)
+      .eq("data_operacao", dataOperacionalAnterior(dataOperacao))
+      .eq("data_termino_operacao", dataOperacao)
+      .order("data_operacao", { ascending: false }),
+  ]);
+  if (anteriores.error) throw anteriores.error;
+  return {
+    bobinas: [
+      ...atual.bobinas,
+      ...((anteriores.data ?? []) as unknown as BobinaRow[]).map(bobinaDaLinha),
+    ],
+    consolidacoes: atual.consolidacoes,
   };
 }
 

@@ -7,6 +7,8 @@ import {
   type EntradaHoraEmpacotadora,
 } from "@/components/producao/empacotadora-hora-form";
 import { EmpacotadoraVersoSecoes } from "@/components/producao/empacotadora-verso-secoes";
+import { AssinaturaOperadorTurno } from "@/components/producao/assinatura-operador-turno";
+import { AssinaturaOperadorHistorico } from "@/components/producao/assinatura-operador-historico";
 import { SignaturePad } from "@/components/signature-pad";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -15,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { calcularAcumulado, calcularResumoHoraXHora, produtoAnteriorDoTurno } from "@/lib/producao/acumulado";
 import { ehHoraDeChecagemLider } from "@/lib/producao/constants";
-import { horaTerminou } from "@/lib/producao/horario";
+import { horaEstaNoPrazo, horaTerminou } from "@/lib/producao/horario";
 import {
   PALETIZACAO_EMPACOTADORA,
   type TamanhoProdutoEmpacotadora,
@@ -52,6 +54,7 @@ interface Props {
     assinatura: string,
     nomeLider: string,
   ) => Promise<void>;
+  assinarTurnoOperador: (hora: ProducaoHora, assinatura: string) => Promise<void>;
 }
 
 function jaSalva(hora: ProducaoHora): boolean {
@@ -101,6 +104,7 @@ export function EmpacotadoraRelatorio({
   error,
   salvarHora,
   assinarHora: assinarHoraAutenticada,
+  assinarTurnoOperador,
 }: Props) {
   const [horaSelecionada, setHoraSelecionada] = useState<string | null>(null);
   const [agoraEpoch, setAgoraEpoch] = useState(() => Date.now());
@@ -132,8 +136,8 @@ export function EmpacotadoraRelatorio({
       throw new Error("Não foi possível confirmar a folha atual. Recarregue e tente novamente.");
     }
     if (jaSalva(base)) throw new Error("Esta hora já foi confirmada.");
-    if (!horaTerminou(data, base.horaCodigo)) {
-      throw new Error("Aguarde o fim desta hora para confirmar os valores.");
+    if (!horaEstaNoPrazo(data, base.horaCodigo)) {
+      throw new Error("Confirme a hora entre seu encerramento e os 20 minutos seguintes.");
     }
     const nova: ProducaoHora = {
       ...base,
@@ -179,6 +183,9 @@ export function EmpacotadoraRelatorio({
     if (base.assinaturaLider?.dataUrl) {
       throw new Error("O líder já assinou esta checagem.");
     }
+    if (base.finalizadoEm && !base.assinaturaOperador?.dataUrl) {
+      throw new Error("O operador deve assinar o turno antes da validação do líder.");
+    }
     await assinarHoraAutenticada(base, assinatura, nomeLider);
     toast.success(`Checagem do líder de ${base.horaInicio}–${base.horaFim} assinada.`);
   }
@@ -218,7 +225,7 @@ export function EmpacotadoraRelatorio({
               />
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
-              Após o fim de cada hora, informe paletes completos e a quebra. O app calcula os
+              Em até 20 minutos após o fim de cada hora, informe paletes completos e a quebra. O app calcula os
               pacotes e pede uma conferência antes de salvar. Marque a troca de sabor ou tamanho
               na primeira hora do produto novo para reiniciar o acumulado.
             </p>
@@ -227,7 +234,9 @@ export function EmpacotadoraRelatorio({
                 const hora = porCodigo.get(codigo);
                 if (!hora) return null;
                 const salva = jaSalva(hora);
-                const disponivel = horaTerminou(data, codigo, agoraEpoch);
+                const iniciou = horaTerminou(data, codigo, agoraEpoch);
+                const noPrazo = horaEstaNoPrazo(data, codigo, agoraEpoch);
+                const disponivel = salva || noPrazo;
                 return (
                   <button
                     key={codigo}
@@ -243,10 +252,10 @@ export function EmpacotadoraRelatorio({
                       <span className="text-xs font-bold text-muted-foreground">
                         {salva ? (
                           <PackageCheck className="h-5 w-5 text-success" aria-label="Salva" />
-                        ) : disponivel ? (
+                        ) : noPrazo ? (
                           <Clock className="h-5 w-5" aria-label="Pendente" />
                         ) : (
-                          <Lock className="h-5 w-5" aria-label="Aguardando" />
+                          <Lock className="h-5 w-5" aria-label={iniciou ? "Prazo encerrado" : "Aguardando"} />
                         )}
                       </span>
                     </div>
@@ -285,6 +294,14 @@ export function EmpacotadoraRelatorio({
                     )}
                     {salva && ehHoraDeChecagemLider(codigo) && (
                       <p
+                        className={`mt-3 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${hora.assinaturaOperador?.dataUrl ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                        {hora.assinaturaOperador?.dataUrl ? "Operador assinou" : "Assinatura do operador pendente"}
+                      </p>
+                    )}
+                    {salva && ehHoraDeChecagemLider(codigo) && (
+                      <p
                         className={`mt-3 inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${hora.assinaturaLider?.dataUrl ? "bg-success/15 text-success" : "bg-warning/15 text-warning"}`}
                       >
                         <ShieldCheck className="h-4 w-4" />
@@ -308,6 +325,11 @@ export function EmpacotadoraRelatorio({
             />
           </TabsContent>
         </Tabs>
+        <AssinaturaOperadorHistorico
+          dataAtual={data}
+          maquina={maquina}
+          operadorUserId={usuario.userId}
+        />
       </main>
 
       <Dialog open={!!selecionada} onOpenChange={(aberto) => !aberto && setHoraSelecionada(null)}>
@@ -323,6 +345,13 @@ export function EmpacotadoraRelatorio({
                 valorInicial={valorInicial(selecionada)}
                 onSalvar={(entrada) => confirmarHora(selecionada, entrada)}
               />
+              {ehHoraDeChecagemLider(selecionada.horaCodigo) && (
+                <AssinaturaOperadorTurno
+                  hora={selecionada}
+                  operadorUserId={usuario.userId}
+                  onAssinar={(assinatura) => assinarTurnoOperador(selecionada, assinatura)}
+                />
+              )}
               {ehHoraDeChecagemLider(selecionada.horaCodigo) && (
                 <ChecagemLiderEmpacotadora
                   key={`lider-${maquina.id}-${selecionada.horaCodigo}`}
@@ -375,6 +404,14 @@ function ChecagemLiderEmpacotadora({
           className="max-h-28 max-w-full rounded-md border border-border bg-white object-contain"
         />
       </section>
+    );
+  }
+
+  if (hora.finalizadoEm && !hora.assinaturaOperador?.dataUrl) {
+    return (
+      <p className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
+        Aguardando a assinatura do operador para o líder validar este turno.
+      </p>
     );
   }
 

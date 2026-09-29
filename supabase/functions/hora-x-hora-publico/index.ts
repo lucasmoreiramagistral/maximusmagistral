@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.103.3";
 import { MAQUINAS_CARD } from "../hora-x-hora-telegram/cartao.ts";
 import { registrosPublicos } from "./dados.ts";
+import { dataOperacionalAnterior, versoPublico, type BobinaRowPublica, type ConsolidacaoRowPublica } from "./verso.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -45,20 +46,46 @@ Deno.serve(async (request: Request) => {
   if (erroToken) return resposta(503, { erro: "Não foi possível consultar o painel" });
   if (!publicacao) return resposta(404, { erro: "Link inválido ou revogado" });
 
-  const { data: horas, error: erroHoras } = await supabase
-    .from("producao_horaria")
-    .select("maquina,hora_codigo,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,produto_sabor,produto_tamanho,meta,nao_rodou,finalizado_em")
-    .eq("data_operacao", publicacao.data_operacao)
-    .in("maquina", MAQUINAS_CARD.map((maquina) => maquina.nome))
-    .not("finalizado_em", "is", null)
-    .order("finalizado_em", { ascending: false })
-    .limit(120);
-  if (erroHoras) return resposta(503, { erro: "Não foi possível consultar as horas" });
+  const empacotadoras = ["Empacotadora 2", "Empacotadora 3"];
+  const dataAnterior = dataOperacionalAnterior(publicacao.data_operacao);
+  const camposBobina = "maquina,turno,ordem,data_operacao,produto,especificacao_filme,fabricante,numero_lote,peso_liquido_inicial_kg,peso_bruto_final_kg,hora_inicio,hora_termino,data_termino_operacao";
+  const camposConsolidacao = "maquina,turno,ordem,data_operacao,sabor,tamanho,hora_inicio,hora_final,quantidade_paletes,quebra_pacotes,pacotes_por_palete,total_pacotes";
+  const [horasRes, bobinasDiaRes, bobinasAbertasRes, bobinasTerminadasRes, consolidacoesRes] = await Promise.all([
+    supabase.from("producao_horaria")
+      .select("maquina,hora_codigo,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,produto_sabor,produto_tamanho,meta,nao_rodou,finalizado_em")
+      .eq("data_operacao", publicacao.data_operacao)
+      .in("maquina", MAQUINAS_CARD.map((maquina) => maquina.nome))
+      .not("finalizado_em", "is", null)
+      .order("finalizado_em", { ascending: false }).limit(120),
+    supabase.from("empacotadora_bobinas").select(camposBobina)
+      .eq("data_operacao", publicacao.data_operacao).in("maquina", empacotadoras),
+    supabase.from("empacotadora_bobinas").select(camposBobina)
+      .eq("data_operacao", dataAnterior).in("maquina", empacotadoras)
+      .is("hora_termino", null).not("hora_inicio", "is", null),
+    supabase.from("empacotadora_bobinas").select(camposBobina)
+      .eq("data_operacao", dataAnterior).eq("data_termino_operacao", publicacao.data_operacao)
+      .in("maquina", empacotadoras),
+    supabase.from("empacotadora_consolidacoes").select(camposConsolidacao)
+      .eq("data_operacao", publicacao.data_operacao).in("maquina", empacotadoras),
+  ]);
+  if (horasRes.error || bobinasDiaRes.error || bobinasAbertasRes.error || bobinasTerminadasRes.error || consolidacoesRes.error) {
+    return resposta(503, { erro: "Não foi possível consultar o painel completo" });
+  }
+  const bobinas = [
+    ...(bobinasDiaRes.data ?? []),
+    ...(bobinasAbertasRes.data ?? []),
+    ...(bobinasTerminadasRes.data ?? []),
+  ] as BobinaRowPublica[];
 
   return resposta(200, {
     dataOperacao: publicacao.data_operacao,
     horaReferencia: publicacao.hora_codigo,
     consultadoEm: new Date().toISOString(),
-    registros: registrosPublicos(horas ?? []),
+    registros: registrosPublicos(horasRes.data ?? []),
+    versoEmpacotadoras: versoPublico(
+      publicacao.data_operacao,
+      bobinas,
+      (consolidacoesRes.data ?? []) as ConsolidacaoRowPublica[],
+    ),
   });
 });

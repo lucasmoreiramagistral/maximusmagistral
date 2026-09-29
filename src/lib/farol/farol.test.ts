@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calcularCumprimentoPeriodo,
+  MAQUINAS_FAROL,
   montarFarol,
   resumirFarol,
   percentualCumprimento,
@@ -10,6 +11,7 @@ import {
 } from "./farol";
 import type { Checklist, MomentoChecklist, Resposta } from "@/lib/checklist/types";
 import { MOMENTOS_CHECKLIST } from "@/lib/checklist/types";
+import { MAQUINAS_ORDENADAS } from "@/lib/maquinas/catalogo";
 
 const DATA = "2026-08-10";
 
@@ -61,6 +63,30 @@ function coluna(linha: { celulas: CelulaFarol[] }, tipo: string): CelulaFarol {
 }
 
 describe("montarFarol", () => {
+  it("inclui as quatro máquinas em operação e não cobra limpeza das empacotadoras", () => {
+    const implantadas = MAQUINAS_FAROL.filter((maquina) => maquina.ativa).map(
+      (maquina) => maquina.id,
+    );
+    expect(implantadas).toEqual(MAQUINAS_ORDENADAS.map((maquina) => maquina.nome));
+
+    const linhas = montarFarol({ checklists: [], data: DATA });
+    for (const nome of ["Empacotadora 2", "Empacotadora 3"]) {
+      const empacotadora = linhas.find((linha) => linha.maquina.id === nome)!;
+      expect(coluna(empacotadora, "limpeza")).toMatchObject({
+        estado: "na",
+        rotinaNaoAplicavel: true,
+      });
+      expect(coluna(empacotadora, "ptp").estado).toBe("nr");
+    }
+    expect(coluna(linhas.find((linha) => linha.maquina.id === "Enchedora 2")!, "limpeza").estado).toBe(
+      "nr",
+    );
+    const resumo = resumirFarol(linhas);
+    expect(resumo.totalAvaliado).toBe(18);
+    expect(resumo.nr).toBe(18);
+    expect(percentualCumprimento(resumo)).toBe(0);
+  });
+
   it("marca NR quando o checklist do momento não existe", () => {
     const [linha] = montarFarol({ checklists: [], data: DATA, maquinas: MAQ });
     expect(estadosDoChecklist(linha)).toEqual(["nr", "nr", "nr"]);
@@ -381,6 +407,27 @@ describe("montarFarol", () => {
     // pós-setup + limpeza + PTP ficaram sem registro nenhum
     expect(resumo.nr).toBe(3);
     expect(percentualCumprimento(resumo)).toBe(40); // 2 de 5
+  });
+});
+
+describe("cumprimento por máquina", () => {
+  it("não usa limpeza de outra máquina como sinal nem como validação pendente", () => {
+    const limpezaE3 = {
+      dataOperacao: DATA,
+      maquina: "Enchedora 3",
+      turno: "12x36 Dia",
+      status: "aguardando_validacao",
+    } as never;
+    const resultado = calcularCumprimentoPeriodo(
+      [],
+      [limpezaE3],
+      DATA,
+      DATA,
+      { turnos: ["12x36 Dia"], vigenteDesde: DATA },
+      "Empacotadora 2",
+    );
+    expect(resultado.totalSemInformacao).toBe(3);
+    expect(resultado.limpezasSemValidacao).toBe(0);
   });
 });
 

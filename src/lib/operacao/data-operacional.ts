@@ -63,3 +63,11 @@ export function formatarDataBR(iso: string): string {
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
+
+/** A folha iniciada na noite anterior permanece consultável para assinar H24. */
+export function dataOperacionalAnterior(data: string): string {
+  const dia = new Date(`${data}T12:00:00Z`);
+  if (Number.isNaN(dia.getTime())) throw new Error("Data operacional inválida.");
+  dia.setUTCDate(dia.getUTCDate() - 1);
+  return dia.toISOString().slice(0, 10);
+}

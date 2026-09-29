@@ -19,7 +19,8 @@ import { PendenciasAbertas } from "@/components/pendencias-abertas";
 import { MelhoriasERotina } from "@/components/melhorias-rotina";
 import { agruparPendencias } from "@/lib/farol/grupos";
 import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
-import { montarFarol, ROTINA_ENCHEDORA_3 } from "@/lib/farol/farol";
+import { montarFarol } from "@/lib/farol/farol";
+import { buscarTodasPaginas } from "@/lib/supabase/buscar-todas-paginas";
 import { carregarResolvidas, levantarPendencias } from "@/lib/farol/pendencias";
 import { buscarPlanos } from "@/lib/farol/planos-storage";
 import type { PlanoAcao } from "@/lib/farol/planos-types";
@@ -65,8 +66,7 @@ function GestaoHome() {
   // anterior aos dados chegarem — verde por ignorancia, que e a unica cor que
   // este painel nao pode mostrar.
   //
-  // So travam a PRIMEIRA carga: como nunca voltam a true, o botao de recarregar
-  // atualiza sem piscar a tela inteira.
+  // Na recarga, o farol aguarda todas as páginas antes de mostrar números.
   const [carregandoLimpeza, setCarregandoLimpeza] = useState(true);
   const [carregandoPlanos, setCarregandoPlanos] = useState(true);
 
@@ -100,29 +100,34 @@ function GestaoHome() {
     let cancelado = false;
     void (async () => {
       setErroLimpeza("");
+      setCarregandoLimpeza(true);
       // SEM filtro de data: o passivo não mora nos últimos 30 dias. A limpeza
       // sem validação mais antiga é de 24/04 — cortar em 30 dias esconderia
       // justamente as que mais envergonham. O card de NC/NR abaixo continua
       // usando a janela de DIAS_NCNR, que é outra pergunta.
-      const { data, error } = await supabase
-        .from("limpeza_turnos" as never)
-        .select("*")
-        .order("data_operacao", { ascending: false });
-      if (cancelado) return;
-      if (error) {
+      try {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+          const { data, error, count } = await supabase
+            .from("limpeza_turnos" as never)
+            .select("*", { count: "exact" })
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (data ?? []) as unknown as LimpezaTurnoRow[], error, count };
+        });
+        if (!cancelado) setTurnosLimpeza(linhas.map(limpezaTurnoFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[gestao.index] limpeza fetch:", error);
-        setTurnosLimpeza([]);
         setErroLimpeza("Nao foi possivel carregar a limpeza operacional.");
-        setCarregandoLimpeza(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoLimpeza(false);
       }
-      setTurnosLimpeza(((data ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
-      setCarregandoLimpeza(false);
     })();
     return () => {
       cancelado = true;
     };
-  }, []);
+  }, [recarga]);
 
   useEffect(() => {
     let cancelado = false;
@@ -147,27 +152,32 @@ function GestaoHome() {
     let cancelado = false;
     void (async () => {
       setErroPtp("");
-      // Desde o início oficial do piloto: ocorrência PTP não desaparece
-      // quando o dia vira; ela permanece até receber plano eficaz.
-      const { data, error } = await supabase
-        .from("ptp_janelas" as never)
-        .select("*")
-        .gte("data_operacao", ROTINA_ENCHEDORA_3.vigenteDesde)
-        .lte("data_operacao", hoje);
-      if (cancelado) return;
-      if (error) {
+      setCarregandoPtp(true);
+      // Ocorrências PTP antigas permanecem até receber plano eficaz.
+      try {
+        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+          const { data, error, count } = await supabase
+            .from("ptp_janelas" as never)
+            .select("*", { count: "exact" })
+            .lte("data_operacao", hoje)
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (data ?? []) as unknown as PtpJanelaRow[], error, count };
+        });
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[gestao.index] ptp:", error);
         setErroPtp("Nao foi possivel carregar o PTP.");
-        setCarregandoPtp(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoPtp(false);
       }
-      setPtp(((data ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
-      setCarregandoPtp(false);
     })();
     return () => {
       cancelado = true;
     };
-  }, [hoje]);
+  }, [hoje, recarga]);
 
   // O passivo da linha — o mesmo que o líder vê, para a conversa ser a mesma.
   const pendencias = useMemo(
@@ -232,7 +242,7 @@ function GestaoHome() {
   if (!loading && usuario && erroDados) {
     return (
       <div className="min-h-screen bg-background">
-        <AppHeader titulo="Gestao Industrial" subtitulo="Linha 3 - Enchedora 3" />
+        <AppHeader titulo="Gestao Industrial" subtitulo="Linhas 2 e 3" />
         <main className="mx-auto w-full max-w-[1300px] px-4 py-8 md:px-8">
           <section className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm text-destructive">
             <p className="font-bold">Farol indisponivel</p>
@@ -268,7 +278,7 @@ function GestaoHome() {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppHeader titulo="Gestão Industrial" subtitulo="Linha 3 — Enchedora 3" />
+      <AppHeader titulo="Gestão Industrial" subtitulo="Linhas 2 e 3" />
       <main className="mx-auto w-full max-w-[1300px] px-4 py-6 md:px-8 md:py-10">
         <div className="mb-8">
           <p className="text-sm text-muted-foreground md:text-base">Bem-vindo,</p>
@@ -360,7 +370,7 @@ function GestaoHome() {
             to="/gestao/relatorio"
             icon={<FileBarChart2 className="h-8 w-8" />}
             titulo="Gerar Relatório"
-            descricao="Consolidar checklist, tratativas e recorrências da Linha 3"
+            descricao="Consolidar checklist, tratativas e recorrências das Linhas 2 e 3"
           />
           <BotaoLink
             to="/gestao/hora-x-hora"

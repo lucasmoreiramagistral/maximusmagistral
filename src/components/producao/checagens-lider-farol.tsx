@@ -20,6 +20,7 @@ interface ChecagemPendente {
   operador_nome: string | null;
   quantidade: number | null;
   nao_rodou: boolean;
+  operador_assinou_em: string | null;
   updated_at: string;
 }
 
@@ -45,7 +46,7 @@ async function buscarChecagens(operadoresEquipe: ReadonlySet<string>): Promise<C
     const { data, error } = await supabase
       .from("producao_horaria" as never)
       .select(
-        "id,data_operacao,maquina,hora_codigo,hora_inicio,hora_fim,operador_user_id,operador_nome,quantidade,nao_rodou,updated_at",
+        "id,data_operacao,maquina,hora_codigo,hora_inicio,hora_fim,operador_user_id,operador_nome,quantidade,nao_rodou,operador_assinou_em,updated_at",
       )
       .in("operador_user_id", ids)
       .in("maquina", NOMES_MAQUINAS)
@@ -164,6 +165,10 @@ export function ChecagensLiderFarol({
 
   const assinar = async () => {
     if (!selecionada || !usuario.userId || salvando) return;
+    if (!selecionada.operador_assinou_em) {
+      setErroAssinatura("O operador deve assinar o turno antes da validação do líder.");
+      return;
+    }
     if (!assinatura?.startsWith("data:image/png;base64,") || assinatura.length < 100) {
       setErroAssinatura("Desenhe a assinatura antes de confirmar.");
       return;
@@ -222,7 +227,7 @@ export function ChecagensLiderFarol({
             <PenLine className="h-5 w-5" /> Checagens finais · Hora x Hora
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Assinatura do líder nas horas 17:00–18:00 (H12) e 05:00–06:00 (H24) das quatro máquinas.
+            Assinatura do líder nas horas 17:00–18:00 (H12) e 05:00–06:00 (H24), após a assinatura do operador.
           </p>
         </div>
         <Button
@@ -270,10 +275,16 @@ export function ChecagensLiderFarol({
                     ? "Não rodou"
                     : `${hora.quantidade?.toLocaleString("pt-BR") ?? "—"} unidades`}
                 </p>
+                <p className={`mt-1 text-xs font-semibold ${hora.operador_assinou_em ? "text-success" : "text-warning"}`}>
+                  {hora.operador_assinou_em
+                    ? "Operador assinou · pronto para validação"
+                    : "Aguardando assinatura do operador"}
+                </p>
               </div>
               <Button
                 type="button"
                 size="sm"
+                disabled={!hora.operador_assinou_em}
                 onClick={() => {
                   setSelecionada(hora);
                   setAssinatura(null);

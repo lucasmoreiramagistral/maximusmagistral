@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import {
   calcularCumprimentoPeriodo,
   ROTINA_ENCHEDORA_3,
+  TURNOS_ESPERADOS_12X36,
   montarFarol,
   type CumprimentoPeriodo,
 } from "@/lib/farol/farol";
@@ -24,6 +25,9 @@ import { avaliarMelhorias, avaliarRotinaLideranca } from "@/lib/farol/eficacia";
 import { PlanoAcaoDialog } from "@/components/plano-acao-dialog";
 import type { Pendencia } from "@/lib/farol/pendencias";
 import { calcularDataOperacional, formatarDataBR } from "@/lib/operacao/data-operacional";
+import { MAQUINAS, MAQUINAS_ORDENADAS, type MaquinaId } from "@/lib/maquinas/catalogo";
+import { inicioCoberturaObservada } from "@/lib/farol/cobertura-observada";
+import { buscarTodasPaginas } from "@/lib/supabase/buscar-todas-paginas";
 import {
   limpezaTurnoFromRow,
   ptpJanelaFromRow,
@@ -68,6 +72,8 @@ function SupervisorHome() {
 
   const [limpezas, setLimpezas] = useState<LimpezaTurno[]>([]);
   const [janela, setJanela] = useState<number>(7);
+  const [maquinaSelecionadaId, setMaquinaSelecionadaId] = useState<MaquinaId>("enchedora-3");
+  const maquinaSelecionada = MAQUINAS[maquinaSelecionadaId];
   const [planos, setPlanos] = useState<PlanoAcao[]>([]);
   const [pendenciaAberta, setPendenciaAberta] = useState<Pendencia | null>(null);
   const [recarga, setRecarga] = useState(0);
@@ -112,22 +118,28 @@ function SupervisorHome() {
     let cancelado = false;
     void (async () => {
       setErroLimpezas("");
+      setCarregandoLimpezas(true);
       // SEM filtro de data: o passivo vai a 108 dias, muito alem da janela
       // de 7/15/30. calcularCumprimentoPeriodo filtra por dia internamente,
       // entao passar tudo nao afeta o percentual.
-      const { data: linhas, error } = await supabase
-        .from("limpeza_turnos" as never)
-        .select("*")
-        .order("data_operacao", { ascending: false });
-      if (cancelado) return;
-      if (error) {
+      try {
+        const linhas = await buscarTodasPaginas<LimpezaTurnoRow>(async (inicio, fim) => {
+          const { data, error, count } = await supabase
+            .from("limpeza_turnos" as never)
+            .select("*", { count: "exact" })
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (data ?? []) as unknown as LimpezaTurnoRow[], error, count };
+        });
+        if (!cancelado) setLimpezas(linhas.map(limpezaTurnoFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[supervisor] limpezas:", error);
         setErroLimpezas("Nao foi possivel carregar a limpeza operacional.");
-        setCarregandoLimpezas(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoLimpezas(false);
       }
-      setLimpezas(((linhas ?? []) as unknown as LimpezaTurnoRow[]).map(limpezaTurnoFromRow));
-      setCarregandoLimpezas(false);
     })();
     return () => {
       cancelado = true;
@@ -157,20 +169,26 @@ function SupervisorHome() {
     let cancelado = false;
     void (async () => {
       setErroPtp("");
-      const { data: linhasPtp, error } = await supabase
-        .from("ptp_janelas" as never)
-        .select("*")
-        .gte("data_operacao", ROTINA_ENCHEDORA_3.vigenteDesde)
-        .lte("data_operacao", hoje);
-      if (cancelado) return;
-      if (error) {
+      setCarregandoPtp(true);
+      try {
+        const linhas = await buscarTodasPaginas<PtpJanelaRow>(async (inicio, fim) => {
+          const { data, error, count } = await supabase
+            .from("ptp_janelas" as never)
+            .select("*", { count: "exact" })
+            .lte("data_operacao", hoje)
+            .order("data_operacao", { ascending: false })
+            .order("id", { ascending: false })
+            .range(inicio, fim);
+          return { data: (data ?? []) as unknown as PtpJanelaRow[], error, count };
+        });
+        if (!cancelado) setPtp(linhas.map(ptpJanelaFromRow));
+      } catch (error) {
+        if (cancelado) return;
         console.error("[supervisor] ptp:", error);
         setErroPtp("Nao foi possivel carregar o PTP.");
-        setCarregandoPtp(false);
-        return;
+      } finally {
+        if (!cancelado) setCarregandoPtp(false);
       }
-      setPtp(((linhasPtp ?? []) as unknown as PtpJanelaRow[]).map(ptpJanelaFromRow));
-      setCarregandoPtp(false);
     })();
     return () => {
       cancelado = true;
@@ -214,19 +232,29 @@ function SupervisorHome() {
     [grupos, planos, hoje],
   );
 
+  const inicioCobertura = useMemo(
+    () =>
+      maquinaSelecionada.id === "enchedora-3"
+        ? ROTINA_ENCHEDORA_3.vigenteDesde
+        : inicioCoberturaObservada(maquinaSelecionada.nome, checklists, limpezas, ptp),
+    [maquinaSelecionada, checklists, limpezas, ptp],
+  );
+
   const cumprimento = useMemo(
     () =>
-      calcularCumprimentoPeriodo(
-        checklists,
-        limpezas,
-        de,
-        hoje,
-        ROTINA_ENCHEDORA_3,
-        "Enchedora 3",
-        [],
-        hoje, // dia corrente fica fora: cumprimento é de dia fechado
-      ),
-    [checklists, limpezas, de, hoje],
+      inicioCobertura
+        ? calcularCumprimentoPeriodo(
+            checklists,
+            limpezas,
+            de,
+            hoje,
+            { turnos: TURNOS_ESPERADOS_12X36, vigenteDesde: inicioCobertura },
+            maquinaSelecionada.nome,
+            [],
+            hoje, // dia corrente fica fora: cumprimento é de dia fechado
+          )
+        : null,
+    [checklists, limpezas, de, hoje, inicioCobertura, maquinaSelecionada],
   );
 
   const farolHoje = useMemo(
@@ -253,7 +281,7 @@ function SupervisorHome() {
     <div className="min-h-screen bg-background">
       <AppHeader
         titulo="Supervisão / Coordenação"
-        subtitulo={`Linha 3 · cumprimento da rotina · ${formatarDataBR(de)} a ${formatarDataBR(hoje)}`}
+        subtitulo={`Linhas 2 e 3 · cumprimento da rotina · ${formatarDataBR(de)} a ${formatarDataBR(hoje)}`}
       />
       <main className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-8 md:py-8">
         {erroDados ? (
@@ -323,8 +351,50 @@ function SupervisorHome() {
                   ))}
                 </div>
               </div>
-
-              <PainelCumprimento c={cumprimento} />
+              <div className="mb-4 flex flex-wrap gap-2" aria-label="Máquina do cumprimento">
+                {MAQUINAS_ORDENADAS.map((maquina) => (
+                  <button
+                    key={maquina.id}
+                    type="button"
+                    aria-pressed={maquinaSelecionadaId === maquina.id}
+                    onClick={() => setMaquinaSelecionadaId(maquina.id)}
+                    className={cn(
+                      "rounded-lg border px-3 py-2 text-sm font-semibold",
+                      maquinaSelecionadaId === maquina.id
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card hover:bg-accent",
+                    )}
+                  >
+                    {maquina.nome}
+                  </button>
+                ))}
+              </div>
+              {inicioCobertura ? (
+                <p className="mb-4 text-xs text-muted-foreground">
+                  {maquinaSelecionada.nome}: cobertura a partir de {formatarDataBR(inicioCobertura)}.
+                  {maquinaSelecionada.id !== "enchedora-3" &&
+                    " Nas máquinas novas, esta é a data do primeiro registro confirmado, não a data oficial de implantação."}
+                </p>
+              ) : (
+                <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+                  Sem dados confirmados para {maquinaSelecionada.nome}. A cobertura começará no
+                  primeiro registro confirmado; essa data não define a implantação oficial.
+                </p>
+              )}
+              {cumprimento && cumprimento.dias.length > 0 ? (
+                <PainelCumprimento
+                  c={cumprimento}
+                  temLimpeza={maquinaSelecionada.formularios.limpeza}
+                  turnosProgramados={TURNOS_ESPERADOS_12X36.length}
+                />
+              ) : (
+                inicioCobertura && (
+                  <p className="rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+                    Ainda não há dia fechado dentro desta cobertura. O cumprimento aparecerá após
+                    o fechamento do primeiro dia.
+                  </p>
+                )
+              )}
             </section>
 
             {/* A contingência tem que ser contada por quem cobra a rotina.
@@ -344,12 +414,20 @@ function SupervisorHome() {
   );
 }
 
-function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
+function PainelCumprimento({
+  c,
+  temLimpeza,
+  turnosProgramados,
+}: {
+  c: CumprimentoPeriodo;
+  temLimpeza: boolean;
+  turnosProgramados: number;
+}) {
   const maxEsperado = Math.max(1, ...c.dias.map((d) => d.esperado));
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-2 gap-3", temLimpeza ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
         <Cartao
           rotulo="Cumprimento geral"
           valor={`${c.percentualGeral}%`}
@@ -369,15 +447,21 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
         <Cartao
           rotulo="Sem informação"
           valor={c.totalSemInformacao}
-          nota="turno programado sem registro nenhum"
+          nota={
+            temLimpeza
+              ? "turno sem checklist concluído ou limpeza fechada"
+              : "turno sem checklist concluído"
+          }
           tom={c.totalSemInformacao > 0 ? "ruim" : "bom"}
         />
-        <Cartao
-          rotulo="Sem validação do líder"
-          valor={c.limpezasSemValidacao}
-          nota="limpezas que o líder não fechou"
-          tom={c.limpezasSemValidacao > 0 ? "ruim" : "bom"}
-        />
+        {temLimpeza && (
+          <Cartao
+            rotulo="Sem validação do líder"
+            valor={c.limpezasSemValidacao}
+            nota="limpezas que o líder não fechou"
+            tom={c.limpezasSemValidacao > 0 ? "ruim" : "bom"}
+          />
+        )}
       </div>
 
       {c.porTurno.length > 0 && (
@@ -426,7 +510,7 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
                 <th className="px-3 py-2 text-right font-bold">Feito</th>
                 <th className="px-3 py-2 text-right font-bold">Esperado</th>
                 <th className="px-3 py-2 text-right font-bold">%</th>
-                <th className="px-4 py-2 text-left font-bold">Validação</th>
+                {temLimpeza && <th className="px-4 py-2 text-left font-bold">Validação</th>}
               </tr>
             </thead>
             <tbody>
@@ -451,15 +535,17 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
                   >
                     {d.esperado === 0 ? "—" : `${d.percentual}%`}
                   </td>
-                  <td className="px-4 py-2">
-                    {d.limpezasSemValidacao > 0 ? (
-                      <span className="rounded-full border border-destructive/40 bg-destructive-soft px-2 py-0.5 text-xs font-bold text-destructive">
-                        {d.limpezasSemValidacao} sem validação
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">ok</span>
-                    )}
-                  </td>
+                  {temLimpeza && (
+                    <td className="px-4 py-2">
+                      {d.limpezasSemValidacao > 0 ? (
+                        <span className="rounded-full border border-destructive/40 bg-destructive-soft px-2 py-0.5 text-xs font-bold text-destructive">
+                          {d.limpezasSemValidacao} sem validação
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">ok</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -469,10 +555,12 @@ function PainelCumprimento({ c }: { c: CumprimentoPeriodo }) {
             Passou a ser o oposto — e legenda contradizendo o número logo acima
             é pior do que legenda nenhuma. */}
         <p className="mt-2 text-xs text-muted-foreground">
-          O esperado vem da rotina programada ({ROTINA_ENCHEDORA_3.turnos.length} turnos × 3
-          momentos), não dos registros encontrados: turno que não deu sinal nenhum conta como{" "}
+          O esperado vem da rotina programada ({turnosProgramados} turnos × 3
+          momentos), não dos registros encontrados: turno sem checklist concluído
+          {temLimpeza ? " ou limpeza fechada" : ""} conta como{" "}
           <b className="text-foreground">sem informação</b> e continua no denominador — se esquecer
-          não doer no número, esquecer compensa. Só sai da conta parada com motivo registrado.
+          não doer no número, esquecer compensa. Paradas justificadas ainda não estão integradas
+          a este indicador.
           {c.excluiuDiaEmAndamento && " O dia de hoje fica de fora enquanto não fecha."} O gráfico
           usa {maxEsperado} como referência de dia cheio.
         </p>

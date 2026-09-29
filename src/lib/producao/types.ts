@@ -75,6 +75,9 @@ export interface ProducaoHora {
   operadorLogin?: string | null;
   operadorNome?: string | null;
   operadorUserId?: string | null;
+  /** Desenho do operador no encerramento do turno; a identidade vem do login. */
+  assinaturaOperador?: (AssinaturaDigital & { userId?: string }) | null;
+  operadorAssinouEm?: string | null;
   liderNome?: string | null;
   /** O userId é carimbado pela RPC; assinaturas antigas podem não tê-lo. */
   assinaturaLider?: (AssinaturaDigital & { userId?: string }) | null;

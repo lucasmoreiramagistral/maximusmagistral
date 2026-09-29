@@ -62,6 +62,10 @@ function VisualizarDiaPage() {
 
   async function handleExport(modo: "frente" | "verso" | "frente-verso") {
     if (!folha) return;
+    if (folha.contexto.maquina !== "Enchedora 3") {
+      toast.error("Este modelo Excel ainda não corresponde à máquina selecionada.");
+      return;
+    }
     setExporting(modo);
     try {
       if (modo === "frente") {
@@ -104,7 +108,7 @@ function VisualizarDiaPage() {
             <ChecklistDiaDetalhe
               folha={folha}
               anomalias={anomalias}
-              onExportar={() => setExportOpen(true)}
+              onExportar={folha.contexto.maquina === "Enchedora 3" ? () => setExportOpen(true) : undefined}
             />
             {temVerso(folha) && (
               <div className="mt-6">
@@ -117,6 +121,7 @@ function VisualizarDiaPage() {
                   dataOperacao={folha.contexto.data}
                   turno={folha.contexto.turno}
                   equipe={folha.contexto.equipe}
+                  maquina={folha.contexto.maquina}
                 />
               </div>
             )}
@@ -127,7 +132,7 @@ function VisualizarDiaPage() {
                   folha.contexto.linha,
                   folha.contexto.maquina,
                 )}
-                titulo="Observações da folha (espelho do verso — PTP + Limpeza)"
+                titulo={`Observações da folha (PTP${folha.contexto.maquina.startsWith("Enchedora") ? " + Limpeza" : ""})`}
               />
             </div>
           </>

@@ -21,6 +21,7 @@ import type {
   StatusMomentoFolha,
 } from "./types";
 import { MOMENTOS_CHECKLIST } from "./types";
+import { buscarTodasPaginas } from "@/lib/supabase/buscar-todas-paginas";
 
 /**
  * Folha do dia (formato NOVO): data__turno__linha__maquina
@@ -108,13 +109,17 @@ async function requireUserId(): Promise<string> {
 
 // ─────────── Checklists ───────────
 export async function fetchChecklists(): Promise<Checklist[]> {
-  const { data, error } = await supabase
-    .from("checklists")
-    .select("*")
-    .eq("status", "concluido")
-    .order("criado_em", { ascending: false });
-  if (error) throw error;
-  return ((data ?? []) as unknown as ChecklistRow[]).map(checklistFromRow);
+  const linhas = await buscarTodasPaginas<ChecklistRow>(async (inicio, fim) => {
+    const { data, error, count } = await supabase
+      .from("checklists")
+      .select("*", { count: "exact" })
+      .eq("status", "concluido")
+      .order("criado_em", { ascending: false })
+      .order("id", { ascending: false })
+      .range(inicio, fim);
+    return { data: (data ?? []) as unknown as ChecklistRow[], error, count };
+  });
+  return linhas.map(checklistFromRow);
 }
 
 export async function upsertChecklist(c: Checklist): Promise<void> {

@@ -22,14 +22,16 @@ import {
   LABEL_LIMPEZA_STATUS,
   LABEL_PTP_STATUS,
   LIMPEZA_ITENS_DEF,
-  PTP_JANELAS,
+  janelasPtpDaEscalaMaquina,
+  janelasPtpDaMaquina,
 } from "@/lib/verso/constants";
 import {
   fetchLimpezaTurnos,
   fetchPtpJanelas,
 } from "@/lib/verso/supabase-storage";
 import { calcularResumoVerso } from "@/lib/verso/resumo";
-import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
+import { escalaPorTurnoEquipe } from "@/lib/operacao/escalas";
+import { maquinaPorNome } from "@/lib/maquinas/catalogo";
 import {
   useEdicoesVerso,
   type EdicaoVersoLimpeza,
@@ -44,9 +46,12 @@ interface Props {
   dataOperacao: string;
   turno: Turno;
   equipe: Equipe;
+  maquina: string;
 }
 
-export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Props) {
+export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe, maquina }: Props) {
+  const maquinaConfig = maquinaPorNome(maquina);
+  const limpezaAplicavel = maquinaConfig?.formularios.limpeza ?? false;
   const [janelas, setJanelas] = useState<PtpJanela[]>([]);
   const [turnos, setTurnos] = useState<LimpezaTurno[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,7 +66,7 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
       try {
         const [j, t] = await Promise.all([
           fetchPtpJanelas(folhaDiaKey),
-          fetchLimpezaTurnos(folhaDiaKey),
+          limpezaAplicavel ? fetchLimpezaTurnos(folhaDiaKey) : Promise.resolve([]),
         ]);
         if (cancelado) return;
         setJanelas(j);
@@ -77,12 +82,12 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
     return () => {
       cancelado = true;
     };
-  }, [folhaDiaKey]);
+  }, [folhaDiaKey, limpezaAplicavel]);
 
   // Códigos de janela DESTE turno (ex.: J01..J06 no Dia, J07..J12 na Noite).
   const codigosDoTurno = useMemo(
-    () => janelasPtpDoTurnoEquipe(turno, equipe),
-    [turno, equipe],
+    () => janelasPtpDaEscalaMaquina(escalaPorTurnoEquipe(turno, equipe), maquina),
+    [turno, equipe, maquina],
   );
 
   // Filtra registros para só este turno.
@@ -101,8 +106,9 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
         janelas: janelasDoTurno,
         turnos: turnosDoTurno,
         escopo: { turno, equipe },
+        maquina,
       }),
-    [janelasDoTurno, turnosDoTurno, turno, equipe],
+    [janelasDoTurno, turnosDoTurno, turno, equipe, maquina],
   );
 
   const janelasPorCodigo = useMemo(() => {
@@ -141,10 +147,10 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Verso da folha (Linha 3 · Enchedora 3)
+              Verso da folha ({maquinaConfig?.linha ?? "Linha"} · {maquina})
             </p>
             <h2 className="text-lg font-bold text-foreground md:text-xl">
-              PTP Garrafas + Limpeza Sala de Envase
+              {resumo.tituloPtp}{limpezaAplicavel ? " + Limpeza Sala de Envase" : ""}
             </h2>
             <p className="mt-1 text-xs text-muted-foreground">
               Data operacional <strong>{dataOperacao}</strong> · ciclo 06h → 06h
@@ -168,8 +174,9 @@ export function VersoDiaDetalhe({ folhaDiaKey, dataOperacao, turno, equipe }: Pr
         codigosDoTurno={codigosDoTurno}
         janelasPorCodigo={janelasPorCodigo}
         turno={turno}
+        maquina={maquina}
       />
-      <LimpezaTurnos turno={turno} dado={turnoDado} />
+      {limpezaAplicavel && <LimpezaTurnos turno={turno} dado={turnoDado} />}
 
       <HistoricoDialog
         open={historicoOpen}
@@ -186,9 +193,9 @@ function ResumoChips({
 }: {
   resumo: ReturnType<typeof calcularResumoVerso>;
 }) {
-  const { ptp, limpeza } = resumo;
+  const { ptp, limpeza, limpezaAplicavel } = resumo;
   return (
-    <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
+    <div className={`mt-4 grid grid-cols-2 gap-2 ${limpezaAplicavel ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
       <Chip label="Janelas finalizadas" valor={`${ptp.finalizadas}/${ptp.totalJanelasTurno}`} tone="azul" />
       <Chip
         label="Sem ocorrência"
@@ -200,11 +207,11 @@ function ResumoChips({
         valor={String(ptp.comOcorrencia)}
         tone={ptp.comOcorrencia > 0 ? "vermelho" : "cinza"}
       />
-      <Chip
+      {limpezaAplicavel && <Chip
         label="Itens não realizados"
         valor={String(limpeza.itensNaoRealizados)}
         tone={limpeza.itensNaoRealizados > 0 ? "vermelho" : "cinza"}
-      />
+      />}
     </div>
   );
 }
@@ -241,15 +248,17 @@ function PtpGrid({
   codigosDoTurno,
   janelasPorCodigo,
   turno,
+  maquina,
 }: {
   codigosDoTurno: string[];
   janelasPorCodigo: Map<string, PtpJanela>;
   turno: Turno;
+  maquina: string;
 }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-5 shadow-sm md:p-6">
       <h3 className="text-base font-bold text-foreground md:text-lg">
-        PTP Garrafas — {codigosDoTurno.length} janelas do turno
+        {maquina.startsWith("Empacotadora") ? "PTP Pacotes" : "PTP Garrafas"} — {codigosDoTurno.length} janelas do turno
       </h3>
       <p className="mt-1 text-xs text-muted-foreground">
         Janelas: {codigosDoTurno.join(", ") || "—"}
@@ -273,7 +282,7 @@ function PtpGrid({
             </thead>
             <tbody className="divide-y divide-border">
               {codigosDoTurno.map((cod) => {
-                const def = PTP_JANELAS.find((d) => d.codigo === cod);
+                const def = janelasPtpDaMaquina(maquina).find((d) => d.codigo === cod);
                 const j = janelasPorCodigo.get(cod);
                 return (
                   <PtpRow

@@ -87,14 +87,16 @@ export function useLimpezaTurnos(
   const salvarTurno: UseLimpezaResult["salvarTurno"] = useCallback(
     async (turno, opts) => {
       if (!temLimpeza) throw new Error(`${maquina.nome} não possui checklist de limpeza.`);
-      versoStorage.saveLimpezaTurno(turno);
-      setTurnos((prev) => {
-        const i = prev.findIndex((p) => p.turno === turno.turno);
-        if (i < 0) return [...prev, turno];
-        const next = [...prev];
-        next[i] = turno;
-        return next;
-      });
+      const salvarLocal = (valor: typeof turno) => {
+        versoStorage.saveLimpezaTurno(valor);
+        setTurnos((prev) => {
+          const i = prev.findIndex((p) => p.turno === valor.turno);
+          if (i < 0) return [...prev, valor];
+          const next = [...prev];
+          next[i] = valor;
+          return next;
+        });
+      };
 
       const edicao: LimpezaEdicaoPayload | null = opts?.anterior
         ? {
@@ -114,6 +116,7 @@ export function useLimpezaTurnos(
       const expectedUpdatedAt = turno.updatedAt ?? opts?.anterior?.updatedAt;
 
       if (!isOnline) {
+        salvarLocal(turno);
         enfileirar("limpeza_turno", {
           turno,
           expectedUpdatedAt: expectedUpdatedAt ?? null,
@@ -125,14 +128,7 @@ export function useLimpezaTurnos(
         const saved = await upsertLimpezaTurno(turno, {
           expectedUpdatedAt: expectedUpdatedAt,
         });
-        versoStorage.saveLimpezaTurno(saved);
-        setTurnos((prev) => {
-          const i = prev.findIndex((p) => p.turno === saved.turno);
-          if (i < 0) return [...prev, saved];
-          const next = [...prev];
-          next[i] = saved;
-          return next;
-        });
+        salvarLocal(saved);
         if (edicao) {
           try {
             await insertLimpezaEdicao(edicao);
@@ -144,8 +140,7 @@ export function useLimpezaTurnos(
         // para "Observações" da frente. Itens fora de NR ou sem texto têm sua
         // linha apagada (upsert com texto vazio = DELETE).
         // Também limpa a antiga obs "do turno inteiro" (origem_codigo = turno).
-        const ehConclusao =
-          saved.status === "aguardando_validacao" || saved.status === "validado";
+        const ehConclusao = saved.status === "aguardando_validacao" || saved.status === "validado";
         if (ehConclusao && opts) {
           const ctx = {
             folhaDiaKey: saved.folhaDiaKey,
@@ -166,8 +161,7 @@ export function useLimpezaTurnos(
             });
             // 2) Para cada item, sincroniza a obs por item.
             for (const it of saved.itens) {
-              const texto =
-                it.status === "nao_realizado" ? (it.observacao ?? "") : "";
+              const texto = it.status === "nao_realizado" ? (it.observacao ?? "") : "";
               await upsertObservacaoVerso({
                 ...ctx,
                 origemTipo: "limpeza",
@@ -191,6 +185,7 @@ export function useLimpezaTurnos(
             msg,
           );
         if (isNetwork) {
+          salvarLocal(turno);
           enfileirar("limpeza_turno", {
             turno,
             expectedUpdatedAt: expectedUpdatedAt ?? null,
@@ -198,10 +193,10 @@ export function useLimpezaTurnos(
           });
           return;
         }
+        // Rejeição do banco não pode parecer uma limpeza concluída no aparelho.
         console.error("[useLimpezaTurnos] erro de aplicação:", e);
         throw e;
       }
-
     },
     [enfileirar, isOnline, maquina.nome, temLimpeza],
   );

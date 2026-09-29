@@ -62,7 +62,9 @@ export function VersoResumoCard({
             {formatarData(folha.contexto.data)} · {folha.contexto.linha} · {folha.contexto.maquina}
           </p>
           <p className="text-sm text-muted-foreground">
-            PTP Garrafas + Limpeza Sala de Envase
+            {folha.contexto.maquina.startsWith("Empacotadora")
+              ? "PTP Pacotes"
+              : "PTP Garrafas + Limpeza Sala de Envase"}
           </p>
         </div>
         <Button asChild>
@@ -74,7 +76,7 @@ export function VersoResumoCard({
         <>
           <VersoDiaResumoBadges resumo={resumo} />
 
-          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className={`mt-4 grid grid-cols-1 gap-4 ${resumo.limpezaAplicavel ? "md:grid-cols-2" : ""}`}>
             <section className="rounded-xl border border-border bg-muted/20 p-4">
               <h3 className="text-sm font-bold text-foreground">PTP</h3>
               <div className="mt-3 grid grid-cols-2 gap-2">
@@ -104,7 +106,7 @@ export function VersoResumoCard({
               </div>
             </section>
 
-            <LimpezaSecao turno={folha.contexto.turno} resumo={resumo} />
+            {resumo.limpezaAplicavel && <LimpezaSecao turno={folha.contexto.turno} resumo={resumo} />}
           </div>
         </>
       ) : (

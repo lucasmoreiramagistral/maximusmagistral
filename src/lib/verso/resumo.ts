@@ -1,6 +1,7 @@
 import type { LimpezaTurno, LimpezaTurnoStatus, PtpJanela } from "./types";
-import { PTP_JANELAS } from "./constants";
-import { janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
+import { PTP_JANELAS, janelasPtpDaEscalaMaquina, janelasPtpDaMaquina } from "./constants";
+import { escalaPorTurnoEquipe, janelasPtpDoTurnoEquipe } from "@/lib/operacao/escalas";
+import { maquinaPorNome } from "@/lib/maquinas/catalogo";
 import type { Equipe, Turno } from "@/lib/checklist/types";
 
 /**
@@ -37,6 +38,8 @@ export interface ResumoVerso {
   ptp: ResumoVersoPtp;
   limpeza: ResumoVersoLimpeza;
   saude: SaudeVerso;
+  limpezaAplicavel: boolean;
+  tituloPtp: string;
 }
 
 const STATUS_FINAL_PTP = new Set([
@@ -50,22 +53,35 @@ export function calcularResumoVerso(input: {
   turnos: LimpezaTurno[];
   /** Escopo opcional: restringe o cálculo às janelas/limpeza do turno. */
   escopo?: { turno: Turno; equipe: Equipe };
+  /** Ausente apenas para chamadas legadas da Enchedora 3. */
+  maquina?: string;
 }): ResumoVerso {
   const { janelas: janelasInput, turnos: turnosInput, escopo } = input;
+  const maquinaNome = input.maquina ?? "Enchedora 3";
+  const maquina = maquinaPorNome(maquinaNome);
+  const limpezaAplicavel = maquina?.formularios.limpeza ?? false;
 
   // ─── Escopo por turno ───
   const codigosDoTurno = escopo
-    ? janelasPtpDoTurnoEquipe(escopo.turno, escopo.equipe)
-    : PTP_JANELAS.map((d) => d.codigo);
+    ? maquina
+      ? janelasPtpDaEscalaMaquina(
+          escalaPorTurnoEquipe(escopo.turno, escopo.equipe), maquinaNome,
+        )
+      : janelasPtpDoTurnoEquipe(escopo.turno, escopo.equipe)
+    : maquina
+      ? janelasPtpDaMaquina(maquinaNome).map((d) => d.codigo)
+      : PTP_JANELAS.map((d) => d.codigo);
   const totalJanelasTurno = codigosDoTurno.length || PTP_JANELAS.length;
   const codigosSet = new Set(codigosDoTurno);
 
   const janelas = escopo
     ? janelasInput.filter((j) => codigosSet.has(j.janelaCodigo))
     : janelasInput;
-  const turnos = escopo
-    ? turnosInput.filter((t) => t.turno === escopo.turno)
-    : turnosInput;
+  const turnos = !limpezaAplicavel
+    ? []
+    : escopo
+      ? turnosInput.filter((t) => t.turno === escopo.turno)
+      : turnosInput;
 
   // ─── PTP ───
   let comOcorrencia = 0;
@@ -123,13 +139,13 @@ export function calcularResumoVerso(input: {
     itensNaoRealizados > 0 ||
     comAssinaturaCorrupta > 0;
 
-  const limpezaCompleta = escopo
+  const limpezaCompleta = !limpezaAplicavel || (escopo
     ? escopo.turno === "12x36 Dia"
       ? dia === "validado"
       : escopo.turno === "12x36 Noite"
         ? noite === "validado"
         : dia === "validado" && noite === "validado"
-    : dia === "validado" && noite === "validado";
+    : dia === "validado" && noite === "validado");
 
   const completo =
     finalizadas === totalJanelasTurno &&
@@ -163,5 +179,7 @@ export function calcularResumoVerso(input: {
       itensNaoRealizados,
     },
     saude,
+    limpezaAplicavel,
+    tituloPtp: maquina?.tipo === "empacotadora" ? "PTP Pacotes" : "PTP Garrafas",
   };
 }

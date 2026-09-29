@@ -10,6 +10,8 @@ import { calcularResumoVerso, type ResumoVerso } from "@/lib/verso/resumo";
 import type { LimpezaTurno, PtpJanela } from "@/lib/verso/types";
 import { buildFolhaDiaKey } from "@/lib/operacao/data-operacional";
 import { temVerso } from "@/lib/verso/aplicabilidade";
+import { maquinaPorNome } from "@/lib/maquinas/catalogo";
+import { paginarPorChaves } from "@/lib/verso/paginacao";
 import type { FolhaChecklistDia } from "@/lib/checklist/types";
 
 interface UseVersosDosDiasResult {
@@ -20,10 +22,26 @@ interface UseVersosDosDiasResult {
   refetch: () => Promise<void>;
 }
 
+/** Evita o corte implícito de linhas do PostgREST em consultas de vários dias. */
+async function buscarTodasLinhas<T>(
+  tabela: "ptp_janelas" | "limpeza_turnos",
+  keys: string[],
+): Promise<T[]> {
+  return paginarPorChaves(keys, async (lote, de, ate) => {
+      const { data, error, count } = await supabase.from(tabela as never)
+        .select("*", { count: "exact" })
+        .in("folha_dia_key", lote)
+        .order("id", { ascending: true })
+        .range(de, ate);
+      if (error) throw error;
+      return { data: (data ?? []) as T[], count };
+  });
+}
+
 /**
- * Carrega o resumo do verso (PTP + Limpeza) por TURNO para múltiplas folhas.
+ * Carrega o resumo do verso (PTP e limpeza quando aplicável) por TURNO.
  *
- * - 2 queries SQL totais usando `.in("folha_dia_key", keys)` (deduplicado).
+ * - Consultas em lotes e páginas por `folha_dia_key`, sem truncar 30 dias de quatro máquinas.
  * - Para cada `folha.folhaKey` (turno+equipe específicos), calcula um
  *   `ResumoVerso` filtrado para aquele turno. Assim, no mesmo dia, o card
  *   do 12x36 Dia mostra só janelas Dia (0/6), e o 12x36 Noite mostra só
@@ -33,7 +51,7 @@ interface UseVersosDosDiasResult {
 export function useVersosDosDiasRemote(
   folhas: FolhaChecklistDia[],
 ): UseVersosDosDiasResult {
-  // Só folhas com verso (Linha 3 / Enchedora 3).
+  // Cada uma das quatro máquinas tem PTP; só as enchedoras têm limpeza.
   const folhasComVerso = useMemo(
     () => folhas.filter(temVerso),
     [folhas],
@@ -64,13 +82,23 @@ export function useVersosDosDiasRemote(
     () => [...folhaDiaKeys].sort().join("|"),
     [folhaDiaKeys],
   );
+  const limpezaDiaKeysSerial = useMemo(() => {
+    const keys = new Set<string>();
+    for (const f of folhasComVerso) {
+      if (!maquinaPorNome(f.contexto.maquina)?.formularios.limpeza) continue;
+      keys.add(buildFolhaDiaKey(f.contexto.data, f.contexto.linha, f.contexto.maquina));
+    }
+    return [...keys].sort().join("|");
+  }, [folhasComVerso]);
 
   const [resumos, setResumos] = useState<Map<string, ResumoVerso>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buscaRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const busca = ++buscaRef.current;
     if (folhasComVerso.length === 0) {
       setResumos(new Map());
       setLoading(false);
@@ -78,25 +106,18 @@ export function useVersosDosDiasRemote(
       return;
     }
     setLoading(true);
+    setResumos(new Map());
     setError(null);
     try {
       const keys = folhaDiaKeysSerial ? folhaDiaKeysSerial.split("|") : [];
-      const [ptpRes, limpRes] = await Promise.all([
-        supabase
-          .from("ptp_janelas" as never)
-          .select("*")
-          .in("folha_dia_key", keys),
-        supabase
-          .from("limpeza_turnos" as never)
-          .select("*")
-          .in("folha_dia_key", keys),
+      const limpezaKeys = limpezaDiaKeysSerial ? limpezaDiaKeysSerial.split("|") : [];
+      const [ptpLinhas, limpezaLinhas] = await Promise.all([
+        buscarTodasLinhas<PtpJanelaRow>("ptp_janelas", keys),
+        buscarTodasLinhas<LimpezaTurnoRow>("limpeza_turnos", limpezaKeys),
       ]);
 
-      if (ptpRes.error) throw ptpRes.error;
-      if (limpRes.error) throw limpRes.error;
-
       const janelasPorDia = new Map<string, PtpJanela[]>();
-      for (const row of (ptpRes.data ?? []) as unknown as PtpJanelaRow[]) {
+      for (const row of ptpLinhas) {
         const j = ptpJanelaFromRow(row);
         const arr = janelasPorDia.get(j.folhaDiaKey) ?? [];
         arr.push(j);
@@ -104,7 +125,7 @@ export function useVersosDosDiasRemote(
       }
 
       const turnosPorDia = new Map<string, LimpezaTurno[]>();
-      for (const row of (limpRes.data ?? []) as unknown as LimpezaTurnoRow[]) {
+      for (const row of limpezaLinhas) {
         const t = limpezaTurnoFromRow(row);
         const arr = turnosPorDia.get(t.folhaDiaKey) ?? [];
         arr.push(t);
@@ -125,18 +146,22 @@ export function useVersosDosDiasRemote(
             janelas: janelasPorDia.get(diaKey) ?? [],
             turnos: turnosPorDia.get(diaKey) ?? [],
             escopo: { turno: f.contexto.turno, equipe: f.contexto.equipe },
+            maquina: f.contexto.maquina,
           }),
         );
       }
-      setResumos(next);
+      if (busca === buscaRef.current) setResumos(next);
     } catch (e) {
       console.error("[useVersosDosDiasRemote] erro:", e);
-      setError("Erro ao carregar resumos do verso.");
+      if (busca === buscaRef.current) {
+        setResumos(new Map());
+        setError("Erro ao carregar todos os resumos do verso. Tente novamente.");
+      }
     } finally {
-      setLoading(false);
+      if (busca === buscaRef.current) setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [folhasKeysSerial, folhaDiaKeysSerial]);
+  }, [folhasKeysSerial, folhaDiaKeysSerial, limpezaDiaKeysSerial]);
 
   useEffect(() => {
     void refetch();
