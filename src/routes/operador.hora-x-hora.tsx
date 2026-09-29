@@ -73,17 +73,17 @@ const GRUPOS_MOTIVOS_ENCHEDORA = [...new Set(MOTIVOS_ENCHEDORA.map((motivo) => m
 export const Route = createFileRoute("/operador/hora-x-hora")({
   head: () => ({
     meta: [
-      { title: "Hora x Hora — Enchedora Linha 3" },
+      { title: "Hora x Hora — Maximus" },
       {
         name: "description",
         content:
-          "Relatório operacional horário da enchedora da Linha 3: produção por hora, meta, acumulado e tempo de parada.",
+          "Relatório operacional horário das enchedoras e empacotadoras das linhas 2 e 3.",
       },
-      { property: "og:title", content: "Hora x Hora — Enchedora Linha 3" },
+      { property: "og:title", content: "Hora x Hora — Maximus" },
       {
         property: "og:description",
         content:
-          "Lançamento da produção hora a hora da enchedora da Linha 3 pelo operador do turno.",
+          "Lançamento da produção hora a hora da máquina vinculada ao operador.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

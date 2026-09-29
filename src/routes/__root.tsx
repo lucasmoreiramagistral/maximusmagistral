@@ -33,26 +33,22 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Checklist Operacional — Linha 3 Enchedora 3" },
+      { title: "Maximus — Checklist Operacional" },
       {
         name: "description",
         content:
-          "Aplicativo de checklist operacional digital para a Enchedora 3 da Linha 3 — Magistral Manaus.",
+          "Checklist e relatório operacional das enchedoras e empacotadoras das linhas 2 e 3 da Magistral Manaus.",
       },
       { name: "author", content: "Magistral Manaus" },
-      { property: "og:title", content: "Checklist Operacional — Linha 3 Enchedora 3" },
+      { property: "og:title", content: "Maximus — Checklist Operacional" },
       {
         property: "og:description",
-        content: "Checklist digital para operação industrial.",
+        content: "Checklist e relatório operacional das linhas 2 e 3 da Magistral Manaus.",
       },
       { property: "og:type", content: "website" },
-      { name: "twitter:title", content: "Checklist Operacional — Linha 3 Enchedora 3" },
-      { name: "description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
-      { property: "og:description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
-      { name: "twitter:description", content: "Blank Canvas is a web application for creating and managing checklists, with Supabase integration for data storage." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0dab3f47-b6b3-46ba-9763-bcc96b533de6/id-preview-efcc7704--6376b0f9-ac30-49e3-af42-537d32e8c5fa.lovable.app-1776694199936.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/0dab3f47-b6b3-46ba-9763-bcc96b533de6/id-preview-efcc7704--6376b0f9-ac30-49e3-af42-537d32e8c5fa.lovable.app-1776694199936.png" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Maximus — Checklist Operacional" },
+      { name: "twitter:description", content: "Checklist e relatório operacional das linhas 2 e 3 da Magistral Manaus." },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

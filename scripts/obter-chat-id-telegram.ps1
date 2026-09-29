@@ -1,11 +1,11 @@
 # Obtem o ID do grupo sem salvar nem imprimir o token do bot.
-# Use apenas depois de trocar o token exposto anteriormente no BotFather.
+# O token e lido com entrada oculta e nao e impresso.
 param(
     [string]$BotUsername = 'HoraxHoraProducaoBot'
 )
 
 Write-Host "Envie /start@$BotUsername no grupo do Telegram antes de continuar."
-$segredo = Read-Host 'Cole o token NOVO do bot (entrada oculta)' -AsSecureString
+$segredo = Read-Host 'Cole o token do bot (entrada oculta)' -AsSecureString
 $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($segredo)
 $token = $null
 try {
@@ -17,7 +17,7 @@ try {
         $bot = Invoke-RestMethod -Method Get -Uri "https://api.telegram.org/bot$token/getMe" -TimeoutSec 15 -ErrorAction Stop
         $resposta = Invoke-RestMethod -Method Get -Uri "https://api.telegram.org/bot$token/getUpdates" -TimeoutSec 15 -ErrorAction Stop
     } catch {
-        throw 'O Telegram nao aceitou o token ou a rede falhou. Confira o token novo sem envia-lo no chat.'
+        throw 'O Telegram nao aceitou o token ou a rede falhou. Confira o token sem envia-lo no chat.'
     }
     if (-not $bot.ok -or $bot.result.username -ne $BotUsername) {
         throw 'Este token nao pertence ao bot esperado.'
