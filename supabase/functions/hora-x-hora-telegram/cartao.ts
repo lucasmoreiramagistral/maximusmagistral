@@ -20,6 +20,7 @@ export interface RegistroCard {
   tempo_parada_min: number | null;
   motivo_parada_codigo: string | null;
   operador_nome: string | null;
+  acumulado: number;
   produto_sabor?: string | null;
   produto_tamanho?: string | null;
 }
@@ -104,6 +105,7 @@ const ROTULOS_MOTIVOS: Record<string, string> = {
   falta_xarope: "Falta de xarope / produto", falta_filme: "Falta de filme",
   falta_efetivo: "Falta de efetivo", falta_energia: "Falta de energia",
   aguardando_qualidade: "Aguardando Qualidade", sem_programacao: "Sem programação",
+  parada_solicitada_cq: "Parada solicitada pelo CQ",
   manutencao_planejada: "Manutenção programada", nao_identificado: "Causa não identificada",
   outro_nao_listado: "Outro motivo não listado",
 };
@@ -144,9 +146,11 @@ export function montarCard(periodo: PeriodoCard, registros: readonly RegistroCar
         .join(" · ") || "Não informado";
       linhas.push(
         `<b>${maquina.nome}</b> · ${registro.quantidade.toLocaleString("pt-BR")} ${maquina.unidade}`,
+        `Acumulado: ${registro.acumulado.toLocaleString("pt-BR")} ${maquina.unidade}`,
         `Produto: ${produto}`,
-        `Perda equivalente: ${parada === null ? "—" : `${parada} min`} · ${html(motivo)}`,
-        `Operador: ${html(registro.operador_nome ?? "Não informado")}`,
+        `Perda equivalente: ${parada === null ? "—" : `${parada} min`}`,
+        `Motivo da parada: ${html(motivo)}`,
+        `Operador: ${html(registro.operador_nome?.trim() || "Não informado")}`,
       );
     }
   }

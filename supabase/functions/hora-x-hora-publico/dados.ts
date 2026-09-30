@@ -1,4 +1,5 @@
 import { MAQUINAS_CARD } from "../hora-x-hora-telegram/cartao.ts";
+import { acumuladosPorHora } from "../hora-x-hora-telegram/acumulado.ts";
 
 export interface HoraPersistida {
   maquina: string;
@@ -7,6 +8,7 @@ export interface HoraPersistida {
   tempo_parada_min: number | null;
   motivo_parada_codigo: string | null;
   operador_nome?: string | null;
+  reinicia_acumulado?: boolean | null;
   produto_sabor?: string | null;
   produto_tamanho?: string | null;
   meta?: number | null;
@@ -18,6 +20,7 @@ const maquinas = new Set<string>(MAQUINAS_CARD.map((maquina) => maquina.nome));
 
 /** A lista vem ordenada da confirmação mais recente para a mais antiga. */
 export function registrosPublicos(horas: readonly HoraPersistida[]) {
+  const acumulados = acumuladosPorHora(horas);
   const unicas = new Map<string, {
     maquina: string;
     horaCodigo: string;
@@ -25,6 +28,7 @@ export function registrosPublicos(horas: readonly HoraPersistida[]) {
     perdaMin: number | null;
     motivoCodigo: string | null;
     operadorNome: string | null;
+    acumulado: number;
     produtoSabor: string | null;
     produtoTamanho: string | null;
     cadencia: number | null;
@@ -43,6 +47,7 @@ export function registrosPublicos(horas: readonly HoraPersistida[]) {
       perdaMin: hora.tempo_parada_min,
       motivoCodigo: hora.motivo_parada_codigo,
       operadorNome: hora.operador_nome ?? null,
+      acumulado: acumulados.get(chave) ?? hora.quantidade,
       produtoSabor: hora.produto_sabor ?? null,
       produtoTamanho: hora.produto_tamanho ?? null,
       cadencia: hora.meta ?? null,

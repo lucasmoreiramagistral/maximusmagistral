@@ -19,6 +19,7 @@ interface RegistroPublico {
   perdaMin: number | null;
   motivoCodigo: string | null;
   operadorNome: string | null;
+  acumulado: number;
   produtoSabor: string | null;
   produtoTamanho: string | null;
   cadencia: number | null;
@@ -173,13 +174,14 @@ export function PainelHoraXHoraPublico() {
                                 <p className="mt-2 text-lg font-bold">{registro.quantidade.toLocaleString("pt-BR")}
                                   <span className="ml-1 text-xs font-normal text-slate-600">{maquina.unidadeProducao}</span>
                                 </p>
+                                <p className="mt-1 text-xs text-slate-600">Acumulado: {registro.acumulado.toLocaleString("pt-BR")} {maquina.unidadeProducao}</p>
                                 {registro.naoRodou && <p className="mt-1 text-xs font-semibold text-amber-700">Máquina não rodou</p>}
                                 <p className="mt-1 text-xs text-slate-600">
                                   Produto: {[registro.produtoSabor, registro.produtoTamanho].filter(Boolean).join(" · ") || "Não informado"}
                                 </p>
                                 <p className="mt-1 text-xs text-slate-600">Cadência: {registro.cadencia === null ? "Não informada" : `${registro.cadencia.toLocaleString("pt-BR")} ${maquina.unidadeProducao}/h`}</p>
                                 <p className="mt-1 text-xs">Perda equivalente: {registro.perdaMin === null ? "—" : `${registro.perdaMin} min`}</p>
-                                <p className="mt-1 text-xs text-slate-600">{motivo(registro)}</p>
+                                <p className="mt-1 text-xs text-slate-600">Motivo da parada: {motivo(registro)}</p>
                                 <p className="mt-2 border-t pt-2 text-xs text-slate-600">Operador: <span className="font-medium text-slate-800">{registro.operadorNome?.trim() || "Não informado"}</span></p>
                               </>
                             ) : (

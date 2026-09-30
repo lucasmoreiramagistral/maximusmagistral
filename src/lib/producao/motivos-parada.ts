@@ -38,6 +38,7 @@ export const MOTIVOS_PARADA = [
   { codigo: "falta_energia", rotulo: "Falta de energia", grupo: "Insumos e externas", tipo: "todas" },
   { codigo: "baixa_pressao_ar", rotulo: "Baixa pressão de ar", grupo: "Insumos e externas", tipo: "todas" },
   { codigo: "aguardando_qualidade", rotulo: "Aguardando Qualidade", grupo: "Insumos e externas", tipo: "todas" },
+  { codigo: "parada_solicitada_cq", rotulo: "Parada solicitada pelo CQ", grupo: "Insumos e externas", tipo: "todas" },
   { codigo: "sem_programacao", rotulo: "Sem programação de produção", grupo: "Insumos e externas", tipo: "todas" },
   { codigo: "manutencao_planejada", rotulo: "Manutenção programada", grupo: "Insumos e externas", tipo: "todas" },
   { codigo: "nao_identificado", rotulo: "Causa ainda não identificada", grupo: "A esclarecer", tipo: "todas" },

@@ -15,6 +15,8 @@ describe("catálogo de motivos de parada", () => {
     expect(motivoParadaValido("ajuste_empacotadora", "enchedora")).toBe(false);
     expect(motivoParadaValido("parada_empacotadora", "enchedora")).toBe(true);
     expect(motivoParadaValido("parada_enchedora", "empacotadora")).toBe(true);
+    expect(motivoParadaValido("parada_solicitada_cq", "enchedora")).toBe(true);
+    expect(motivoParadaValido("parada_solicitada_cq", "empacotadora")).toBe(true);
     expect(motivosParaMaquina("empacotadora").some((motivo) => motivo.codigo === "falta_filme")).toBe(true);
   });
 
@@ -26,7 +28,7 @@ describe("catálogo de motivos de parada", () => {
 
   it("mantém os códigos oferecidos pelo app na migration do banco", () => {
     const sql = readFileSync(
-      resolve(process.cwd(), "supabase/migrations/20260922100000_maquinas_hora_x_hora.sql"),
+      resolve(process.cwd(), "supabase/migrations/20260930090000_parada_solicitada_cq.sql"),
       "utf8",
     );
     for (const motivo of MOTIVOS_PARADA) {

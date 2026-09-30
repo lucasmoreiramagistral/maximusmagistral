@@ -17,6 +17,7 @@ describe("dados do painel publico", () => {
     ]);
     expect(registros).toEqual([{
       maquina: "Enchedora 2", horaCodigo: "H04", quantidade: 15200,
+      acumulado: 15200,
       perdaMin: 12, motivoCodigo: "parada_empacotadora",
       operadorNome: "João Silva", produtoSabor: "Cola", produtoTamanho: "2L",
       cadencia: 16000, naoRodou: false,
@@ -34,7 +35,18 @@ describe("dados do painel publico", () => {
       { maquina: "Enchedora 3", hora_codigo: "H24", quantidade: 80,
         tempo_parada_min: 55, motivo_parada_codigo: null },
     ])).toEqual([{ maquina: "Enchedora 3", horaCodigo: "H24", quantidade: 100,
+      acumulado: 100,
       perdaMin: 50, motivoCodigo: null, operadorNome: null, produtoSabor: null,
       produtoTamanho: null, cadencia: null, naoRodou: false }]);
+  });
+
+  it("inclui acumulado por máquina no painel", () => {
+    const registros = registrosPublicos([
+      { maquina: "Enchedora 3", hora_codigo: "H02", quantidade: 250,
+        tempo_parada_min: 0, motivo_parada_codigo: null },
+      { maquina: "Enchedora 3", hora_codigo: "H01", quantidade: 100,
+        tempo_parada_min: 0, motivo_parada_codigo: null },
+    ]);
+    expect(registros.find((registro) => registro.horaCodigo === "H02")?.acumulado).toBe(350);
   });
 });

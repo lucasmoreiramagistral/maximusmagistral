@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.103.3";
 import { MAQUINAS_CARD } from "../hora-x-hora-telegram/cartao.ts";
 import { registrosPublicos } from "./dados.ts";
+import { idsDeOperadoresSemNome, preencherNomesOperadores } from "../hora-x-hora-telegram/operadores.ts";
 import { dataOperacionalAnterior, versoPublico, type BobinaRowPublica, type ConsolidacaoRowPublica } from "./verso.ts";
 
 const corsHeaders = {
@@ -52,7 +53,7 @@ Deno.serve(async (request: Request) => {
   const camposConsolidacao = "maquina,turno,ordem,data_operacao,sabor,tamanho,hora_inicio,hora_final,quantidade_paletes,quebra_pacotes,pacotes_por_palete,total_pacotes";
   const [horasRes, bobinasDiaRes, bobinasAbertasRes, bobinasTerminadasRes, consolidacoesRes] = await Promise.all([
     supabase.from("producao_horaria")
-      .select("maquina,hora_codigo,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,produto_sabor,produto_tamanho,meta,nao_rodou,finalizado_em")
+      .select("maquina,hora_codigo,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,operador_user_id,produto_sabor,produto_tamanho,meta,nao_rodou,reinicia_acumulado,finalizado_em")
       .eq("data_operacao", publicacao.data_operacao)
       .in("maquina", MAQUINAS_CARD.map((maquina) => maquina.nome))
       .not("finalizado_em", "is", null)
@@ -71,6 +72,12 @@ Deno.serve(async (request: Request) => {
   if (horasRes.error || bobinasDiaRes.error || bobinasAbertasRes.error || bobinasTerminadasRes.error || consolidacoesRes.error) {
     return resposta(503, { erro: "Não foi possível consultar o painel completo" });
   }
+  const idsSemNome = idsDeOperadoresSemNome(horasRes.data ?? []);
+  const { data: perfis, error: erroPerfis } = idsSemNome.length
+    ? await supabase.from("profiles").select("id,nome").in("id", idsSemNome)
+    : { data: [], error: null };
+  if (erroPerfis) return resposta(503, { erro: "Não foi possível identificar os operadores" });
+  const horasComNomes = preencherNomesOperadores(horasRes.data ?? [], perfis ?? []);
   const bobinas = [
     ...(bobinasDiaRes.data ?? []),
     ...(bobinasAbertasRes.data ?? []),
@@ -81,7 +88,7 @@ Deno.serve(async (request: Request) => {
     dataOperacao: publicacao.data_operacao,
     horaReferencia: publicacao.hora_codigo,
     consultadoEm: new Date().toISOString(),
-    registros: registrosPublicos(horasRes.data ?? []),
+    registros: registrosPublicos(horasComNomes),
     versoEmpacotadoras: versoPublico(
       publicacao.data_operacao,
       bobinas,

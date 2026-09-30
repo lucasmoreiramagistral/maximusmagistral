@@ -8,6 +8,8 @@ import {
   urlPainel,
   type RegistroCard,
 } from "./cartao.ts";
+import { acumuladosPorHora } from "./acumulado.ts";
+import { idsDeOperadoresSemNome, preencherNomesOperadores } from "./operadores.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -66,17 +68,27 @@ Deno.serve(async (request: Request) => {
     const periodo = periodoDoCorte(corte);
     const { data: horas, error: erroConsulta } = await supabase
       .from("producao_horaria")
-      .select("maquina,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,produto_sabor,produto_tamanho,finalizado_em")
+      .select("maquina,hora_codigo,quantidade,tempo_parada_min,motivo_parada_codigo,operador_nome,operador_user_id,produto_sabor,produto_tamanho,reinicia_acumulado,finalizado_em")
       .eq("data_operacao", periodo.dataOperacao)
-      .eq("hora_codigo", periodo.horaCodigo)
+      .lte("hora_codigo", periodo.horaCodigo)
       .in("maquina", MAQUINAS_CARD.map((maquina) => maquina.nome))
       .lte("finalizado_em", periodo.corteEm)
       .order("finalizado_em", { ascending: false });
     if (erroConsulta) return resposta(503, "Não foi possível consultar as horas confirmadas");
 
+    const idsSemNome = idsDeOperadoresSemNome(horas ?? []);
+    const { data: perfis, error: erroPerfis } = idsSemNome.length
+      ? await supabase.from("profiles").select("id,nome").in("id", idsSemNome)
+      : { data: [], error: null };
+    if (erroPerfis) return resposta(503, "Não foi possível identificar os operadores");
+    const horasComNomes = preencherNomesOperadores(horas ?? [], perfis ?? []);
+    const acumulados = acumuladosPorHora(horasComNomes);
     const unicas = new Map<string, RegistroCard>();
-    for (const hora of horas ?? []) {
-      if (!unicas.has(hora.maquina)) unicas.set(hora.maquina, hora as RegistroCard);
+    for (const hora of horasComNomes) {
+      if (hora.hora_codigo !== periodo.horaCodigo || unicas.has(hora.maquina)) continue;
+      const acumulado = acumulados.get(`${hora.maquina}:${hora.hora_codigo}`);
+      if (acumulado === undefined) continue;
+      unicas.set(hora.maquina, { ...hora, acumulado } as RegistroCard);
     }
     texto = montarCard(periodo, [...unicas.values()]);
     const publicToken = crypto.randomUUID();

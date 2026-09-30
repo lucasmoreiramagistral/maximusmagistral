@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { MOTIVOS_PARADA } from "./motivos-parada";
 import { fimDaHoraEpoch } from "./horario";
+import { acumuladosPorHora } from "../../../supabase/functions/hora-x-hora-telegram/acumulado";
+import { idsDeOperadoresSemNome, preencherNomesOperadores } from "../../../supabase/functions/hora-x-hora-telegram/operadores";
 import {
   montarCard,
   periodoDoCorte,
@@ -84,11 +86,14 @@ describe("card horário do Telegram", () => {
     const card = montarCard(periodo, [{
       maquina: "Enchedora 2", quantidade: 0, tempo_parada_min: 60,
       motivo_parada_codigo: "falta_energia", operador_nome: "João <L2>",
+      acumulado: 12300,
       produto_sabor: "Guaraná <Zero>", produto_tamanho: "2 L",
     }]);
     expect(card).toContain("Enchedora 2</b> · 0 garrafas");
     expect(card).toContain("Produto: Guaraná &lt;Zero&gt; · 2 L");
     expect(card).toContain("Falta de energia");
+    expect(card).toContain("Motivo da parada: Falta de energia");
+    expect(card).toContain("Acumulado: 12.300 garrafas");
     expect(card).toContain("João &lt;L2&gt;");
     expect(card.match(/Não realizado/g)).toHaveLength(3);
     expect(urlPainel("123e4567-e89b-42d3-a456-426614174000", "https://maximusmagistral.digital/"))
@@ -97,5 +102,37 @@ describe("card horário do Telegram", () => {
 
   it("tem rótulo legível para todos os códigos do formulário", () => {
     for (const motivo of MOTIVOS_PARADA) expect(temRotuloTelegram(motivo.codigo)).toBe(true);
+  });
+
+  it("soma as horas confirmadas do turno e reinicia em setup ou virada", () => {
+    const acumulados = acumuladosPorHora([
+      { maquina: "Enchedora 3", hora_codigo: "H15", quantidade: 400 },
+      { maquina: "Enchedora 3", hora_codigo: "H01", quantidade: 100 },
+      { maquina: "Enchedora 3", hora_codigo: "H02", quantidade: 200 },
+      { maquina: "Enchedora 3", hora_codigo: "H03", quantidade: 50, reinicia_acumulado: true },
+      { maquina: "Enchedora 3", hora_codigo: "H04", quantidade: 300 },
+      { maquina: "Enchedora 3", hora_codigo: "H12", quantidade: 400 },
+      { maquina: "Enchedora 3", hora_codigo: "H13", quantidade: 500 },
+      { maquina: "Enchedora 3", hora_codigo: "H14", quantidade: 100 },
+      { maquina: "Enchedora 3", hora_codigo: "H14", quantidade: 999 },
+      { maquina: "Empacotadora 3", hora_codigo: "H04", quantidade: 42 },
+    ]);
+    expect(acumulados.get("Enchedora 3:H02")).toBe(300);
+    expect(acumulados.get("Enchedora 3:H03")).toBe(50);
+    expect(acumulados.get("Enchedora 3:H04")).toBe(350);
+    expect(acumulados.get("Enchedora 3:H13")).toBe(500);
+    expect(acumulados.get("Enchedora 3:H15")).toBe(1000);
+    expect(acumulados.get("Empacotadora 3:H04")).toBe(42);
+  });
+
+  it("recupera o nome pelo login antigo sem sobrescrever nome já confirmado", () => {
+    const horas = [
+      { operador_user_id: "id-1", operador_nome: null },
+      { operador_user_id: "id-2", operador_nome: "Nome da hora" },
+    ];
+    expect(idsDeOperadoresSemNome(horas)).toEqual(["id-1"]);
+    expect(preencherNomesOperadores(horas, [
+      { id: "id-1", nome: "João" }, { id: "id-2", nome: "Nome novo" },
+    ]).map((hora) => hora.operador_nome)).toEqual(["João", "Nome da hora"]);
   });
 });

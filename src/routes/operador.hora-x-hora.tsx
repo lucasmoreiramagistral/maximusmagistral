@@ -454,7 +454,14 @@ function HoraXHoraPage() {
           onFechar={() => setEditando(null)}
           onSalvar={async (nova) => {
             try {
-              await salvarHora(nova, {
+              await salvarHora({
+                ...nova,
+                operadorLogin: usuario.usuario,
+                operadorNome: usuario.nome,
+                operadorUserId: usuario.userId ?? null,
+                ultimaEdicaoPorLogin: usuario.usuario,
+                ultimaEdicaoPorNome: usuario.nome,
+              }, {
                 anterior: horaEmEdicao,
                 editadoPorLogin: usuario.usuario,
                 editadoPorNome: usuario.nome,
